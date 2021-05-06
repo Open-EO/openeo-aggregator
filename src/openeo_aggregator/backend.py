@@ -28,6 +28,7 @@ class FederationCollectionCatalog(AbstractCollectionCatalog):
         all_collections = []
         for backend in self.backends:
             try:
+                # TODO: add field to reference original backend?
                 all_collections.extend(openeo.connect(backend, default_timeout=5).list_collections())
             except Exception:
                 _log.warning(f"Failed to get collections from {backend}", exc_info=True)
