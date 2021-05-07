@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Iterator, Callable, Tuple
 import openeo
 from openeo import Connection
 from openeo.rest import OpenEoApiError
+from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException
@@ -47,19 +48,31 @@ class FederationCollectionCatalog(AbstractCollectionCatalog):
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
+        self._cache = TtlCache(default_ttl=60)
 
     def get_all_metadata(self) -> List[dict]:
-        all_collections = []
+        return self._cache.get_or_call(
+            key=("all",),
+            callback=self._get_all_metadata
+        )
 
+    def _get_all_metadata(self) -> List[dict]:
+        all_collections = []
         for backend in self.backends:
             try:
-                # TODO: add field to reference original backend?
                 all_collections.extend(backend.connection.list_collections())
             except Exception:
+                # TODO: fail instead of warn?
                 _log.warning(f"Failed to get collections from {backend.id}", exc_info=True)
         return all_collections
 
     def get_collection_metadata(self, collection_id: str) -> dict:
+        return self._cache.get_or_call(
+            key=("collection", collection_id),
+            callback=self._get_collection_metadata
+        )
+
+    def _get_collection_metadata(self, collection_id: str) -> dict:
         for backend in self.backends:
             try:
                 return backend.connection.describe_collection(name=collection_id)
@@ -70,7 +83,7 @@ class FederationCollectionCatalog(AbstractCollectionCatalog):
         raise CollectionNotFoundException(collection_id)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
-        raise NotImplementedError
+        raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
 
 
 class FederationBackendImplementation(OpenEoBackendImplementation):
