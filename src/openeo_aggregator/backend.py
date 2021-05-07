@@ -44,7 +44,7 @@ class MultiBackendConnection:
             yield con.id, res
 
 
-class FederationCollectionCatalog(AbstractCollectionCatalog):
+class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
@@ -86,7 +86,7 @@ class FederationCollectionCatalog(AbstractCollectionCatalog):
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
 
 
-class FederationBackendImplementation(OpenEoBackendImplementation):
+class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def __init__(self):
         # TODO: move this to some kind of config?
@@ -96,11 +96,11 @@ class FederationBackendImplementation(OpenEoBackendImplementation):
         })
         super().__init__(
             secondary_services=None,
-            catalog=FederationCollectionCatalog(backends=backends),
+            catalog=AggregatorCollectionCatalog(backends=backends),
             batch_jobs=None,
             user_defined_processes=None
         )
 
 
-def get_openeo_backend_implementation() -> FederationBackendImplementation:
-    return FederationBackendImplementation()
+def get_openeo_backend_implementation() -> AggregatorBackendImplementation:
+    return AggregatorBackendImplementation()
