@@ -60,6 +60,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         all_collections = []
         for backend in self.backends:
             try:
+                # TODO: what to do with duplicate collection ids?
                 all_collections.extend(backend.connection.list_collections())
             except Exception:
                 # TODO: fail instead of warn?
@@ -69,7 +70,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(
             key=("collection", collection_id),
-            callback=self._get_collection_metadata
+            callback=lambda: self._get_collection_metadata(collection_id)
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
@@ -89,8 +90,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def __init__(self):
-        # TODO: move this to some kind of config?
         backends = MultiBackendConnection({
+            # TODO: move this to some kind of config?
             "vito": "https://openeo.vito.be/openeo/1.0",
             "eodc": "https://openeo.eodc.eu/v1.0",
         })
