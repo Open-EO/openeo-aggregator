@@ -8,7 +8,7 @@ from openeo.rest import OpenEoApiError
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters
 from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException
+from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
 from openeo_driver.utils import EvalEnv
 
 _log = logging.getLogger(__name__)
@@ -57,15 +57,23 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         )
 
     def _get_all_metadata(self) -> List[dict]:
-        all_collections = []
+        all_collections = {}
         for backend in self.backends:
             try:
-                # TODO: what to do with duplicate collection ids?
-                all_collections.extend(backend.connection.list_collections())
+                backend_collections = backend.connection.list_collections()
             except Exception:
                 # TODO: fail instead of warn?
                 _log.warning(f"Failed to get collections from {backend.id}", exc_info=True)
-        return all_collections
+            else:
+                for collection_metadata in backend_collections:
+                    cid = collection_metadata["id"]
+                    if cid in all_collections:
+                        message = f"Duplicate collection id {cid}"
+                        # TODO resolve duplication issue in more forgiving way?
+                        _log.error(message)
+                        raise OpenEOApiException(message=message)
+                    all_collections[cid] = collection_metadata
+        return list(all_collections.values())
 
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(

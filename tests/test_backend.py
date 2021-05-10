@@ -1,9 +1,10 @@
+import types
+
 import pytest
 
 from openeo import Connection
 from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection
-
-import types
+from openeo_driver.errors import OpenEOApiException
 
 
 @pytest.fixture
@@ -44,6 +45,13 @@ class TestAggregatorCollectionCatalog:
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
         assert metadata == [{"id": "S2"}, {"id": "S3"}, ]
+
+    def test_get_all_metadata_duplicate(self, multi_backend_connection, requests_mock):
+        requests_mock.get("https://oeo1.test/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
+        requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        with pytest.raises(OpenEOApiException):
+            _ = catalog.get_all_metadata()
 
     def test_get_collection_metadata(self, multi_backend_connection, requests_mock):
         requests_mock.get("https://oeo1.test/collections/S2", status_code=400)
