@@ -3,7 +3,9 @@ import types
 import pytest
 
 from openeo import Connection
-from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection
+from openeo.capabilities import ComparableVersion
+from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection, \
+    AggregatorProcessing
 from openeo_driver.errors import OpenEOApiException
 
 
@@ -36,6 +38,9 @@ class TestMultiBackendConnection:
         assert isinstance(res, types.GeneratorType)
         assert list(res) == [("oeo1", {"bar": 1}), ("oeo2", {"meh": 2})]
 
+    def test_api_version(self, multi_backend_connection):
+        assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+
 
 class TestAggregatorCollectionCatalog:
 
@@ -61,3 +66,21 @@ class TestAggregatorCollectionCatalog:
         assert metadata == {"id": "S2", "title": "oeo2's S2"}
 
     # TODO tests for caching of collection metadata
+
+
+class TestAggregatorProcessing:
+
+    def test_get_process_registry(self, multi_backend_connection, requests_mock):
+        requests_mock.get("https://oeo1.test/processes", json={"processes": [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "data"}]},
+        ]})
+        requests_mock.get("https://oeo2.test/processes", json={"processes": [
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "data"}]},
+        ]})
+        processing = AggregatorProcessing(backends=multi_backend_connection)
+        registry = processing.get_process_registry(api_version="1.0.0")
+        assert registry.get_specs() == [
+            {"id": "mean", "parameters": [{"name": "data"}]},
+        ]
