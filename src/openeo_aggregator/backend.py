@@ -32,6 +32,7 @@ class MultiBackendConnection:
             BackendConnection(bid, url, openeo.connect(url, default_timeout=self._TIMEOUT))
             for (bid, url) in backends.items()
         ]
+        # TODO: API version management: just do single-version aggregation, or also handle version discovery?
         self.api_version = self._get_api_version()
 
     def __iter__(self) -> Iterator[BackendConnection]:
@@ -145,13 +146,7 @@ class AggregatorProcessing(Processing):
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
-    def __init__(self):
-        backends = MultiBackendConnection({
-            # TODO: move this to some kind of config?
-            # TODO: API version management: just do single-version aggregation, or also handle version discovery?
-            "vito": "https://openeo.vito.be/openeo/1.0",
-            "eodc": "https://openeo.eodc.eu/v1.0",
-        })
+    def __init__(self, backends: MultiBackendConnection):
         super().__init__(
             catalog=AggregatorCollectionCatalog(backends=backends),
             processing=AggregatorProcessing(backends=backends),
