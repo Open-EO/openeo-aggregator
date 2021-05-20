@@ -55,8 +55,8 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get("https://oeo1.test/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
         requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with pytest.raises(OpenEOApiException):
-            _ = catalog.get_all_metadata()
+        metadata = catalog.get_all_metadata()
+        assert metadata == [{"id": "S3"}, {"id": "S5"}, ]
 
     def test_get_collection_metadata(self, multi_backend_connection, requests_mock):
         requests_mock.get("https://oeo1.test/collections/S2", status_code=400)

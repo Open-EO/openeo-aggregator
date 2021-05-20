@@ -71,6 +71,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def _get_all_metadata(self) -> List[dict]:
         all_collections = {}
+        duplicates = set([])
         for backend in self.backends:
             try:
                 backend_collections = backend.connection.list_collections()
@@ -81,11 +82,12 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 for collection_metadata in backend_collections:
                     cid = collection_metadata["id"]
                     if cid in all_collections:
-                        message = f"Duplicate collection id {cid}"
-                        # TODO resolve duplication issue in more forgiving way?
-                        _log.error(message)
-                        raise OpenEOApiException(message=message)
+                        duplicates.add(cid)
                     all_collections[cid] = collection_metadata
+        for cid in duplicates:
+            # TODO resolve duplication issue in more forgiving way?
+            _log.warning(f"Not exposing duplicated collection id {cid}")
+            del all_collections[cid]
         return list(all_collections.values())
 
     def get_collection_metadata(self, collection_id: str) -> dict:

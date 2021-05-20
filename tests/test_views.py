@@ -23,3 +23,10 @@ def test_collections_basic(api100, requests_mock, backend1, backend2):
     requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
     res = api100.get("/collections").assert_status_code(200).json
     assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
+
+
+def test_collections_duplicate(api100, requests_mock, backend1, backend2):
+    requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
+    requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}]})
+    res = api100.get("/collections").assert_status_code(200).json
+    assert set(c["id"] for c in res["collections"]) == {"S1", "S3"}
