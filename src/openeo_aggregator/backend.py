@@ -159,7 +159,3 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             batch_jobs=None,
             user_defined_processes=None
         )
-
-
-def get_openeo_backend_implementation() -> AggregatorBackendImplementation:
-    return AggregatorBackendImplementation()

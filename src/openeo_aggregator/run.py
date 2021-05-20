@@ -4,13 +4,14 @@ Run openeo-aggregator as gunicorn app
 
 import logging.config
 
-import openeo_aggregator.about
-from openeo_driver import server
+from openeo_aggregator.app import create_app
+from openeo_driver.server import run_gunicorn
 from openeo_driver.server import show_log_level
 
 _log = logging.getLogger(__name__)
 
-if __name__ == '__main__':
+
+def main():
     # TODO: move this logging config boilerplate to a openeo_driver helper function
     logging.config.dictConfig({
         'version': 1,
@@ -36,23 +37,21 @@ if __name__ == '__main__':
         }
     })
 
-    from openeo_aggregator.app import app
+    app = create_app()
 
     # TODO: eliminate this boilerplate?
     show_log_level(logging.getLogger('openeo'))
     show_log_level(logging.getLogger('openeo_driver'))
     show_log_level(app.logger)
 
-    deploy_metadata = server.build_backend_deploy_metadata(
-        packages=["openeo", "openeo_driver", "openeo_aggregator"]
-    )
-    server.run(
-        title="openEO Aggregator Driver",
-        description="openEO Aggregator Driver",
-        deploy_metadata=deploy_metadata,
-        backend_version=openeo_aggregator.about.__version__,
+    run_gunicorn(
+        app,
         # TODO: these are localhost settings for now. Add (cli) options to set this?
         threads=2,
         host="127.0.0.1",
         port=8080
     )
+
+
+if __name__ == '__main__':
+    main()
