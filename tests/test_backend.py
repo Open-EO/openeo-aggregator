@@ -67,14 +67,20 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S3"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
-        assert metadata == [{"id": "S2"}, {"id": "S3"}, ]
+        assert metadata == [
+            {"id": "S2", '_aggregator': {'backend': {'id': 'oeo1', 'url': 'https://oeo1.test/'}}},
+            {"id": "S3", '_aggregator': {'backend': {'id': 'oeo2', 'url': 'https://oeo2.test/'}}},
+        ]
 
     def test_get_all_metadata_duplicate(self, multi_backend_connection, requests_mock):
         requests_mock.get("https://oeo1.test/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
         requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
-        assert metadata == [{"id": "S3"}, {"id": "S5"}, ]
+        assert metadata == [
+            {"id": "S3", '_aggregator': {'backend': {'id': 'oeo1', 'url': 'https://oeo1.test/'}}},
+            {"id": "S5", '_aggregator': {'backend': {'id': 'oeo2', 'url': 'https://oeo2.test/'}}},
+        ]
 
     def test_get_collection_metadata(self, multi_backend_connection, requests_mock):
         requests_mock.get("https://oeo1.test/collections/S2", status_code=400)
@@ -97,7 +103,8 @@ class TestAggregatorProcessing:
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
         ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection)
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert registry.get_specs() == [
             {"id": "mean", "parameters": [{"name": "data"}]},

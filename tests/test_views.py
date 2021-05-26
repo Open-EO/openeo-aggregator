@@ -1,6 +1,7 @@
 import pytest
+import requests
 
-from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER
+from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
 
 
 @pytest.fixture
@@ -83,3 +84,21 @@ def test_me_basic_auth(api100):
     headers = TEST_USER_AUTH_HEADER
     res = api100.get("/me", headers=headers).assert_status_code(200)
     assert res.json["user_id"] == TEST_USER
+
+
+def test_result_basic_math(api100, requests_mock, backend1, backend2):
+    def post_result(request: requests.Request, context):
+        assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+        pg = request.json()["process"]["process_graph"]
+        (_, node), = pg.items()
+        assert node["process_id"] == "add"
+        assert node["result"] is True
+        context.headers["Content-Type"] = "application/json"
+        return node["arguments"]["x"] + node["arguments"]["y"]
+
+    requests_mock.post(backend1 + "/result", json=post_result)
+    api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    pg = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+    request = {"process": {"process_graph": pg}}
+    res = api100.post("/result", json=request).assert_status_code(200)
+    assert res.json == 8

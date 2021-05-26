@@ -17,7 +17,7 @@ setup(
     install_requires=[
         "requests",
         "openeo>=0.7.1a1.*",
-        "openeo_driver>=0.10.0a1.*",
+        "openeo_driver>=0.10.1a1.*",
         "flask",
     ],
     classifiers=[

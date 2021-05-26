@@ -3,6 +3,8 @@ import logging
 from collections import namedtuple
 from typing import List, Dict, Any, Iterator, Callable, Tuple, Union
 
+import flask
+
 import openeo
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
@@ -16,7 +18,7 @@ from openeo_driver.backend import (
     OidcProvider,
 )
 from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
+from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, AuthenticationRequiredException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.utils import EvalEnv
 
@@ -51,6 +53,9 @@ class MultiBackendConnection:
         # TODO: rename this to main_backend (if it makes sense to have a general main backend)?
         return self.connections[0]
 
+    def get_connection(self, backend_id: str) -> BackendConnection:
+        return next(c for c in self if c.id == backend_id)
+
     def _get_api_version(self) -> ComparableVersion:
         # TODO: ignore patch level of API versions?
         versions = set(v for (i, v) in self.map(lambda c: c.capabilities().api_version()))
@@ -71,6 +76,8 @@ class MultiBackendConnection:
 
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
+    METADATA_KEY = "_aggregator"
+
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
@@ -95,6 +102,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     cid = collection_metadata["id"]
                     if cid in all_collections:
                         duplicates.add(cid)
+                    collection_metadata[self.METADATA_KEY] = {"backend": {"id": backend.id, "url": backend.url}}
                     all_collections[cid] = collection_metadata
         for cid in duplicates:
             # TODO resolve duplication issue in more forgiving way?
@@ -123,10 +131,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
 
 class AggregatorProcessing(Processing):
-    def __init__(self, backends: MultiBackendConnection):
+    def __init__(self, backends: MultiBackendConnection, catalog: AggregatorCollectionCatalog):
         self.backends = backends
         # TODO Cache per backend results instead of output?
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._catalog = catalog
 
     def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
         if api_version != self.backends.api_version:
@@ -159,13 +168,64 @@ class AggregatorProcessing(Processing):
 
         return process_registry
 
+    def _get_collection_map(self) -> Dict[str, str]:
+        """Get mapping of collection id to backend it's hosted on."""
+        return {
+            collection["id"]: collection[AggregatorCollectionCatalog.METADATA_KEY]["backend"]["id"]
+            for collection in self._catalog.get_all_metadata()
+        }
+
+    def evaluate(self, process_graph: dict, env: EvalEnv = None):
+        """Evaluate given process graph (flat dict format)."""
+
+        # Check used collections to determine which backend to use
+        collections = set(
+            n["arguments"]["id"]
+            for n in process_graph.values()
+            if n["process_id"] == "load_collection"
+        )
+        collection_map = self._get_collection_map()
+        backends = set(collection_map[cid] for cid in collections)
+
+        if len(backends) == 1:
+            backend_id = backends.pop()
+        elif len(backends) == 0:
+            backend_id = self.backends.first().id
+        else:
+            raise OpenEOApiException(
+                message=f"Collections across multiple backends: {collections}."
+            )
+
+        # Send process graph to backend
+        backend = self.backends.get_connection(backend_id=backend_id)
+        request_pg = {"process": {"process_graph": process_graph}}
+        headers = _get_authorization_header(backend=backend)
+        # TODO: use result streaming (stream=True) and map requests Response properly to Flask Response
+        # TODO see https://stackoverflow.com/a/36601467
+        response = backend.connection.post(path="/result", json=request_pg, headers=headers)
+
+        # Forward result
+        headers = [(k, v) for (k, v) in response.headers.items() if k.lower() in ["content-type"]]
+        return flask.Response(response=response.content, status=response.status_code, headers=headers)
+
+
+def _get_authorization_header(backend: BackendConnection, request: flask.Request = None) -> dict:
+    """Extract authorization header from request and (optionally) transform for given backend """
+    request = request or flask.request
+    if "Authorization" not in request.headers:
+        raise AuthenticationRequiredException
+    auth = request.headers["Authorization"]
+    # TODO: in case of OIDC the provider id has to be updated
+    return {"Authorization": auth}
+
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def __init__(self, backends: MultiBackendConnection):
         self._backends = backends
+        catalog = AggregatorCollectionCatalog(backends=backends)
         super().__init__(
-            catalog=AggregatorCollectionCatalog(backends=backends),
-            processing=AggregatorProcessing(backends=backends),
+            catalog=catalog,
+            processing=AggregatorProcessing(backends=backends, catalog=catalog),
             secondary_services=None,
             batch_jobs=None,
             user_defined_processes=None,
