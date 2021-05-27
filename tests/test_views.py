@@ -30,3 +30,25 @@ def test_collections_duplicate(api100, requests_mock, backend1, backend2):
     requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}]})
     res = api100.get("/collections").assert_status_code(200).json
     assert set(c["id"] for c in res["collections"]) == {"S1", "S3"}
+
+
+def test_credentials_oidc_default(api100, backend1, backend2):
+    res = api100.get("/credentials/oidc").assert_status_code(200).json
+    assert res == {"providers": [
+        {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]}
+    ]}
+
+
+def test_credentials_oidc_intersection(api100, requests_mock, backend1, backend2):
+    requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+        {"id": "x", "issuer": "https://x.test", "title": "X"},
+        {"id": "y", "issuer": "https://y.test", "title": "YY"},
+    ]})
+    requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+        {"id": "y", "issuer": "https://y.test", "title": "YY"},
+        {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
+    ]})
+    res = api100.get("/credentials/oidc").assert_status_code(200).json
+    assert res == {"providers": [
+        {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
+    ]}

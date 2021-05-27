@@ -10,6 +10,9 @@ from openeo_aggregator.config import AggregatorConfig
 def backend1(requests_mock):
     domain = "https://b1.test/v1"
     requests_mock.get(domain + "/", json={"api_version": "1.0.1", })
+    requests_mock.get(domain + "/credentials/oidc", json={"providers": [
+        {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
+    ]})
     return domain
 
 
@@ -17,6 +20,9 @@ def backend1(requests_mock):
 def backend2(requests_mock):
     domain = "https://b2.test/v1"
     requests_mock.get(domain + "/", json={"api_version": "1.0.1", })
+    requests_mock.get(domain + "/credentials/oidc", json={"providers": [
+        {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
+    ]})
     return domain
 
 

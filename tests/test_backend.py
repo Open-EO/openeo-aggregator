@@ -5,7 +5,8 @@ import pytest
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection, \
-    AggregatorProcessing
+    AggregatorProcessing, AggregatorBackendImplementation
+from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException
 
 
@@ -40,6 +41,25 @@ class TestMultiBackendConnection:
 
     def test_api_version(self, multi_backend_connection):
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+
+
+class TestAggregatorBackendImplementation:
+
+    def test_oidc_providers(self, multi_backend_connection, requests_mock):
+        requests_mock.get("https://oeo1.test/credentials/oidc", json={"providers": [
+            {"id": "x", "issuer": "https://x.test", "title": "X"},
+            {"id": "y", "issuer": "https://y.test", "title": "YY"},
+        ]})
+        requests_mock.get("https://oeo2.test/credentials/oidc", json={"providers": [
+            {"id": "y", "issuer": "https://y.test", "title": "YY"},
+            {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
+        ]})
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
+        providers = implementation.oidc_providers()
+        assert len(providers) == 1
+        provider = providers[0]
+        expected = {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
+        assert provider.prepare_for_json() == expected
 
 
 class TestAggregatorCollectionCatalog:

@@ -1,3 +1,4 @@
+import functools
 import logging
 from collections import namedtuple
 from typing import List, Dict, Any, Iterator, Callable, Tuple, Union
@@ -7,7 +8,8 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo_aggregator.utils import TtlCache
-from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing
+from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
+    OidcProvider
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
 from openeo_driver.processes import ProcessRegistry
@@ -37,6 +39,11 @@ class MultiBackendConnection:
 
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self.connections)
+
+    def first(self) -> BackendConnection:
+        """Get first backend in the list"""
+        # TODO: rename this to main_backend (if it makes sense to have a general main backend)?
+        return self.connections[0]
 
     def _get_api_version(self) -> ComparableVersion:
         # TODO: ignore patch level of API versions?
@@ -149,6 +156,7 @@ class AggregatorProcessing(Processing):
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def __init__(self, backends: MultiBackendConnection):
+        self._backends = backends
         super().__init__(
             catalog=AggregatorCollectionCatalog(backends=backends),
             processing=AggregatorProcessing(backends=backends),
@@ -156,3 +164,34 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             batch_jobs=None,
             user_defined_processes=None
         )
+
+    def oidc_providers(self) -> List[OidcProvider]:
+        # Collect provider info per backend
+        providers_per_backend = {}
+        for backend in self._backends:
+            res = backend.connection.get("/credentials/oidc")
+            res.raise_for_status()
+            providers_per_backend[backend.id] = res.json()["providers"]
+
+        # Calculate intersection (based on issuer URL)
+        intersection = functools.reduce(
+            (lambda x, y: x.intersection(y)),
+            (set(p["issuer"] for p in providers) for providers in providers_per_backend.values())
+        )
+
+        # Pick provider settings from  first backend
+        providers = [
+            p for p in providers_per_backend[self._backends.first().id]
+            if p["issuer"] in intersection
+        ]
+        providers = [
+            OidcProvider(
+                p["id"], issuer=p["issuer"], title=p["title"],
+                scopes=p.get("scopes", ["openid"]),
+                default_clients=p.get("default_clients")
+            )
+            for p in providers
+        ]
+
+        # TODO: it takes probably more than blindly copying provider data of one backend: e.g. union of scopes, aggregator specific default_clients, ...
+        return providers
