@@ -6,8 +6,6 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection, \
     AggregatorProcessing, AggregatorBackendImplementation
-from openeo_driver.backend import OidcProvider
-from openeo_driver.errors import OpenEOApiException
 
 
 @pytest.fixture

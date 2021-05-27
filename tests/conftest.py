@@ -9,7 +9,8 @@ from openeo_aggregator.config import AggregatorConfig
 @pytest.fixture
 def backend1(requests_mock):
     domain = "https://b1.test/v1"
-    requests_mock.get(domain + "/", json={"api_version": "1.0.1", })
+    # TODO: how to work with different API versions?
+    requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [
         {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
     ]})
@@ -19,7 +20,7 @@ def backend1(requests_mock):
 @pytest.fixture
 def backend2(requests_mock):
     domain = "https://b2.test/v1"
-    requests_mock.get(domain + "/", json={"api_version": "1.0.1", })
+    requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [
         {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
     ]})

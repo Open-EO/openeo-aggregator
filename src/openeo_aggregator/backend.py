@@ -129,7 +129,10 @@ class AggregatorProcessing(Processing):
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
     def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
-        assert api_version == self.backends.api_version
+        if api_version != self.backends.api_version:
+            raise OpenEOApiException(
+                message=f"Requested API version {api_version} != expected {self.backends.api_version}"
+            )
         return self._cache.get_or_call(key=str(api_version), callback=self._get_process_registry)
 
     def _get_process_registry(self) -> ProcessRegistry:

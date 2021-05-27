@@ -32,6 +32,22 @@ def test_collections_duplicate(api100, requests_mock, backend1, backend2):
     assert set(c["id"] for c in res["collections"]) == {"S1", "S3"}
 
 
+def test_processes_basic(api100, requests_mock, backend1, backend2):
+    requests_mock.get(backend1 + "/processes", json={"processes": [
+        {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+        {"id": "mean", "parameters": [{"name": "data"}]},
+    ]})
+    requests_mock.get(backend2 + "/processes", json={"processes": [
+        {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+        {"id": "mean", "parameters": [{"name": "data"}]},
+    ]})
+    res = api100.get("/processes").assert_status_code(200).json
+    assert res == {
+        "processes": [{"id": "mean", "parameters": [{"name": "data"}]}],
+        "links": [],
+    }
+
+
 def test_credentials_oidc_default(api100, backend1, backend2):
     res = api100.get("/credentials/oidc").assert_status_code(200).json
     assert res == {"providers": [
