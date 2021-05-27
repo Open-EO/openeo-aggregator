@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_driver.testing import ApiTester
+from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER
 
 
 @pytest.fixture
@@ -52,3 +52,18 @@ def test_credentials_oidc_intersection(api100, requests_mock, backend1, backend2
     assert res == {"providers": [
         {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
     ]}
+
+
+def test_me_unauthorized(api100):
+    api100.get("/me").assert_error(401, "AuthenticationRequired")
+
+
+def test_me_basic_auth_invalid(api100):
+    headers = {"Authorization": "Bearer " + "basic//foobar"}
+    api100.get("/me", headers=headers).assert_error(403, "TokenInvalid")
+
+
+def test_me_basic_auth(api100):
+    headers = TEST_USER_AUTH_HEADER
+    res = api100.get("/me", headers=headers).assert_status_code(200)
+    assert res.json["user_id"] == TEST_USER
