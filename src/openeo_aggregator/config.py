@@ -5,6 +5,7 @@ class AggregatorConfig(dict):
     """
     Simple dictionary based configuration for aggregator backend
     """
+
     aggregator_backends = dict_item()
 
 

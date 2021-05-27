@@ -40,8 +40,8 @@ def main():
     app = create_app()
 
     # TODO: eliminate this boilerplate?
-    show_log_level(logging.getLogger('openeo'))
-    show_log_level(logging.getLogger('openeo_driver'))
+    show_log_level(logging.getLogger("openeo"))
+    show_log_level(logging.getLogger("openeo_driver"))
     show_log_level(app.logger)
 
     run_gunicorn(
@@ -49,9 +49,9 @@ def main():
         # TODO: these are localhost settings for now. Add (cli) options to set this?
         threads=2,
         host="127.0.0.1",
-        port=8080
+        port=8080,
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

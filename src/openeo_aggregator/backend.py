@@ -8,8 +8,13 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo_aggregator.utils import TtlCache
-from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider
+from openeo_driver.backend import (
+    OpenEoBackendImplementation,
+    AbstractCollectionCatalog,
+    LoadParameters,
+    Processing,
+    OidcProvider,
+)
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
 from openeo_driver.processes import ProcessRegistry
@@ -26,6 +31,7 @@ class MultiBackendConnection:
     """
     Collection of multiple connections to different backends
     """
+
     _TIMEOUT = 5
 
     def __init__(self, backends: Dict[str, str]):
@@ -65,7 +71,6 @@ class MultiBackendConnection:
 
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
-
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
@@ -73,7 +78,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def get_all_metadata(self) -> List[dict]:
         return self._cache.get_or_call(
             key=("all",),
-            callback=self._get_all_metadata
+            callback=self._get_all_metadata,
         )
 
     def _get_all_metadata(self) -> List[dict]:
@@ -100,7 +105,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(
             key=("collection", collection_id),
-            callback=lambda: self._get_collection_metadata(collection_id)
+            callback=lambda: self._get_collection_metadata(collection_id),
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
@@ -118,7 +123,6 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
 
 class AggregatorProcessing(Processing):
-
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         # TODO Cache per backend results instead of output?
@@ -154,7 +158,6 @@ class AggregatorProcessing(Processing):
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
-
     def __init__(self, backends: MultiBackendConnection):
         self._backends = backends
         super().__init__(
@@ -162,7 +165,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             processing=AggregatorProcessing(backends=backends),
             secondary_services=None,
             batch_jobs=None,
-            user_defined_processes=None
+            user_defined_processes=None,
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
@@ -176,19 +179,18 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # Calculate intersection (based on issuer URL)
         intersection = functools.reduce(
             (lambda x, y: x.intersection(y)),
-            (set(p["issuer"] for p in providers) for providers in providers_per_backend.values())
+            (set(p["issuer"] for p in providers) for providers in providers_per_backend.values()),
         )
 
         # Pick provider settings from  first backend
-        providers = [
-            p for p in providers_per_backend[self._backends.first().id]
-            if p["issuer"] in intersection
-        ]
+        providers = [p for p in providers_per_backend[self._backends.first().id] if p["issuer"] in intersection]
         providers = [
             OidcProvider(
-                p["id"], issuer=p["issuer"], title=p["title"],
+                p["id"],
+                issuer=p["issuer"],
+                title=p["title"],
                 scopes=p.get("scopes", ["openid"]),
-                default_clients=p.get("default_clients")
+                default_clients=p.get("default_clients"),
             )
             for p in providers
         ]

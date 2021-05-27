@@ -23,7 +23,7 @@ def create_app(config: AggregatorConfig = DEFAULT_CONFIG) -> flask.Flask:
     app = openeo_driver.views.build_app(backend_implementation=backend_implementation)
 
     deploy_metadata = build_backend_deploy_metadata(
-        packages=["openeo", "openeo_driver", "openeo_aggregator"]
+        packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
 
     app.config.from_mapping(
