@@ -29,12 +29,14 @@ def backend2(requests_mock):
 
 @pytest.fixture
 def config(backend1, backend2) -> AggregatorConfig:
-    return AggregatorConfig(
-        aggregator_backends={
-            "b1": backend1,
-            "b2": backend2,
-        }
-    )
+    conf = AggregatorConfig()
+    conf.aggregator_backends = {
+        "b1": backend1,
+        "b2": backend2,
+    }
+    # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
+
+    return conf
 
 
 @pytest.fixture

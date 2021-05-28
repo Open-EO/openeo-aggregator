@@ -20,7 +20,10 @@ def create_app(config: AggregatorConfig = DEFAULT_CONFIG) -> flask.Flask:
 
     backends = MultiBackendConnection(backends=config.aggregator_backends)
     backend_implementation = AggregatorBackendImplementation(backends=backends)
-    app = openeo_driver.views.build_app(backend_implementation=backend_implementation)
+    app = openeo_driver.views.build_app(
+        backend_implementation=backend_implementation,
+        error_handling=config.flask_error_handling,
+    )
 
     deploy_metadata = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],

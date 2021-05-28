@@ -7,6 +7,7 @@ class AggregatorConfig(dict):
     """
 
     aggregator_backends = dict_item()
+    flask_error_handling = dict_item(default=True)
 
 
 DEFAULT_CONFIG = AggregatorConfig(
