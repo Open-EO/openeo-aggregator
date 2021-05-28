@@ -13,6 +13,7 @@ class AggregatorConfig(dict):
 DEFAULT_CONFIG = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo.vito.be/openeo/1.0",
-        "eodc": "https://openeo.eodc.eu/v1.0",
+        # "eodc": "https://openeo.eodc.eu/v1.0",
+        "eodc-dev": "https://openeo-dev.eodc.eu/v1.0",
     }
 )

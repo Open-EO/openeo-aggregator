@@ -240,13 +240,21 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             providers_per_backend[backend.id] = res.json()["providers"]
 
         # Calculate intersection (based on issuer URL)
+        def normalize_issuer(issuer: str) -> str:
+            return issuer.rstrip("/")
+
+        issuers_per_backend = [
+            set(normalize_issuer(p["issuer"]) for p in providers)
+            for providers in providers_per_backend.values()
+        ]
         intersection = functools.reduce(
             (lambda x, y: x.intersection(y)),
-            (set(p["issuer"] for p in providers) for providers in providers_per_backend.values()),
+            issuers_per_backend,
         )
+        if len(intersection) == 0:
+            _log.warning(f"Emtpy OIDC intersection. Issuers per backend: {issuers_per_backend}")
 
         # Pick provider settings from  first backend
-        providers = [p for p in providers_per_backend[self._backends.first().id] if p["issuer"] in intersection]
         providers = [
             OidcProvider(
                 p["id"],
@@ -255,7 +263,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 scopes=p.get("scopes", ["openid"]),
                 default_clients=p.get("default_clients"),
             )
-            for p in providers
+            for p in providers_per_backend[self._backends.first().id]
+            if normalize_issuer(p["issuer"]) in intersection
         ]
 
         # TODO: it takes probably more than blindly copying provider data of one backend: e.g. union of scopes, aggregator specific default_clients, ...
