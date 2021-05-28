@@ -18,7 +18,8 @@ from openeo_driver.backend import (
     OidcProvider,
 )
 from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, AuthenticationRequiredException
+from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, AuthenticationRequiredException, \
+    AuthenticationSchemeInvalidException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.utils import EvalEnv
 
@@ -27,6 +28,8 @@ _log = logging.getLogger(__name__)
 CACHE_TTL_DEFAULT = 5 * 60
 
 BackendConnection = namedtuple("BackendConnection", ["id", "url", "connection"])
+
+OidcProviderData = namedtuple("OidcProviderData", ["provider_list", "provider_id_map"])
 
 
 class MultiBackendConnection:
@@ -44,6 +47,7 @@ class MultiBackendConnection:
         ]
         # TODO: API version management: just do single-version aggregation, or also handle version discovery?
         self.api_version = self._get_api_version()
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self.connections)
@@ -73,6 +77,67 @@ class MultiBackendConnection:
             res = callback(con.connection)
             # TODO: customizable exception handling: skip, warn, re-raise?
             yield con.id, res
+
+    def get_oidc_data(self) -> OidcProviderData:
+        return self._cache.get_or_call(key="oidc_data", callback=self._get_oidc_data)
+
+    def _get_oidc_data(self) -> OidcProviderData:
+        """Build list of common OIDC providers and OIDC provider id mapping"""
+        # Collect provider info per backend
+        providers_per_backend = {}
+        for backend in self:
+            providers = backend.connection.get("/credentials/oidc", expected_status=200).json()["providers"]
+            for p in providers:
+                # Normalize issuer a bit to have useful intersection later.
+                p["issuer"] = p["issuer"].rstrip("/")
+            providers_per_backend[backend.id] = providers
+
+        # Calculate intersection (based on issuer URL)
+        issuers_per_backend = [
+            set(p["issuer"] for p in providers)
+            for providers in providers_per_backend.values()
+        ]
+        intersection = functools.reduce((lambda x, y: x.intersection(y)), issuers_per_backend)
+        if len(intersection) == 0:
+            _log.warning(f"Emtpy OIDC intersection. Issuers per backend: {issuers_per_backend}")
+
+        providers = []
+        pid_map = {}
+        for provider_data in providers_per_backend[self.first().id]:
+            issuer = provider_data["issuer"]
+            if issuer in intersection:
+                pid = provider_data["id"]
+                providers.append(OidcProvider(
+                    pid,
+                    issuer=issuer,
+                    title=provider_data["title"],
+                    scopes=provider_data.get("scopes", ["openid"]),
+                    default_clients=provider_data.get("default_clients"),
+                ))
+
+                # Mapping of backend id to original provider id of this issuer
+                pid_map[pid] = {
+                    bid: next(p["id"] for p in ps if p["issuer"] == issuer)
+                    for bid, ps in providers_per_backend.items()
+                }
+
+        return OidcProviderData(provider_list=providers, provider_id_map=pid_map)
+
+    def build_authorization_header(self, backend: BackendConnection, request: flask.Request = None) -> dict:
+        """Extract authorization header from request and (optionally) transform for given backend """
+        request = request or flask.request
+        if "Authorization" not in request.headers:
+            raise AuthenticationRequiredException
+        auth = request.headers["Authorization"]
+        if auth.startswith("Bearer basic//"):
+            pass
+        elif auth.startswith("Bearer oidc/"):
+            _, pid, token = auth.split("/")
+            backend_pid = self.get_oidc_data().provider_id_map[pid][backend.id]
+            auth = f"oidc/{backend_pid}/{token}"
+        else:
+            raise AuthenticationSchemeInvalidException
+        return {"Authorization": auth}
 
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
@@ -199,7 +264,7 @@ class AggregatorProcessing(Processing):
         # Send process graph to backend
         backend = self.backends.get_connection(backend_id=backend_id)
         request_pg = {"process": {"process_graph": process_graph}}
-        headers = _get_authorization_header(backend=backend)
+        headers = self.backends.build_authorization_header(backend=backend)
         # TODO: use result streaming (stream=True) and map requests Response properly to Flask Response
         # TODO see https://stackoverflow.com/a/36601467
         response = backend.connection.post(path="/result", json=request_pg, headers=headers)
@@ -207,16 +272,6 @@ class AggregatorProcessing(Processing):
         # Forward result
         headers = [(k, v) for (k, v) in response.headers.items() if k.lower() in ["content-type"]]
         return flask.Response(response=response.content, status=response.status_code, headers=headers)
-
-
-def _get_authorization_header(backend: BackendConnection, request: flask.Request = None) -> dict:
-    """Extract authorization header from request and (optionally) transform for given backend """
-    request = request or flask.request
-    if "Authorization" not in request.headers:
-        raise AuthenticationRequiredException
-    auth = request.headers["Authorization"]
-    # TODO: in case of OIDC the provider id has to be updated
-    return {"Authorization": auth}
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -232,40 +287,4 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
-        # Collect provider info per backend
-        providers_per_backend = {}
-        for backend in self._backends:
-            res = backend.connection.get("/credentials/oidc")
-            res.raise_for_status()
-            providers_per_backend[backend.id] = res.json()["providers"]
-
-        # Calculate intersection (based on issuer URL)
-        def normalize_issuer(issuer: str) -> str:
-            return issuer.rstrip("/")
-
-        issuers_per_backend = [
-            set(normalize_issuer(p["issuer"]) for p in providers)
-            for providers in providers_per_backend.values()
-        ]
-        intersection = functools.reduce(
-            (lambda x, y: x.intersection(y)),
-            issuers_per_backend,
-        )
-        if len(intersection) == 0:
-            _log.warning(f"Emtpy OIDC intersection. Issuers per backend: {issuers_per_backend}")
-
-        # Pick provider settings from  first backend
-        providers = [
-            OidcProvider(
-                p["id"],
-                issuer=p["issuer"],
-                title=p["title"],
-                scopes=p.get("scopes", ["openid"]),
-                default_clients=p.get("default_clients"),
-            )
-            for p in providers_per_backend[self._backends.first().id]
-            if normalize_issuer(p["issuer"]) in intersection
-        ]
-
-        # TODO: it takes probably more than blindly copying provider data of one backend: e.g. union of scopes, aggregator specific default_clients, ...
-        return providers
+        return self._backends.get_oidc_data().provider_list

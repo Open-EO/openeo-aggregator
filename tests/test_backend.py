@@ -4,18 +4,8 @@ import pytest
 
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
-from openeo_aggregator.backend import AggregatorCollectionCatalog, MultiBackendConnection, BackendConnection, \
+from openeo_aggregator.backend import AggregatorCollectionCatalog, BackendConnection, \
     AggregatorProcessing, AggregatorBackendImplementation
-
-
-@pytest.fixture
-def multi_backend_connection(requests_mock) -> MultiBackendConnection:
-    requests_mock.get("https://oeo1.test/", json={"api_version": "1.0.0"})
-    requests_mock.get("https://oeo2.test/", json={"api_version": "1.0.0"})
-    return MultiBackendConnection({
-        "oeo1": "https://oeo1.test/",
-        "oeo2": "https://oeo2.test/",
-    })
 
 
 class TestMultiBackendConnection:
@@ -30,25 +20,57 @@ class TestMultiBackendConnection:
             count += 1
         assert count == 2
 
-    def test_map(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/foo", json={"bar": 1})
-        requests_mock.get("https://oeo2.test/foo", json={"meh": 2})
+    def test_map(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/foo", json={"bar": 1})
+        requests_mock.get(backend2 + "/foo", json={"meh": 2})
         res = multi_backend_connection.map(lambda connection: connection.get("foo").json())
         assert isinstance(res, types.GeneratorType)
-        assert list(res) == [("oeo1", {"bar": 1}), ("oeo2", {"meh": 2})]
+        assert list(res) == [("b1", {"bar": 1}), ("b2", {"meh": 2})]
 
     def test_api_version(self, multi_backend_connection):
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
 
+    def test_oidc_data_default(self, multi_backend_connection, backend1, backend2):
+        res = multi_backend_connection.get_oidc_data()
+        assert len(res.provider_list) == 1
+        provider = res.provider_list[0]
+        expected = {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]}
+        assert provider.prepare_for_json() == expected
+        assert res.provider_id_map == {"egi": {"b1": "egi", "b2": "egi"}}
+
+    @pytest.mark.parametrize(["issuer_y1", "issuer_y2"], [
+        ("https://y.test", "https://y.test"),
+        ("https://y.test", "https://y.test/"),
+        ("https://y.test/", "https://y.test/"),
+    ])
+    def test_oidc_data_intersection(
+            self, multi_backend_connection, requests_mock, backend1, backend2, issuer_y1, issuer_y2):
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "x1", "issuer": "https://x.test", "title": "X1"},
+            {"id": "y1", "issuer": issuer_y1, "title": "YY1"},
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "y2", "issuer": issuer_y2, "title": "YY2"},
+            {"id": "z2", "issuer": "https://z.test", "title": "ZZZ2"},
+        ]})
+        res = multi_backend_connection.get_oidc_data()
+
+        assert len(res.provider_list) == 1
+        provider = res.provider_list[0]
+        expected = {"id": "y1", "issuer": "https://y.test", "title": "YY1", "scopes": ["openid"]}
+        assert provider.prepare_for_json() == expected
+
+        assert res.provider_id_map == {"y1": {"b1": "y1", "b2": "y2"}}
+
 
 class TestAggregatorBackendImplementation:
 
-    def test_oidc_providers(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/credentials/oidc", json={"providers": [
+    def test_oidc_providers(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
             {"id": "x", "issuer": "https://x.test", "title": "X"},
             {"id": "y", "issuer": "https://y.test", "title": "YY"},
         ]})
-        requests_mock.get("https://oeo2.test/credentials/oidc", json={"providers": [
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
             {"id": "y", "issuer": "https://y.test", "title": "YY"},
             {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
         ]})
@@ -62,44 +84,44 @@ class TestAggregatorBackendImplementation:
 
 class TestAggregatorCollectionCatalog:
 
-    def test_get_all_metadata(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S3"}]})
+    def test_get_all_metadata(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
         assert metadata == [
-            {"id": "S2", '_aggregator': {'backend': {'id': 'oeo1', 'url': 'https://oeo1.test/'}}},
-            {"id": "S3", '_aggregator': {'backend': {'id': 'oeo2', 'url': 'https://oeo2.test/'}}},
+            {"id": "S2", '_aggregator': {'backend': {'id': 'b1', 'url': backend1}}},
+            {"id": "S3", '_aggregator': {'backend': {'id': 'b2', 'url': backend2}}},
         ]
 
-    def test_get_all_metadata_duplicate(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
-        requests_mock.get("https://oeo2.test/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
+    def test_get_all_metadata_duplicate(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
         assert metadata == [
-            {"id": "S3", '_aggregator': {'backend': {'id': 'oeo1', 'url': 'https://oeo1.test/'}}},
-            {"id": "S5", '_aggregator': {'backend': {'id': 'oeo2', 'url': 'https://oeo2.test/'}}},
+            {"id": "S3", '_aggregator': {'backend': {'id': 'b1', 'url': backend1}}},
+            {"id": "S5", '_aggregator': {'backend': {'id': 'b2', 'url': backend2}}},
         ]
 
-    def test_get_collection_metadata(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/collections/S2", status_code=400)
-        requests_mock.get("https://oeo2.test/collections/S2", json={"id": "S2", "title": "oeo2's S2"})
+    def test_get_collection_metadata(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections/S2", status_code=400)
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_collection_metadata("S2")
-        assert metadata == {"id": "S2", "title": "oeo2's S2"}
+        assert metadata == {"id": "S2", "title": "b2's S2"}
 
     # TODO tests for caching of collection metadata
 
 
 class TestAggregatorProcessing:
 
-    def test_get_process_registry(self, multi_backend_connection, requests_mock):
-        requests_mock.get("https://oeo1.test/processes", json={"processes": [
+    def test_get_process_registry(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/processes", json={"processes": [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
         ]})
-        requests_mock.get("https://oeo2.test/processes", json={"processes": [
+        requests_mock.get(backend2 + "/processes", json={"processes": [
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
         ]})

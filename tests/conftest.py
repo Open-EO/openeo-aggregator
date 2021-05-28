@@ -1,8 +1,8 @@
 import flask
 import pytest
-from flask.testing import FlaskClient
 
 from openeo_aggregator.app import create_app
+from openeo_aggregator.backend import MultiBackendConnection
 from openeo_aggregator.config import AggregatorConfig
 
 
@@ -28,6 +28,14 @@ def backend2(requests_mock):
 
 
 @pytest.fixture
+def multi_backend_connection(backend1, backend2) -> MultiBackendConnection:
+    return MultiBackendConnection({
+        "b1": backend1,
+        "b2": backend2,
+    })
+
+
+@pytest.fixture
 def config(backend1, backend2) -> AggregatorConfig:
     conf = AggregatorConfig()
     conf.aggregator_backends = {
@@ -45,8 +53,3 @@ def flask_app(config: AggregatorConfig) -> flask.Flask:
     app.config['TESTING'] = True
     app.config['SERVER_NAME'] = 'oeoa.test'
     return app
-
-
-@pytest.fixture
-def client(flask_app) -> FlaskClient:
-    return flask_app.test_client()
