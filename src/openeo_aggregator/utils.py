@@ -21,12 +21,15 @@ class TtlCache:
         self._clock = clock
 
     def set(self, key, value, ttl=None):
+        """Add item to cache"""
         self._cache[key] = (value, self._clock() + (ttl or self.default_ttl))
 
     def __setitem__(self, key, value):
+        """Add item to cache"""
         self.set(key, value)
 
-    def contains(self, key):
+    def contains(self, key) -> bool:
+        """Check whether cache contains item under given key"""
         if key not in self._cache:
             return False
         value, expiration = self._cache[key]
@@ -37,12 +40,15 @@ class TtlCache:
             return False
 
     def __contains__(self, key):
+        """Check whether cache contains item under given key"""
         return self.contains(key)
 
     def get(self, key, default=None):
+        """Get item from cache and if not available: return default value."""
         return self._cache[key][0] if self.contains(key) else default
 
     def __getitem__(self, key):
+        """Get item from cache and raise `CacheMissException` if not available."""
         if self.contains(key):
             return self._cache[key][0]
         raise CacheMissException(key)
