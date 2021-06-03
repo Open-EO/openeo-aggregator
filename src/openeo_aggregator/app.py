@@ -1,6 +1,7 @@
 """
 openeo-aggregator Flask app
 """
+import logging
 
 import flask
 
@@ -39,5 +40,6 @@ def create_app(config: AggregatorConfig = DEFAULT_CONFIG) -> flask.Flask:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     app = create_app()
     app.run()
