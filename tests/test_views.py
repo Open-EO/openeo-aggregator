@@ -135,3 +135,29 @@ def test_result_large_response_streaming(config, chunk_size, requests_mock, back
     assert first_chunk.startswith(b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09")
     assert len(next(chunks)) == chunk_size
     assert len(res.data) == 1000 - 2 * chunk_size
+
+
+@pytest.mark.parametrize(["cid", "call_counts"], [
+    ("S1", (1, 0)),
+    ("S10", (1, 0)),
+    ("S2", (0, 1)),
+    ("S20", (0, 1)),
+])
+def test_result_backend_by_collection(api100, requests_mock, backend1, backend2, cid, call_counts):
+    requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S10"}, ]})
+    requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S20"}, ]})
+
+    def post_result(request: requests.Request, context):
+        assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+        assert request.json()["process"]["process_graph"] == pg
+        context.headers["Content-Type"] = "application/json"
+        return 123
+
+    b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+    b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+    api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    pg = {"lc": {"process_id": "load_collection", "arguments": {"id": cid}, "result": True}}
+    request = {"process": {"process_graph": pg}}
+    res = api100.post("/result", json=request).assert_status_code(200)
+    assert res.json == 123
+    assert (b1_mock.call_count, b2_mock.call_count) == call_counts
