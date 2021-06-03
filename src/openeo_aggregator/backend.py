@@ -9,6 +9,7 @@ import openeo
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
+from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import (
     OpenEoBackendImplementation,
@@ -196,11 +197,17 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
 
 class AggregatorProcessing(Processing):
-    def __init__(self, backends: MultiBackendConnection, catalog: AggregatorCollectionCatalog):
+    def __init__(
+            self,
+            backends: MultiBackendConnection,
+            catalog: AggregatorCollectionCatalog,
+            stream_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
+    ):
         self.backends = backends
         # TODO Cache per backend results instead of output?
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
         self._catalog = catalog
+        self._stream_chunk_size = stream_chunk_size
 
     def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
         if api_version != self.backends.api_version:
@@ -265,22 +272,29 @@ class AggregatorProcessing(Processing):
         backend = self.backends.get_connection(backend_id=backend_id)
         request_pg = {"process": {"process_graph": process_graph}}
         headers = self.backends.build_authorization_header(backend=backend)
-        # TODO: use result streaming (stream=True) and map requests Response properly to Flask Response
-        # TODO see https://stackoverflow.com/a/36601467
-        response = backend.connection.post(path="/result", json=request_pg, headers=headers)
+        backend_response = backend.connection.post(path="/result", json=request_pg, headers=headers, stream=True)
 
-        # Forward result
-        headers = [(k, v) for (k, v) in response.headers.items() if k.lower() in ["content-type"]]
-        return flask.Response(response=response.content, status=response.status_code, headers=headers)
+        # Convert `requests.Response` from backend to `flask.Response` for client
+        headers = [(k, v) for (k, v) in backend_response.headers.items() if k.lower() in ["content-type"]]
+        return flask.Response(
+            # Streaming response through `iter_content` generator (https://flask.palletsprojects.com/en/2.0.x/patterns/streaming/)
+            response=backend_response.iter_content(chunk_size=self._stream_chunk_size),
+            status=backend_response.status_code,
+            headers=headers,
+        )
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
-    def __init__(self, backends: MultiBackendConnection):
+    def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
         catalog = AggregatorCollectionCatalog(backends=backends)
+        processing = AggregatorProcessing(
+            backends=backends, catalog=catalog,
+            stream_chunk_size=config.streaming_chunk_size,
+        )
         super().__init__(
             catalog=catalog,
-            processing=AggregatorProcessing(backends=backends, catalog=catalog),
+            processing=processing,
             secondary_services=None,
             batch_jobs=None,
             user_defined_processes=None,

@@ -65,7 +65,7 @@ class TestMultiBackendConnection:
 
 class TestAggregatorBackendImplementation:
 
-    def test_oidc_providers(self, multi_backend_connection, backend1, backend2, requests_mock):
+    def test_oidc_providers(self, multi_backend_connection, config, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
             {"id": "x", "issuer": "https://x.test", "title": "X"},
             {"id": "y", "issuer": "https://y.test", "title": "YY"},
@@ -74,7 +74,7 @@ class TestAggregatorBackendImplementation:
             {"id": "y", "issuer": "https://y.test", "title": "YY"},
             {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
         ]})
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
         providers = implementation.oidc_providers()
         assert len(providers) == 1
         provider = providers[0]

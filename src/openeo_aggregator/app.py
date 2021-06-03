@@ -19,7 +19,7 @@ def create_app(config: AggregatorConfig = DEFAULT_CONFIG) -> flask.Flask:
     # see https://flask.palletsprojects.com/en/2.0.x/cli/#application-discovery)
 
     backends = MultiBackendConnection(backends=config.aggregator_backends)
-    backend_implementation = AggregatorBackendImplementation(backends=backends)
+    backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
     app = openeo_driver.views.build_app(
         backend_implementation=backend_implementation,
         error_handling=config.flask_error_handling,

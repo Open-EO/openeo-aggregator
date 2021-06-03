@@ -70,8 +70,7 @@ def test_credentials_oidc_intersection(requests_mock, config, backend1, backend2
         {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
     ]})
     # Manually creating app and api100 (which we do with fixtures elsewhere)
-    app = create_app(config)
-    api100 = ApiTester(api_version="1.0.0", client=app.test_client())
+    api100 = ApiTester(api_version="1.0.0", client=create_app(config).test_client())
 
     res = api100.get("/credentials/oidc").assert_status_code(200).json
     assert res == {"providers": [
@@ -110,3 +109,29 @@ def test_result_basic_math(api100, requests_mock, backend1, backend2):
     request = {"process": {"process_graph": pg}}
     res = api100.post("/result", json=request).assert_status_code(200)
     assert res.json == 8
+
+
+@pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
+def test_result_large_response_streaming(config, chunk_size, requests_mock, backend1, backend2):
+    config.streaming_chunk_size = chunk_size
+    api100 = ApiTester(api_version="1.0.0", client=create_app(config).test_client())
+
+    def post_result(request: requests.Request, context):
+        assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+        assert request.json()["process"]["process_graph"] == pg
+        context.headers["Content-Type"] = "application/octet-stream"
+        return bytes(b % 256 for b in range(1000))
+
+    requests_mock.post(backend1 + "/result", content=post_result)
+    api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    pg = {"large": {"process_id": "large", "arguments": {}, "result": True}}
+    request = {"process": {"process_graph": pg}}
+    res = api100.post("/result", json=request).assert_status_code(200)
+
+    assert res.response.is_streamed
+    chunks = res.response.iter_encoded()
+    first_chunk = next(chunks)
+    assert len(first_chunk) == chunk_size
+    assert first_chunk.startswith(b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09")
+    assert len(next(chunks)) == chunk_size
+    assert len(res.data) == 1000 - 2 * chunk_size
