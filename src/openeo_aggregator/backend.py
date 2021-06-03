@@ -42,10 +42,10 @@ class MultiBackendConnection:
 
     def __init__(self, backends: Dict[str, str]):
         self._backends = backends
-        self.connections = [
-            BackendConnection(bid, url, openeo.connect(url, default_timeout=self._TIMEOUT))
-            for (bid, url) in backends.items()
-        ]
+        self.connections = []
+        for (bid, url) in backends.items():
+            _log.info(f"Setting up backend {bid!r} Connection: {url!r}")
+            self.connections.append(BackendConnection(bid, url, openeo.connect(url, default_timeout=self._TIMEOUT)))
         # TODO: API version management: just do single-version aggregation, or also handle version discovery?
         self.api_version = self._get_api_version()
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
