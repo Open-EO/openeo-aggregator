@@ -48,7 +48,7 @@ def main():
         app,
         # TODO: these are localhost settings for now. Add (cli) options to set this?
         threads=2,
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8080,
     )
 
