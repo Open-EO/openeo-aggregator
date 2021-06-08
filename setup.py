@@ -5,6 +5,10 @@ __version__ = None
 with open("src/openeo_aggregator/about.py") as fp:
     exec(fp.read())
 
+tests_require = [
+    'pytest>=6.2.0',
+]
+
 setup(
     name="openeo-aggregator",
     version=__version__,
@@ -18,8 +22,13 @@ setup(
         "requests",
         "openeo>=0.7.1a1.*",
         "openeo_driver>=0.10.1a1.*",
-        "flask",
+        "flask~=2.0",
+        "gunicorn~=20.0",
     ],
+    tests_require=tests_require,
+    extras_require={
+        "dev": tests_require,
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
