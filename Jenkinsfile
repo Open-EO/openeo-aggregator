@@ -8,4 +8,5 @@ pythonPipeline {
   python_version = ["3.6"]
   extras_require = 'dev'
   upload_dev_wheels = false
+  downstream_job = 'geo.openEO_all/bld.openeo-aggregator-image'
 }
