@@ -50,6 +50,16 @@ pipeline {
         }
       }
     }
+    stage('Run tests in container') {
+        steps {
+            script {
+                docker.image(full_image_name_tag).inside() {
+                    sh "pip install .[dev]"
+                    sh "pytest"
+                }
+            }
+        }
+    }
     stage('Push images') {
       steps {
         script{
