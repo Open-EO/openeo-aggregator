@@ -1,0 +1,85 @@
+@Library('lib')_
+
+pipeline {
+
+  agent {
+    node {
+      label "devdmz"
+    }
+  }
+  environment {
+    BRANCH_NAME         = "${env.BRANCH_NAME}"
+    BUILD_NUMBER        = "${env.BUILD_NUMBER}"
+    BUILD_URL           = "${env.BUILD_URL}"
+    JOB_BASE_NAME       = "${env.JOB_BASE_NAME}"
+    JOB_NAME            = "${env.JOB_NAME}"
+    JOB_URL             = "${env.JOB_URL}"
+    PROJECT_OWNER_MAIL  = "${project_owner_mail}"
+    WORKSPACE           = "${env.WORKSPACE}"
+    docker_registry_dev = "vito-docker-private-dev.artifactory.vgt.vito.be"
+    full_image_name_tag = "$docker_registry_dev" + '/openeo-aggregator:' + "${containerImage.getTag()}"
+    full_image_name_latest = "$docker_registry_dev" + '/openeo-aggregator:latest'
+  }
+  options {
+    skipDefaultCheckout(true)
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        script {
+          // Checkout the git repository
+          git.checkoutDefault(true)
+          env.GIT_COMMIT = git.getCommit()
+          env.MAIL_ADDRESS = utils.getMailAddress()
+        }
+      }
+    }
+    stage('Build image') {
+      steps {
+        script {
+          // Build the new container image
+          containerImage.build(full_image_name_tag, 'docker', '', 'Dockerfile')
+        }
+      }
+    }
+    stage('Tag latest') {
+      steps {
+        script {
+          // Tag the new container image with latest
+          containerImage.tag(full_image_name_tag, full_image_name_latest)
+        }
+      }
+    }
+    stage('Push images') {
+      steps {
+        script{
+          // Push the tagged container image to Artifactory
+          containerImage.push(full_image_name_tag)
+          // Push the latest container image to Artifactory
+          containerImage.push(full_image_name_latest)
+        }
+      }
+    }
+    stage('Cleanup') {
+      steps {
+        script {
+          containerImage.delete(full_image_name_tag)
+        }
+      }
+    }
+  }
+  post {
+    // Send notification on error
+    failure {
+      script {
+        notification.fail(env.MAIL_ADDRESS, project_owner_mail)
+      }
+    }
+    always {
+      script {
+        containerImage.delete(full_image_name_tag)
+      }
+    }
+  }
+}
+
