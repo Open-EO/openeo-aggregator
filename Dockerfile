@@ -47,4 +47,4 @@ RUN pip install --default-timeout=60 -U pip==20.2.4
 RUN pip install --default-timeout=60 .
 
 
-CMD ["gunicorn", "--workers=2", "--threads=2", "--bind 0.0.0.0:8080", "openeo_aggregator.app:create_app()"]
+CMD ["gunicorn", "--workers=2", "--threads=2", "--bind=0.0.0.0:8080", "openeo_aggregator.app:create_app()"]
