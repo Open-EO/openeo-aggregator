@@ -7,6 +7,7 @@ with open("src/openeo_aggregator/about.py") as fp:
 
 tests_require = [
     'pytest>=6.2.0',
+    'requests-mock>=1.9.0',
 ]
 
 setup(
