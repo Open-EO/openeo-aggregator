@@ -12,5 +12,6 @@ To run locally in development mode, with standard flask workflow:
 
 To run the app as gunicorn application:
 
-    python src/openeo_aggregator/run.py
+    gunicorn --workers=2 --threads=2 --bind 0.0.0.0:8080 'openeo_aggregator.app:create_app()'
+
 
