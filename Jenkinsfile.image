@@ -53,9 +53,8 @@ pipeline {
     stage('Run tests in container') {
         steps {
             script {
-                docker.image(full_image_name_tag).inside() {
-                    sh "pip install .[dev]"
-                    sh "pytest"
+                docker.image(full_image_name_tag).inside("-u openeo") {
+                    sh "cd /home/openeo/aggregator && pip install .[dev] && pytest"
                 }
             }
         }
