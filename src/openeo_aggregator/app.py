@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
-
+import urllib.parse
 import flask
 
 import openeo_aggregator.about
@@ -33,6 +33,10 @@ def get_config(x: Any) -> AggregatorConfig:
         return x
     elif isinstance(x, str) and x.strip().startswith("{") and x.strip().endswith("}"):
         # Assume it's a JSON dump
+        return AggregatorConfig.from_json(x)
+    elif isinstance(x, str) and x.strip().lower().startswith("%7b") and x.strip().lower().endswith("%7d"):
+        # Assume it's a URL-encoded JSON dump
+        x = urllib.parse.unquote(x)
         return AggregatorConfig.from_json(x)
     elif isinstance(x, (str, Path)) and Path(x).suffix.lower() == ".json":
         # Assume it's a path to a JSON file

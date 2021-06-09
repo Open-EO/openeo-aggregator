@@ -51,3 +51,12 @@ def test_get_config_none_env_json_path(tmp_path):
     assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123
+
+
+def test_get_config_json_url_encoded():
+    # from: `import urllib.parse; urllib.parse.quote('{"aggregator_backends":{"b1":"https://b1.test"},"streaming_chunk_size":123}')`
+    data = '%7B%22aggregator_backends%22%3A%7B%22b1%22%3A%22https%3A//b1.test%22%7D%2C%22streaming_chunk_size%22%3A123%7D'
+    config = get_config(data)
+    assert config.aggregator_backends == {"b1": "https://b1.test"}
+    assert config.auto_logging_setup is True
+    assert config.streaming_chunk_size == 123
