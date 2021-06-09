@@ -55,7 +55,7 @@ pipeline {
             script {
                 sh "docker run --rm ${full_image_name_tag} /bin/bash -c 'pip install .[dev] && pytest'"
             }
-            docker.image(full_image_name_tag).withRun("-p 8080:8080 -e OPENEO_AGGREGATOR_CONFIG={\"aggregator_backends\":\"https://openeo.vito.be/openeo/1.0/\"} ") {
+            docker.image(full_image_name_tag).withRun("-p 8080:8080 -e OPENEO_AGGREGATOR_CONFIG=\{\"aggregator_backends\":\"https://openeo.vito.be/openeo/1.0/\"\} ") {
                 sh "sleep 5; curl http://127.0.0.1:8080/openeo/1.0"
             }
         }
