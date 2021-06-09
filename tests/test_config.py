@@ -14,7 +14,6 @@ def test_config_defaults():
     config = AggregatorConfig()
     with pytest.raises(KeyError):
         _ = config.aggregator_backends
-    assert config.auto_logging_setup is True
     assert config.flask_error_handling is True
     assert config.streaming_chunk_size == STREAM_CHUNK_SIZE_DEFAULT
 
@@ -51,7 +50,6 @@ def test_get_config_none_no_env():
 def test_get_config_json_str():
     config = get_config(CONFIG_JSON_EXAMPLE)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
-    assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123
 
 
@@ -62,7 +60,6 @@ def test_get_config_json_path(tmp_path, convertor):
         f.write(CONFIG_JSON_EXAMPLE)
     config = get_config(convertor(config_path))
     assert config.aggregator_backends == {"b1": "https://b1.test"}
-    assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123
 
 
@@ -70,7 +67,6 @@ def test_get_config_none_env_json_str():
     with mock.patch.dict(os.environ, {OPENEO_AGGREGATOR_CONFIG: CONFIG_JSON_EXAMPLE}):
         config = get_config(None)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
-    assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123
 
 
@@ -81,7 +77,6 @@ def test_get_config_none_env_json_path(tmp_path):
     with mock.patch.dict(os.environ, {OPENEO_AGGREGATOR_CONFIG: str(config_path)}):
         config = get_config(None)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
-    assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123
 
 
@@ -90,5 +85,4 @@ def test_get_config_json_url_encoded():
     data = '%7B%22aggregator_backends%22%3A%7B%22b1%22%3A%22https%3A//b1.test%22%7D%2C%22streaming_chunk_size%22%3A123%7D'
     config = get_config(data)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
-    assert config.auto_logging_setup is True
     assert config.streaming_chunk_size == 123

@@ -15,20 +15,21 @@ from openeo_driver.server import build_backend_deploy_metadata, setup_logging
 _log = logging.getLogger(__name__)
 
 
-def create_app(config: Any = None) -> flask.Flask:
+def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
     """
     Flask application factory function.
     """
     # This `create_app` factory is auto-detected by Flask's application discovery when running `flask run`
     # see https://flask.palletsprojects.com/en/2.0.x/cli/#application-discovery
 
-    config: AggregatorConfig = get_config(config)
-
-    if config.auto_logging_setup:
+    if auto_logging_setup:
         setup_logging(
             loggers={"openeo_aggregator": {"level": "INFO"}},
             show_loggers=["openeo_driver", "openeo_aggregator"]
         )
+
+    config: AggregatorConfig = get_config(config)
+    _log.info(f"Using config: {config}")
 
     _log.info(f"Creating MultiBackendConnection with {config.aggregator_backends}")
     backends = MultiBackendConnection(backends=config.aggregator_backends)

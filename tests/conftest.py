@@ -49,7 +49,7 @@ def config(backend1, backend2) -> AggregatorConfig:
 
 @pytest.fixture
 def flask_app(config: AggregatorConfig) -> flask.Flask:
-    app = create_app(config=config)
+    app = create_app(config=config, auto_logging_setup=False)
     app.config['TESTING'] = True
     app.config['SERVER_NAME'] = 'oeoa.test'
     return app

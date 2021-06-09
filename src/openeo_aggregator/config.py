@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import urllib.parse
 from pathlib import Path
@@ -6,6 +7,10 @@ from typing import Any
 from typing import Union
 
 from openeo_driver.utils import dict_item
+
+_log = logging.getLogger(__name__)
+
+OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
 
 STREAM_CHUNK_SIZE_DEFAULT = 10 * 1024
 
@@ -18,7 +23,6 @@ class AggregatorConfig(dict):
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
 
-    auto_logging_setup = dict_item(default=True)
     flask_error_handling = dict_item(default=True)
     streaming_chunk_size = dict_item(default=STREAM_CHUNK_SIZE_DEFAULT)
 
@@ -40,8 +44,6 @@ DEFAULT_CONFIG = AggregatorConfig(
     }
 )
 
-OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
-
 
 def get_config(x: Any) -> AggregatorConfig:
     """
@@ -51,7 +53,12 @@ def get_config(x: Any) -> AggregatorConfig:
     - if it is a string: try to parse it as JSON (file)
     """
     if x is None:
-        x = os.environ.get(OPENEO_AGGREGATOR_CONFIG, DEFAULT_CONFIG)
+        if OPENEO_AGGREGATOR_CONFIG in os.environ:
+            x = os.environ[OPENEO_AGGREGATOR_CONFIG]
+            _log.info(f"Loading config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
+        else:
+            x = DEFAULT_CONFIG
+            _log.info(f"Using default config: {x}")
 
     if isinstance(x, AggregatorConfig):
         return x
