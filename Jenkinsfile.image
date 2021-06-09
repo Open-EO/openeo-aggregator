@@ -57,7 +57,7 @@ pipeline {
             }
             script {
                 docker.image(full_image_name_tag).withRun('-p 8080:8080 -e OPENEO_AGGREGATOR_CONFIG=%7B%22aggregator_backends%22%3A%7B%22vito%22%3A%22https%3A//openeo.vito.be/openeo/1.0/%22%7D%7D') {
-                    sh "sleep 5; curl --max-time 10 http://127.0.0.1:8080/openeo/1.0"
+                    sh "sleep 5; curl -i --max-time 10 http://127.0.0.1:8080/openeo/1.0/"
                 }
             }
         }
