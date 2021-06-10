@@ -41,10 +41,10 @@ COPY tests tests
 
 
 # GDD-1099 Jenkinslib: change whl versions incompatible with pip 20.3
-RUN pip install --default-timeout=60 -U pip==20.2.4
+RUN pip install -U pip==20.2.4
 
 # Install dependencies and app.
-RUN pip install --default-timeout=60 .
+RUN pip install .
 
 
 CMD ["gunicorn", "--workers=2", "--threads=2", "--bind=0.0.0.0:8080", "openeo_aggregator.app:create_app()"]
