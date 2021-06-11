@@ -53,6 +53,15 @@ def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
         OPENEO_BACKEND_DEPLOY_METADATA=deploy_metadata,
     )
 
+    # Some additional experimental inspection/debug endpoints
+
+    @app.route("/_info", methods=["GET"])
+    def agg_backends():
+        info = {
+            "backends" : [{"id": b.id, "root_url": b.connection.root_url} for b in backends]
+        }
+        return flask.jsonify(info)
+
     _log.info(f"Built app {app}")
     return app
 
