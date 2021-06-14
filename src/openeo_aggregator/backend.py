@@ -140,7 +140,7 @@ class MultiBackendConnection:
         elif auth.startswith("Bearer oidc/"):
             _, pid, token = auth.split("/")
             backend_pid = self.get_oidc_data().provider_id_map[pid][backend.id]
-            auth = f"oidc/{backend_pid}/{token}"
+            auth = f"Bearer oidc/{backend_pid}/{token}"
         else:
             raise AuthenticationSchemeInvalidException
         return {"Authorization": auth}

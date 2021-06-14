@@ -111,6 +111,33 @@ def test_result_basic_math(api100, requests_mock, backend1, backend2):
     assert res.json == 8
 
 
+def test_result_basic_math_oidc_auth(api100, requests_mock, backend1, backend2):
+    def get_userinfo(request: requests.Request, context):
+        assert request.headers["Authorization"] == "Bearer finukolifunikola"
+        return {"sub": "john"}
+
+    def post_result(request: requests.Request, context):
+        assert request.headers["Authorization"] == "Bearer oidc/egi/finukolifunikola"
+        pg = request.json()["process"]["process_graph"]
+        (_, node), = pg.items()
+        assert node["process_id"] == "add"
+        assert node["result"] is True
+        context.headers["Content-Type"] = "application/json"
+        return node["arguments"]["x"] + node["arguments"]["y"]
+
+    requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
+        "userinfo_endpoint": "https://egi.test/userinfo"
+    })
+    requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+
+    requests_mock.post(backend1 + "/result", json=post_result)
+    api100.set_auth_bearer_token(token="oidc/egi/finukolifunikola")
+    pg = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+    request = {"process": {"process_graph": pg}}
+    res = api100.post("/result", json=request).assert_status_code(200)
+    assert res.json == 8
+
+
 @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
 def test_result_large_response_streaming(config, chunk_size, requests_mock, backend1, backend2):
     config.streaming_chunk_size = chunk_size
