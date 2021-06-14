@@ -9,6 +9,7 @@ import openeo
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
+import openeo_aggregator.about
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import (
@@ -45,7 +46,11 @@ class MultiBackendConnection:
         self.connections = []
         for (bid, url) in backends.items():
             _log.info(f"Setting up backend {bid!r} Connection: {url!r}")
-            self.connections.append(BackendConnection(bid, url, openeo.connect(url, default_timeout=self._TIMEOUT)))
+            connection = openeo.connect(url, default_timeout=self._TIMEOUT)
+            connection.default_headers["User-Agent"] = "openeo-aggregator/{v}".format(
+                v=openeo_aggregator.about.__version__,
+            )
+            self.connections.append(BackendConnection(bid, url, connection))
         # TODO: API version management: just do single-version aggregation, or also handle version discovery?
         self.api_version = self._get_api_version()
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
