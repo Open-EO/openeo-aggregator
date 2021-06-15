@@ -162,7 +162,6 @@ class AggregatorProcessing(Processing):
 
 
 class AggregatorBatchJobs(BatchJobs):
-    # TODO: prefix job id with backend id
     def __init__(self, backends: MultiBackendConnection):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
@@ -172,6 +171,7 @@ class AggregatorBatchJobs(BatchJobs):
         for con in self.backends:
             with con.authenticated_from_request(request=flask.request):
                 for job in con.list_jobs():
+                    job["id"] = f"{con.id}-{job['id']}"
                     jobs.append(BatchJobMetadata.from_dict(job))
         return jobs
 

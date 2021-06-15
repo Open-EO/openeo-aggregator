@@ -213,7 +213,7 @@ def test_batch_jobs_list(api100, requests_mock, backend1, backend2):
     api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
     res = api100.get("/jobs").assert_status_code(200).json
     assert res["jobs"] == [
-        {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-        {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-        {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+        {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+        {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+        {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
     ]
