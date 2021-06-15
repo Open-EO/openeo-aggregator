@@ -1,21 +1,25 @@
 import contextlib
 import functools
 import logging
-from typing import List, Dict, Any, Iterator, Callable, Tuple, Set
+from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union
 
 import flask
 
 import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
-from openeo.rest.auth.auth import BearerAuth, NullAuth
+from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo_aggregator.config import CACHE_TTL_DEFAULT
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
-    AuthenticationSchemeInvalidException
+    AuthenticationSchemeInvalidException, InternalException
 
 _log = logging.getLogger(__name__)
+
+
+class LockedAuthException(InternalException):
+    """Implementation tries to do permanent authentication on connection"""
 
 
 class BackendConnection(Connection):
@@ -27,13 +31,28 @@ class BackendConnection(Connection):
     """
 
     def __init__(self, id: str, url: str, default_timeout: int = 5):
+        # Temporarily unlock `_auth` for `super().__init__()`
+        self._auth_locked = False
         super(BackendConnection, self).__init__(url, default_timeout=default_timeout)
+        self._auth = None
+        self._auth_locked = True
+
         self.id = id
         self.default_headers["User-Agent"] = "openeo-aggregator/{v}".format(
             v=openeo_aggregator.about.__version__,
         )
         # Mapping of aggregator provider id to backend's provider id
         self._oidc_provider_map: Dict[str, str] = {}
+
+    def _get_auth(self) -> Union[None, OpenEoApiAuthBase]:
+        return None if self._auth_locked else self._auth
+
+    def _set_auth(self, auth: OpenEoApiAuthBase):
+        if self._auth_locked:
+            raise LockedAuthException("Setting auth while locked.")
+        self._auth = auth
+
+    auth = property(_get_auth, _set_auth)
 
     def set_oidc_provider_map(self, pid_map: Dict[str, str]):
         self._oidc_provider_map = pid_map
@@ -48,18 +67,21 @@ class BackendConnection(Connection):
             return auth.partition("Bearer ")[2]
         elif auth.startswith("Bearer oidc/"):
             _, pid, token = auth.split("/")
-            backend_pid = self._oidc_provider_map[pid]
+            backend_pid = self._oidc_provider_map.get(pid, pid)
             return f"oidc/{backend_pid}/{token}"
         else:
             raise AuthenticationSchemeInvalidException
 
     @contextlib.contextmanager
     def authenticated_from_request(self, request: flask.Request):
-        """Context manager to authenticate connection based on current flask request"""
+        """
+        Context manager to temporarily authenticate connection based on current flask request.
+        """
+        self._auth_locked = False
         self.auth = BearerAuth(bearer=self._get_bearer(request=request))
         yield self
-        self.auth = NullAuth()
-        # TODO: lock down `.auth` so that it can not be set accidentally
+        self.auth = None
+        self._auth_locked = True
 
 
 class MultiBackendConnection:

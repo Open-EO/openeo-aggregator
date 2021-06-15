@@ -5,8 +5,81 @@ import pytest
 import requests
 
 from openeo.capabilities import ComparableVersion
-from openeo_aggregator.connection import BackendConnection, MultiBackendConnection
+from openeo.rest import OpenEoApiError
+from openeo.rest.auth.auth import BearerAuth
+from openeo_aggregator.connection import BackendConnection, MultiBackendConnection, LockedAuthException
 from openeo_driver.backend import OidcProvider
+from openeo_driver.errors import AuthenticationRequiredException
+
+
+class TestBackendConnection:
+
+    def test_plain_basic_auth_fails(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+        requests_mock.get("https://foo.test/credentials/basic", json={"access_token": "3nt3r"})
+        con = BackendConnection(id="foo", url="https://foo.test")
+        with pytest.raises(LockedAuthException):
+            con.authenticate_basic("john", "j0hn")
+
+    def test_basic_auth_from_request(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+
+        def get_me(request: requests.Request, context):
+            if request.headers.get("Authorization") == "Bearer basic//l3tm31n":
+                return {"user_id": "john"}
+            else:
+                context.status_code = 401
+                return AuthenticationRequiredException().to_dict()
+
+        requests_mock.get("https://foo.test/me", json=get_me)
+
+        con = BackendConnection(id="foo", url="https://foo.test")
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer basic//l3tm31n"})
+        assert con.auth is None
+        with con.authenticated_from_request(request=request):
+            assert isinstance(con.auth, BearerAuth)
+            assert con.get("/me", expected_status=200).json() == {"user_id": "john"}
+        assert con.auth is None
+
+        with pytest.raises(OpenEoApiError, match=r"\[401\] AuthenticationRequired: Unauthorized"):
+            con.get("/me")
+
+    def test_plain_oidc_auth_fails(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+        requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
+            {"id": "fid", "issuer": "https://oidc.foo.test", "title": "Foo ID"},
+        ]})
+        requests_mock.get("https://oidc.foo.test/.well-known/openid-configuration", json={
+            "token_endpoint": "https://oidc.foo.test/token",
+            "userinfo_endpoint": "https://oidc.foo.test/userinfo",
+        })
+        requests_mock.post("https://oidc.foo.test/token", json={"access_token": "3nt3r"})
+        con = BackendConnection(id="foo", url="https://foo.test")
+        with pytest.raises(LockedAuthException):
+            con.authenticate_oidc_refresh_token(client_id="cl13nt", refresh_token="r3fr35")
+
+    def test_oidc_auth_from_request(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+
+        def get_me(request: requests.Request, context):
+            if request.headers.get("Authorization") == "Bearer oidc/fid/l3tm31n":
+                return {"user_id": "john"}
+            else:
+                context.status_code = 401
+                return AuthenticationRequiredException().to_dict()
+
+        requests_mock.get("https://foo.test/me", json=get_me)
+
+        con = BackendConnection(id="foo", url="https://foo.test")
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/fid/l3tm31n"})
+        assert con.auth is None
+        with con.authenticated_from_request(request=request):
+            assert isinstance(con.auth, BearerAuth)
+            assert con.get("/me", expected_status=200).json() == {"user_id": "john"}
+        assert con.auth is None
+
+        with pytest.raises(OpenEoApiError, match=r"\[401\] AuthenticationRequired: Unauthorized"):
+            con.get("/me")
 
 
 class TestMultiBackendConnection:
