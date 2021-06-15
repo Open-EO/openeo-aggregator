@@ -196,3 +196,24 @@ def test_result_backend_by_collection(api100, requests_mock, backend1, backend2,
     res = api100.post("/result", json=request).assert_status_code(200)
     assert res.json == 123
     assert (b1_mock.call_count, b2_mock.call_count) == call_counts
+
+
+def test_batch_jobs_list_no_auth(api100):
+    api100.get("/jobs").assert_error(401, "AuthenticationRequired")
+
+
+def test_batch_jobs_list(api100, requests_mock, backend1, backend2):
+    requests_mock.get(backend1 + "/jobs", json={"jobs": [
+        {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+        {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+    ]})
+    requests_mock.get(backend2 + "/jobs", json={"jobs": [
+        {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+    ]})
+    api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    res = api100.get("/jobs").assert_status_code(200).json
+    assert res["jobs"] == [
+        {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+        {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+        {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+    ]

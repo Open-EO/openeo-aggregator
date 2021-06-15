@@ -9,7 +9,7 @@ from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider
+    OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
 from openeo_driver.processes import ProcessRegistry
@@ -161,6 +161,21 @@ class AggregatorProcessing(Processing):
         )
 
 
+class AggregatorBatchJobs(BatchJobs):
+    # TODO: prefix job id with backend id
+    def __init__(self, backends: MultiBackendConnection):
+        super(AggregatorBatchJobs, self).__init__()
+        self.backends = backends
+
+    def get_user_jobs(self, user_id: str) -> List[BatchJobMetadata]:
+        jobs = []
+        for con in self.backends:
+            with con.authenticated_from_request(request=flask.request):
+                for job in con.list_jobs():
+                    jobs.append(BatchJobMetadata.from_dict(job))
+        return jobs
+
+
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
@@ -173,7 +188,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             catalog=catalog,
             processing=processing,
             secondary_services=None,
-            batch_jobs=None,
+            batch_jobs=AggregatorBatchJobs(backends=backends),
             user_defined_processes=None,
         )
 
