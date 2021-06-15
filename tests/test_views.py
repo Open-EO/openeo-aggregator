@@ -20,6 +20,14 @@ def test_capabilities(api100):
     assert {"methods": ["GET"], "path": "/processes"} in endpoints
 
 
+def test_info(flask_app):
+    api100 = ApiTester(api_version="1.0.0", client=flask_app.test_client(), url_root="/")
+    res = api100.get("_info").assert_status_code(200)
+    assert res.json == {
+        "backends": [{"id": "b1", "root_url": "https://b1.test/v1"}, {"id": "b2", "root_url": "https://b2.test/v1"}]
+    }
+
+
 def test_collections_basic(api100, requests_mock, backend1, backend2):
     requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
     requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})

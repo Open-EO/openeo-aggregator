@@ -58,7 +58,7 @@ def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
     @app.route("/_info", methods=["GET"])
     def agg_backends():
         info = {
-            "backends" : [{"id": b.id, "root_url": b.connection.root_url} for b in backends]
+            "backends" : [{"id": con.id, "root_url": con.root_url} for con in backends]
         }
         return flask.jsonify(info)
 
