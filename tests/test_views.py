@@ -2,6 +2,7 @@ import pytest
 import requests
 
 from openeo_aggregator.app import create_app
+from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
 
 
@@ -252,3 +253,54 @@ class TestBatchJobs:
         res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
         assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+
+    @pytest.mark.parametrize("body", [
+        {"foo": "meh"},
+        {"process": "meh"},
+        {"process": {"process_graph": "meh"}},
+        {"process": {"process_graph": {}}},
+        {"process": {"process_graph": {"foo": "meh"}}},
+    ])
+    def test_create_job_invalid(self, api100, requests_mock, backend1, body):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.post(
+            backend1 + "/jobs",
+            status_code=ProcessGraphMissingException.status_code, json=ProcessGraphMissingException().to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json=body)
+        res.assert_error(400, "ProcessGraphMissing")
+
+    def test_get_job_metadata(self, api100, requests_mock, backend1):
+        requests_mock.get(backend1 + "/jobs/th3j0b", json={
+            "id": "th3j0b",
+            "title": "The job", "description": "Just doing my job.",
+            "process": {"process_graph": {
+                "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
+            }},
+            "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
+        })
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b").assert_status_code(200)
+        assert res.json == {
+            "id": "b1-th3j0b",
+            "title": "The job", "description": "Just doing my job.",
+            "process": {"process_graph": {
+                "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
+            }},
+            "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
+        }
+
+    def test_get_job_metadata_not_found_on_backend(self, api100, requests_mock, backend1):
+        requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            status_code=404, json=JobNotFoundException(job_id="th3j0b").to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b")
+        res.assert_error(404, "JobNotFound", message="The batch job 'b1-th3j0b' does not exist.")
+
+    def test_get_job_metadata_not_found_on_aggregator(self, api100, requests_mock, backend1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/nope-and-nope")
+        res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")

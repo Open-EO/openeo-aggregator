@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Tuple
 
 import flask
 
@@ -11,8 +11,10 @@ from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException
+from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
+    JobNotFoundException
 from openeo_driver.processes import ProcessRegistry
+from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
 
 _log = logging.getLogger(__name__)
@@ -182,15 +184,25 @@ class AggregatorBatchJobs(BatchJobs):
         self.backends = backends
         self.processing = processing
 
-    def _job_id_encode(self, job_id: str, backend_id: str) -> str:
-        return f"{backend_id}-{job_id}"
+    def _get_aggregator_job_id(self, backend_job_id: str, backend_id: str) -> str:
+        """Construct aggregator job id from given backend job id and backend id"""
+        return f"{backend_id}-{backend_job_id}"
+
+    def _parse_aggregator_job_id(self, aggregator_job_id: str) -> Tuple[str, str]:
+        """Given aggregator job id: extract backend job id and backend id"""
+        for con in self.backends:
+            if aggregator_job_id.startswith(con.id + "-"):
+                backend_id, backend_job_id = aggregator_job_id.partition(con.id + "-")[1:]
+                backend_id = backend_id[:-1]
+                return backend_job_id, backend_id
+        raise JobNotFoundException(job_id=aggregator_job_id)
 
     def get_user_jobs(self, user_id: str) -> List[BatchJobMetadata]:
         jobs = []
         for con in self.backends:
             with con.authenticated_from_request(request=flask.request):
                 for job in con.list_jobs():
-                    job["id"] = self._job_id_encode(job_id=job["id"], backend_id=con.id)
+                    job["id"] = self._get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_dict(job))
         return jobs
 
@@ -198,18 +210,40 @@ class AggregatorBatchJobs(BatchJobs):
             self, user_id: str, process: dict, api_version: str,
             metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
-        backend_id = self.processing.get_backend_for_process_graph(process_graph=process["process_graph"])
+        try:
+            process_graph = process["process_graph"]
+        except (KeyError, TypeError) as e:
+            raise ProcessGraphMissingException()
+        backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph)
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request):
-            job = con.create_job(
-                process_graph=process["process_graph"],
-                title=metadata.get("title"), description=metadata.get("description"),
-                plan=metadata.get("plan"), budget=metadata.get("budget")
-            )
+            try:
+                job = con.create_job(
+                    process_graph=process_graph,
+                    title=metadata.get("title"), description=metadata.get("description"),
+                    plan=metadata.get("plan"), budget=metadata.get("budget")
+                )
+            except OpenEoApiError as e:
+                if e.code == "ProcessGraphMissing":
+                    raise ProcessGraphMissingException()
+                raise
         return BatchJobMetadata(
-            id=self._job_id_encode(job_id=job.job_id, backend_id=backend_id),
+            id=self._get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
             status="dummy", created="dummy", process="dummy"
         )
+
+    def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
+        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=job_id)
+        con = self.backends.get_connection(backend_id)
+        with con.authenticated_from_request(request=flask.request):
+            try:
+                metadata = con.job(backend_job_id).describe_job()
+            except OpenEoApiError as e:
+                if e.code == "JobNotFound":
+                    raise JobNotFoundException(job_id=job_id)
+                raise
+        metadata["id"] = job_id
+        return BatchJobMetadata.from_dict(metadata)
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
