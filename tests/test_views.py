@@ -192,6 +192,29 @@ class TestProcessing:
         assert res.json == 123
         assert (b1_mock.call_count, b2_mock.call_count) == call_counts
 
+    def test_result_backend_by_collection_collection_not_found(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S3"}, "result": True}}
+        res = api100.post("/result", json={"process": {"process_graph": pg}})
+        res.assert_error(404, "CollectionNotFound", "Collection 'S3' does not exist")
+
+    @pytest.mark.parametrize("pg", [
+        {"lc": {}},
+        {"lc": {"foo": "bar"}},
+        {"lc": {"process_id": "load_collection"}},
+        {"lc": {"process_id": "load_collection", "arguments": {}}},
+    ])
+    def test_result_backend_by_collection_invalid_pg(self, api100, requests_mock, backend1, backend2, pg):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/result", json={"process": {"process_graph": pg}})
+        res.assert_error(400, "ProcessGraphMissing")
+
 
 class TestBatchJobs:
 
@@ -213,3 +236,19 @@ class TestBatchJobs:
             {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
             {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
         ]
+
+    def test_create_job(self, api100, requests_mock, backend1):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_jobs(request: requests.Request, context):
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
+        assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
+        assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"

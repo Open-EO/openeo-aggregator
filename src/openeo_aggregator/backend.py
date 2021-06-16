@@ -11,7 +11,7 @@ from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException
+from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.utils import EvalEnv
 
@@ -124,17 +124,25 @@ class AggregatorProcessing(Processing):
             for collection in self._catalog.get_all_metadata()
         }
 
-    def evaluate(self, process_graph: dict, env: EvalEnv = None):
-        """Evaluate given process graph (flat dict format)."""
+    def get_backend_for_process_graph(self, process_graph: dict) -> str:
+        """
+        Get backend capable of executing given process graph (based on used collections)
+        """
+        # TODO: also check used processes?
+        try:
+            collections = set(
+                n["arguments"]["id"]
+                for n in process_graph.values()
+                if n["process_id"] == "load_collection"
+            )
+        except Exception:
+            raise ProcessGraphMissingException()
 
-        # Check used collections to determine which backend to use
-        collections = set(
-            n["arguments"]["id"]
-            for n in process_graph.values()
-            if n["process_id"] == "load_collection"
-        )
         collection_map = self._get_collection_map()
-        backends = set(collection_map[cid] for cid in collections)
+        try:
+            backends = set(collection_map[cid] for cid in collections)
+        except KeyError as e:
+            raise CollectionNotFoundException(collection_id=e.args[0])
 
         if len(backends) == 1:
             backend_id = backends.pop()
@@ -144,6 +152,13 @@ class AggregatorProcessing(Processing):
             raise OpenEOApiException(
                 message=f"Collections across multiple backends: {collections}."
             )
+
+        return backend_id
+
+    def evaluate(self, process_graph: dict, env: EvalEnv = None):
+        """Evaluate given process graph (flat dict format)."""
+
+        backend_id = self.get_backend_for_process_graph(process_graph)
 
         # Send process graph to backend
         con = self.backends.get_connection(backend_id=backend_id)
@@ -162,18 +177,39 @@ class AggregatorProcessing(Processing):
 
 
 class AggregatorBatchJobs(BatchJobs):
-    def __init__(self, backends: MultiBackendConnection):
+    def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
+        self.processing = processing
+
+    def _job_id_encode(self, job_id: str, backend_id: str) -> str:
+        return f"{backend_id}-{job_id}"
 
     def get_user_jobs(self, user_id: str) -> List[BatchJobMetadata]:
         jobs = []
         for con in self.backends:
             with con.authenticated_from_request(request=flask.request):
                 for job in con.list_jobs():
-                    job["id"] = f"{con.id}-{job['id']}"
+                    job["id"] = self._job_id_encode(job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_dict(job))
         return jobs
+
+    def create_job(
+            self, user_id: str, process: dict, api_version: str,
+            metadata: dict, job_options: dict = None
+    ) -> BatchJobMetadata:
+        backend_id = self.processing.get_backend_for_process_graph(process_graph=process["process_graph"])
+        con = self.backends.get_connection(backend_id)
+        with con.authenticated_from_request(request=flask.request):
+            job = con.create_job(
+                process_graph=process["process_graph"],
+                title=metadata.get("title"), description=metadata.get("description"),
+                plan=metadata.get("plan"), budget=metadata.get("budget")
+            )
+        return BatchJobMetadata(
+            id=self._job_id_encode(job_id=job.job_id, backend_id=backend_id),
+            status="dummy", created="dummy", process="dummy"
+        )
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -184,11 +220,12 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             backends=backends, catalog=catalog,
             stream_chunk_size=config.streaming_chunk_size,
         )
+        batch_jobs = AggregatorBatchJobs(backends=backends, processing=processing)
         super().__init__(
             catalog=catalog,
             processing=processing,
             secondary_services=None,
-            batch_jobs=AggregatorBatchJobs(backends=backends),
+            batch_jobs=batch_jobs,
             user_defined_processes=None,
         )
 
