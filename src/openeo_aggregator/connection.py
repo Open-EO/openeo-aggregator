@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import logging
+import re
 from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union
 
 import flask
@@ -92,6 +93,11 @@ class MultiBackendConnection:
     _TIMEOUT = 5
 
     def __init__(self, backends: Dict[str, str]):
+        if any(not re.match(r"^[a-z0-9]+$", bid) for bid in backends.keys()):
+            raise ValueError(
+                f"Backend ids should be alphanumeric only (no dots, dashes, ...) "
+                f"to avoid collision issues when used as prefix. Got: {list(backends.keys())}"
+            )
         self._backend_urls = backends
         self._connections: List[BackendConnection] = []
         for (bid, url) in self._backend_urls.items():
@@ -113,7 +119,10 @@ class MultiBackendConnection:
         return self._connections[0]
 
     def get_connection(self, backend_id: str) -> BackendConnection:
-        return next(c for c in self if c.id == backend_id)
+        for con in self:
+            if con.id == backend_id:
+                return con
+        raise OpenEOApiException(f"No backend with id {backend_id!r}")
 
     def _get_api_version(self) -> ComparableVersion:
         # TODO: ignore patch level of API versions?

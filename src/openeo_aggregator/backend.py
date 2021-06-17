@@ -190,10 +190,9 @@ class AggregatorBatchJobs(BatchJobs):
 
     def _parse_aggregator_job_id(self, aggregator_job_id: str) -> Tuple[str, str]:
         """Given aggregator job id: extract backend job id and backend id"""
-        for con in self.backends:
-            if aggregator_job_id.startswith(con.id + "-"):
-                backend_id, backend_job_id = aggregator_job_id.partition(con.id + "-")[1:]
-                backend_id = backend_id[:-1]
+        for prefix in [f"{con.id}-" for con in self.backends]:
+            if aggregator_job_id.startswith(prefix):
+                backend_id, backend_job_id = aggregator_job_id.split("-", maxsplit=1)
                 return backend_job_id, backend_id
         raise JobNotFoundException(job_id=aggregator_job_id)
 

@@ -86,6 +86,14 @@ class TestMultiBackendConnection:
 
     # TODO test version discovery in constructor
 
+    @pytest.mark.parametrize(["bid1", "bid2"], [
+        ("b1", "b1-dev"), ("b1", "b1.dev"), ("b1", "b1:dev"),
+        ("AA", "BB")
+    ])
+    def test_backend_id_format_invalid(self, backend1, backend2, bid1, bid2):
+        with pytest.raises(ValueError, match="should be alphanumeric only"):
+            _ = MultiBackendConnection({bid1: backend1, bid2: backend2})
+
     def test_iter(self, multi_backend_connection):
         count = 0
         for x in multi_backend_connection:
