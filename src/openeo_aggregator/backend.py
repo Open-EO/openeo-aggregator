@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from typing import List, Dict, Union, Tuple
 
@@ -6,7 +7,7 @@ import flask
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT
-from openeo_aggregator.connection import MultiBackendConnection
+from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
@@ -231,29 +232,45 @@ class AggregatorBatchJobs(BatchJobs):
             status="dummy", created="dummy", process="dummy"
         )
 
-    def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
-        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=job_id)
+    def _get_connection_and_backend_job_id(self, aggregator_job_id: str) -> Tuple[BackendConnection, str]:
+        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=aggregator_job_id)
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request):
-            try:
-                metadata = con.job(backend_job_id).describe_job()
-            except OpenEoApiError as e:
-                if e.code == "JobNotFound":
-                    raise JobNotFoundException(job_id=job_id)
-                raise
+        return con, backend_job_id
+
+    @contextlib.contextmanager
+    def _translate_job_not_found_errors(self, job_id):
+        try:
+            yield
+        except OpenEoApiError as e:
+            if e.code == "JobNotFound":
+                raise JobNotFoundException(job_id=job_id)
+            raise
+
+    def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_not_found_errors(job_id=job_id):
+            metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
         return BatchJobMetadata.from_dict(metadata)
 
     def start_job(self, job_id: str, user: 'User'):
-        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=job_id)
-        con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request):
-            try:
-                con.job(backend_job_id).start_job()
-            except OpenEoApiError as e:
-                if e.code == "JobNotFound":
-                    raise JobNotFoundException(job_id=job_id)
-                raise
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_not_found_errors(job_id=job_id):
+            con.job(backend_job_id).start_job()
+
+    def cancel_job(self, job_id: str, user_id: str):
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_not_found_errors(job_id=job_id):
+            con.job(backend_job_id).stop_job()
+
+    def delete_job(self, job_id: str, user_id: str):
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_not_found_errors(job_id=job_id):
+            con.job(backend_job_id).delete_job()
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
