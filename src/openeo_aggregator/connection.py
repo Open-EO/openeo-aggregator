@@ -9,7 +9,7 @@ import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
-from openeo_aggregator.config import CACHE_TTL_DEFAULT
+from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
@@ -30,7 +30,7 @@ class BackendConnection(Connection):
     - authentication is locked down: only short term authentication is allowed (during lifetime of a flask request)
     """
 
-    def __init__(self, id: str, url: str, default_timeout: int = 5):
+    def __init__(self, id: str, url: str, default_timeout: int = CONNECTION_TIMEOUT_DEFAULT):
         # Temporarily unlock `_auth` for `super().__init__()`
         self._auth_locked = False
         super(BackendConnection, self).__init__(url, default_timeout=default_timeout)
