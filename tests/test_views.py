@@ -294,13 +294,34 @@ class TestBatchJobs:
     def test_get_job_metadata_not_found_on_backend(self, api100, requests_mock, backend1):
         requests_mock.get(
             backend1 + "/jobs/th3j0b",
-            status_code=404, json=JobNotFoundException(job_id="th3j0b").to_dict()
+            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id="th3j0b").to_dict()
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b")
         res.assert_error(404, "JobNotFound", message="The batch job 'b1-th3j0b' does not exist.")
 
-    def test_get_job_metadata_not_found_on_aggregator(self, api100, requests_mock, backend1):
+    def test_get_job_metadata_not_found_on_aggregator(self, api100):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/nope-and-nope")
+        res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+    def test_start_job(self, api100, requests_mock, backend1):
+        m = requests_mock.post(backend1 + "/jobs/th3j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api100.post("/jobs/b1-th3j0b/results").assert_status_code(202)
+        assert m.call_count == 1
+
+    def test_start_job_not_found_on_backend(self, api100, requests_mock, backend1):
+        m = requests_mock.post(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id="th3j0b").to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs/b1-th3j0b/results")
+        res.assert_error(404, "JobNotFound", message="The batch job 'b1-th3j0b' does not exist.")
+        assert m.call_count == 1
+
+    def test_start_job_not_found_on_aggregator(self, api100):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs/nope-and-nope/results")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")

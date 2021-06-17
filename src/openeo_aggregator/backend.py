@@ -245,6 +245,17 @@ class AggregatorBatchJobs(BatchJobs):
         metadata["id"] = job_id
         return BatchJobMetadata.from_dict(metadata)
 
+    def start_job(self, job_id: str, user: 'User'):
+        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=job_id)
+        con = self.backends.get_connection(backend_id)
+        with con.authenticated_from_request(request=flask.request):
+            try:
+                con.job(backend_job_id).start_job()
+            except OpenEoApiError as e:
+                if e.code == "JobNotFound":
+                    raise JobNotFoundException(job_id=job_id)
+                raise
+
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
