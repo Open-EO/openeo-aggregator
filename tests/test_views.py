@@ -441,3 +441,46 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/nope-and-nope/results")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+    def test_get_logs(self, api100, requests_mock, backend1):
+        def get_logs(request, context):
+            offset = request.qs.get("offset", ["_"])[0]
+            return {"logs": [
+                {"id": offset + "1", "level": "info", "message": "hello"},
+                {"id": offset + "11", "level": "info", "message": "hello"},
+            ]}
+
+        requests_mock.get(backend1 + "/jobs/th3j0b/logs", status_code=200, json=get_logs)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/logs").assert_status_code(200).json
+        assert res == {
+            "logs": [
+                {"id": "_1", "level": "info", "message": "hello"},
+                {"id": "_11", "level": "info", "message": "hello"},
+            ],
+            "links": []
+        }
+
+        res = api100.get("/jobs/b1-th3j0b/logs?offset=3").assert_status_code(200).json
+        assert res == {
+            "logs": [
+                {"id": "31", "level": "info", "message": "hello"},
+                {"id": "311", "level": "info", "message": "hello"},
+            ],
+            "links": []
+        }
+
+    @pytest.mark.parametrize("job_id", ["th3j0b", "th-3j-0b", "th.3j.0b", "th~3j~0b"])
+    def test_get_logs_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
+        requests_mock.get(
+            backend1 + f"/jobs/{job_id}/logs",
+            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get(f"/jobs/b1-{job_id}/logs")
+        res.assert_error(404, "JobNotFound", message=f"The batch job 'b1-{job_id}' does not exist.")
+
+    def test_get_logs_not_found_on_aggregator(self, api100):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/nope-and-nope/logs")
+        res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")

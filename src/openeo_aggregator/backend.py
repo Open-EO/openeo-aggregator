@@ -1,11 +1,12 @@
 import contextlib
 import logging
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union, Tuple, Optional
 
 import flask
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
+from openeo.util import dict_no_none
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
 from openeo_aggregator.utils import TtlCache
@@ -282,6 +283,14 @@ class AggregatorBatchJobs(BatchJobs):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
         return {a.name: {**a.metadata, **{"href": a.href}} for a in assets}
+
+    def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_errors(job_id=job_id):
+            params = dict_no_none(offset=offset)
+            res = con.get(f"/jobs/{backend_job_id}/logs", params=params, expected_status=200).json()
+        return res["logs"]
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
