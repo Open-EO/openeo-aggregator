@@ -13,7 +13,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException
+    JobNotFoundException, JobNotFinishedException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -238,18 +238,21 @@ class AggregatorBatchJobs(BatchJobs):
         return con, backend_job_id
 
     @contextlib.contextmanager
-    def _translate_job_not_found_errors(self, job_id):
+    def _translate_job_errors(self, job_id):
+        """Context manager to translate job related errors, where necessary"""
         try:
             yield
         except OpenEoApiError as e:
-            if e.code == "JobNotFound":
-                raise JobNotFoundException(job_id=job_id)
+            if e.code == JobNotFoundException.code:
+                raise JobNotFoundException(job_id=job_id, )
+            elif e.code == JobNotFinishedException.code:
+                raise JobNotFinishedException(message=e.message)
             raise
 
     def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
-                self._translate_job_not_found_errors(job_id=job_id):
+                self._translate_job_errors(job_id=job_id):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
         return BatchJobMetadata.from_dict(metadata)
@@ -257,20 +260,28 @@ class AggregatorBatchJobs(BatchJobs):
     def start_job(self, job_id: str, user: 'User'):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
-                self._translate_job_not_found_errors(job_id=job_id):
+                self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 
     def cancel_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
-                self._translate_job_not_found_errors(job_id=job_id):
+                self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).stop_job()
 
     def delete_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
-                self._translate_job_not_found_errors(job_id=job_id):
+                self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).delete_job()
+
+    def get_results(self, job_id: str, user_id: str) -> Dict[str, dict]:
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request), \
+                self._translate_job_errors(job_id=job_id):
+            results = con.job(backend_job_id).get_results()
+            assets = results.get_assets()
+        return {a.name: {**a.metadata, **{"href": a.href}} for a in assets}
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):

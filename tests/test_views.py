@@ -2,8 +2,9 @@ import pytest
 import requests
 
 from openeo_aggregator.app import create_app
-from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException
+from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
+from .conftest import assert_dict_subset
 
 
 @pytest.fixture
@@ -370,4 +371,73 @@ class TestBatchJobs:
     def test_delete_job_not_found_on_aggregator(self, api100):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.delete("/jobs/nope-and-nope")
+        res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+    def test_get_results(self, api100, requests_mock, backend1):
+        m1 = requests_mock.get(backend1 + "/jobs/th3j0b", json={
+            "id": "th3j0b",
+            "title": "The job", "description": "Just doing my job.",
+            "status": "finished", "progress": 100, "created": "2017-01-01T09:32:12Z",
+        })
+        m2 = requests_mock.get(backend1 + "/jobs/th3j0b/results", status_code=200, json={
+            "assets": {
+                "r1.tiff": {"href": "https//res.b1.test/123/r1.tiff", "title": "Result 1"}
+            }
+        })
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
+        assert m1.call_count == 1
+        assert m2.call_count == 1
+        assert res["assets"] == {
+            "r1.tiff": {
+                "href": "https//res.b1.test/123/r1.tiff",
+                "title": "Result 1",
+                "roles": ["data"],
+                "file:nodata": [None]
+            }
+        }
+        assert res["id"] == "b1-th3j0b"
+        assert res["type"] == "Feature"
+        assert_dict_subset(
+            {"title": "The job", "created": "2017-01-01T09:32:12Z", "description": "Just doing my job."},
+            res["properties"]
+        )
+
+    @pytest.mark.parametrize("job_status", ["created", "running", "canceled", "error"])
+    def test_get_results_not_finished(self, api100, requests_mock, backend1, job_status):
+        requests_mock.get(backend1 + "/jobs/th3j0b", json={
+            "id": "th3j0b", "status": job_status, "created": "2017-01-01T09:32:12Z",
+        })
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results")
+        res.assert_error(JobNotFinishedException.status_code, "JobNotFinished")
+
+    def test_get_results_finished_unreliable(self, api100, requests_mock, backend1):
+        """Edge case: job status is 'finished', but results still return with 'JobNotFinished'."""
+        m1 = requests_mock.get(backend1 + "/jobs/th3j0b", json={
+            "id": "th3j0b", "status": "finished", "created": "2017-01-01T09:32:12Z",
+        })
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=JobNotFinishedException.status_code, json=JobNotFinishedException().to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results")
+        res.assert_error(JobNotFinishedException.status_code, "JobNotFinished")
+        assert m1.call_count == 1
+        assert m2.call_count == 1
+
+    @pytest.mark.parametrize("job_id", ["th3j0b", "th-3j-0b", "th.3j.0b", "th~3j~0b"])
+    def test_get_results_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
+        requests_mock.get(
+            backend1 + f"/jobs/{job_id}",
+            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get(f"/jobs/b1-{job_id}/results")
+        res.assert_error(404, "JobNotFound", message=f"The batch job 'b1-{job_id}' does not exist.")
+
+    def test_get_results_not_found_on_aggregator(self, api100):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/nope-and-nope/results")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")

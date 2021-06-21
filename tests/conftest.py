@@ -53,3 +53,8 @@ def flask_app(config: AggregatorConfig) -> flask.Flask:
     app.config['TESTING'] = True
     app.config['SERVER_NAME'] = 'oeoa.test'
     return app
+
+
+def assert_dict_subset(d1: dict, d2: dict):
+    """Check whether dictionary `d1` is a subset of `d2`"""
+    assert d1 == {k: v for (k, v) in d2.items() if k in d1}
