@@ -282,7 +282,7 @@ class AggregatorBatchJobs(BatchJobs):
                 self._translate_job_errors(job_id=job_id):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
-        return {a.name: {**a.metadata, **{"href": a.href}} for a in assets}
+        return {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
 
     def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
