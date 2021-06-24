@@ -16,21 +16,23 @@ When planning to do development, it is recommended to install it in development 
 
 ### Flask dev mode
 
-To run locally in development mode, with standard flask workflow:
+To run locally in development mode, with standard Flask workflow,
+for example (also see `./scripts/run-flask-dev.sh`):
 
     export FLASK_APP=openeo_aggregator.app
     export FLASK_ENV=development
     flask run
 
-The webapp should be available at https://localhost:5000/openeo/1.0
+The webapp should be available at http://localhost:5000/openeo/1.0
 
 ### With gunicorn
 
-To run the app as gunicorn application, with desired options, e.g.:
+To run the app as gunicorn application, with desired options,
+for example (also see `./scripts/run-gunicorn.sh`):
 
     gunicorn --workers=2 --threads=2 --bind 0.0.0.0:8080 'openeo_aggregator.app:create_app()'
 
-The webapp should be available at https://localhost:8080/openeo/1.0
+The webapp should be available at http://localhost:8080/openeo/1.0
 
 
 ## Docker image
