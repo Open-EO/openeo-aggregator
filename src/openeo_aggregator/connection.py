@@ -80,9 +80,11 @@ class BackendConnection(Connection):
         """
         self._auth_locked = False
         self.auth = BearerAuth(bearer=self._get_bearer(request=request))
-        yield self
-        self.auth = None
-        self._auth_locked = True
+        try:
+            yield self
+        finally:
+            self.auth = None
+            self._auth_locked = True
 
 
 class MultiBackendConnection:
