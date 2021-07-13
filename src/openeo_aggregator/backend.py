@@ -7,7 +7,8 @@ import flask
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo.util import dict_no_none
-from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT
+from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
+    CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
 from openeo_aggregator.utils import TtlCache
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -168,7 +169,10 @@ class AggregatorProcessing(Processing):
         con = self.backends.get_connection(backend_id=backend_id)
         request_pg = {"process": {"process_graph": process_graph}}
         with con.authenticated_from_request(flask.request):
-            backend_response = con.post(path="/result", json=request_pg, stream=True)
+            backend_response = con.post(
+                path="/result", json=request_pg,
+                stream=True, timeout=CONNECTION_TIMEOUT_RESULT
+            )
 
         # Convert `requests.Response` from backend to `flask.Response` for client
         headers = [(k, v) for (k, v) in backend_response.headers.items() if k.lower() in ["content-type"]]
