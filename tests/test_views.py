@@ -393,7 +393,8 @@ class TestBatchJobs:
                 "href": "https//res.b1.test/123/r1.tiff",
                 "title": "Result 1",
                 "roles": ["data"],
-                "file:nodata": [None]
+                "file:nodata": [None],
+                "type": "application/octet-stream",
             }
         }
         assert res["id"] == "b1-th3j0b"
