@@ -324,6 +324,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def _file_formats(self) -> dict:
         input_formats = {}
         output_formats = {}
+
+        def merge(formats: dict, to_add: dict):
+            # TODO: merge parameters in some way?
+            for name, data in to_add.items():
+                if name.lower() not in {k.lower() for k in formats.keys()}:
+                    formats[name] = data
+
         for con in self._backends:
             try:
                 file_formats = con.get("/file_formats").json()
@@ -331,7 +338,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 # TODO: fail instead of warn?
                 _log.warning(f"Failed to get file_formats from {con.id}", exc_info=True)
                 continue
-            # TODO smarter merging: case insensitive format name handling, parameter differences?
-            input_formats.update(file_formats.get("input", {}))
-            output_formats.update(file_formats.get("output", {}))
+            # TODO smarter merging:  parameter differences?
+            merge(input_formats, file_formats.get("input", {}))
+            merge(output_formats, file_formats.get("output", {}))
         return {"input": input_formats, "output": output_formats}

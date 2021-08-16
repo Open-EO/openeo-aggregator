@@ -58,20 +58,11 @@ class TestAggregatorBackendImplementation:
                 "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
                 "GTiff": {
                     "gis_data_types": ["raster"],
-                    "parameters": {
-                        "ZLEVEL": {"type": "string", "default": "6"},
-                        "tile_grid": {"type": "string", "enum": ["none", "wgs84", "utm-10km"], "default": "none"}
-                    },
+                    "parameters": {"ZLEVEL": {"type": "string", "default": "6"}, },
                     "title": "GeoTiff"
                 },
                 "JSON": {"gis_data_types": ["raster"], "parameters": {}},
-                "NetCDF": {
-                    "gis_data_types": ["other", "raster"],
-                    "parameters": {
-                        "feature_id_property": {"type": "string", "default": None, "description": "..."},
-                    },
-                    "title": "Network Common Data Form",
-                },
+                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
             }
         })
         requests_mock.get(backend2 + "/file_formats", json={
@@ -80,7 +71,7 @@ class TestAggregatorBackendImplementation:
             },
             "output": {
                 "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
-                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
+                "NetCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
             }
         })
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
@@ -95,18 +86,10 @@ class TestAggregatorBackendImplementation:
                 "GTiff": {
                     "gis_data_types": ["raster"],
                     # TODO: merge parameters of backend1 and backend2?
-                    "parameters": {},
+                    "parameters": {"ZLEVEL": {"type": "string", "default": "6"}, },
                     "title": "GeoTiff"
                 },
                 "JSON": {"gis_data_types": ["raster"], "parameters": {}},
-                "NetCDF": {
-                    "gis_data_types": ["other", "raster"],
-                    "parameters": {
-                        "feature_id_property": {"type": "string", "default": None, "description": "..."},
-                    },
-                    "title": "Network Common Data Form",
-                },
-                # TODO: merge "NetCDF" and "netCDF"?
                 "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
             }
         }
