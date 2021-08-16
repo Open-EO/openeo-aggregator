@@ -313,6 +313,25 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             batch_jobs=batch_jobs,
             user_defined_processes=None,
         )
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
     def oidc_providers(self) -> List[OidcProvider]:
         return self._backends.get_oidc_providers()
+
+    def file_formats(self) -> dict:
+        return self._cache.get_or_call(key="file_formats", callback=self._file_formats)
+
+    def _file_formats(self) -> dict:
+        input_formats = {}
+        output_formats = {}
+        for con in self._backends:
+            try:
+                file_formats = con.get("/file_formats").json()
+            except Exception:
+                # TODO: fail instead of warn?
+                _log.warning(f"Failed to get file_formats from {con.id}", exc_info=True)
+                continue
+            # TODO smarter merging: case insensitive format name handling, parameter differences?
+            input_formats.update(file_formats.get("input", {}))
+            output_formats.update(file_formats.get("output", {}))
+        return {"input": input_formats, "output": output_formats}

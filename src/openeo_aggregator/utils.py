@@ -63,3 +63,6 @@ class TtlCache:
             res = callback()
             self.set(key, res, ttl=ttl)
         return res
+
+    def flush_all(self):
+        self._cache = {}

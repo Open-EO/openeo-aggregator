@@ -19,6 +19,98 @@ class TestAggregatorBackendImplementation:
         expected = {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
         assert provider.prepare_for_json() == expected
 
+    def test_file_formats_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        just_geotiff = {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
+        }
+        requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
+        requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        file_formats = implementation.file_formats()
+        assert file_formats == just_geotiff
+
+    def test_file_formats_caching(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        just_geotiff = {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
+        }
+        mock1 = requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
+        mock2 = requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        file_formats = implementation.file_formats()
+        assert file_formats == just_geotiff
+        assert mock1.call_count == 1
+        assert mock2.call_count == 1
+        _ = implementation.file_formats()
+        assert mock1.call_count == 1
+        assert mock2.call_count == 1
+        implementation._cache.flush_all()
+        _ = implementation.file_formats()
+        assert mock1.call_count == 2
+        assert mock2.call_count == 2
+
+    def test_file_formats_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/file_formats", json={
+            "input": {
+                "GeoJSON": {"gis_data_types": ["vector"], "parameters": {}}},
+            "output": {
+                "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {
+                        "ZLEVEL": {"type": "string", "default": "6"},
+                        "tile_grid": {"type": "string", "enum": ["none", "wgs84", "utm-10km"], "default": "none"}
+                    },
+                    "title": "GeoTiff"
+                },
+                "JSON": {"gis_data_types": ["raster"], "parameters": {}},
+                "NetCDF": {
+                    "gis_data_types": ["other", "raster"],
+                    "parameters": {
+                        "feature_id_property": {"type": "string", "default": None, "description": "..."},
+                    },
+                    "title": "Network Common Data Form",
+                },
+            }
+        })
+        requests_mock.get(backend2 + "/file_formats", json={
+            "input": {
+                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+            },
+            "output": {
+                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
+            }
+        })
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        file_formats = implementation.file_formats()
+        assert file_formats == {
+            "input": {
+                "GeoJSON": {"gis_data_types": ["vector"], "parameters": {}},
+                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+            },
+            "output": {
+                "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    # TODO: merge parameters of backend1 and backend2?
+                    "parameters": {},
+                    "title": "GeoTiff"
+                },
+                "JSON": {"gis_data_types": ["raster"], "parameters": {}},
+                "NetCDF": {
+                    "gis_data_types": ["other", "raster"],
+                    "parameters": {
+                        "feature_id_property": {"type": "string", "default": None, "description": "..."},
+                    },
+                    "title": "Network Common Data Form",
+                },
+                # TODO: merge "NetCDF" and "netCDF"?
+                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
+            }
+        }
+
 
 class TestAggregatorCollectionCatalog:
 
