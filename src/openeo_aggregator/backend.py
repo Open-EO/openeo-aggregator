@@ -53,7 +53,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     collection_metadata[self.METADATA_KEY] = {"backend": {"id": con.id, "url": con.root_url}}
                     all_collections[cid] = collection_metadata
         for cid in duplicates:
-            # TODO resolve duplication issue in more forgiving way?
+            # TODO  #5 resolve duplication issue in more forgiving way?
             _log.warning(f"Not exposing duplicated collection id {cid}")
             del all_collections[cid]
         return list(all_collections.values())
@@ -336,7 +336,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 # TODO: fail instead of warn?
                 _log.warning(f"Failed to get file_formats from {con.id}", exc_info=True)
                 continue
-            # TODO smarter merging:  parameter differences?
+            # TODO #1 smarter merging:  parameter differences?
             merge(input_formats, file_formats.get("input", {}))
             merge(output_formats, file_formats.get("output", {}))
         return {"input": input_formats, "output": output_formats}
