@@ -97,7 +97,11 @@ class TestProcessing:
         ]})
         res = api100.get("/processes").assert_status_code(200).json
         assert res == {
-            "processes": [{"id": "mean", "parameters": [{"name": "data"}]}],
+            "processes": [
+                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+                {"id": "mean", "parameters": [{"name": "data"}]},
+                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+            ],
             "links": [],
         }
 

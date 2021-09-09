@@ -107,17 +107,15 @@ class AggregatorProcessing(Processing):
                 # TODO: fail instead of warn?
                 _log.warning(f"Failed to get processes from {con.id}", exc_info=True)
 
-        # TODO: not only check process name, but also parameters and return type?
-        # TODO: return union of processes instead of intersection?
-        intersection = None
+        # TODO #4: combined set of processes: union, intersection or something else?
+        # TODO #4: not only check process name, but also parameters and return type?
+        combined_processes = {}
         for bid, backend_processes in processes_per_backend.items():
-            if intersection is None:
-                intersection = backend_processes
-            else:
-                intersection = {k: v for (k, v) in intersection.items() if k in backend_processes}
+            # Combine by taking union (with higher preference for earlier backends)
+            combined_processes = {**backend_processes, **combined_processes}
 
         process_registry = ProcessRegistry()
-        for pid, spec in intersection.items():
+        for pid, spec in combined_processes.items():
             process_registry.add_spec(spec=spec)
 
         return process_registry

@@ -141,6 +141,29 @@ class TestAggregatorProcessing:
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
-        assert registry.get_specs() == [
+        assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+        ]
+
+    def test_get_process_registry_parameter_differences(
+            self, multi_backend_connection, backend1, backend2,
+            requests_mock
+    ):
+        requests_mock.get(backend1 + "/processes", json={"processes": [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "array"}]},
+        ]})
+        requests_mock.get(backend2 + "/processes", json={"processes": [
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "values"}]},
+        ]})
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        registry = processing.get_process_registry(api_version="1.0.0")
+        assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "array"}]},
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
         ]
