@@ -204,7 +204,13 @@ class AggregatorBatchJobs(BatchJobs):
         jobs = []
         for con in self.backends:
             with con.authenticated_from_request(request=flask.request):
-                for job in con.list_jobs():
+                try:
+                    backend_jobs = con.list_jobs()
+                except OpenEoApiError as e:
+                    _log.warning(f"Failed to get job listing from backend {con.id!r}: {e!r}")
+                    # TODO attach failure to response? https://github.com/Open-EO/openeo-api/issues/412
+                    backend_jobs = []
+                for job in backend_jobs:
                     job["id"] = self._get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_dict(job))
         return jobs
