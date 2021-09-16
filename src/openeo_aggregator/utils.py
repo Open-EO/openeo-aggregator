@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Callable
+from typing import Callable, Iterable, Iterator
 
 # Generic "sentinel object" for unset values (where `None` is valid value)
 # https://python-patterns.guide/python/sentinel-object/)
@@ -70,3 +70,34 @@ class TtlCache:
 
     def flush_all(self):
         self._cache = {}
+
+
+class MultiDictGetter:
+    """
+    Helper to get (and combine) items (where available) from a collection of dictionaries.
+    """
+
+    def __init__(self, dictionaries: Iterable[dict]):
+        self.dictionaries = list(dictionaries)
+
+    def get(self, key: str) -> Iterator:
+        for d in self.dictionaries:
+            if key in d:
+                yield d[key]
+
+    def union(self, key: str, skip_duplicates=False) -> list:
+        """Simple list based union"""
+        result = []
+        for items in self.get(key):
+            for item in items:
+                if skip_duplicates and item in result:
+                    continue
+                result.append(item)
+        return result
+
+    def first(self, key, default=None):
+        return next(self.get(key), default)
+
+    def select(self, key: str) -> 'MultiDictGetter':
+        """Create new getter, one step deeper in the dictionary hierarchy."""
+        return MultiDictGetter(d for d in self.get(key=key) if isinstance(d, dict))

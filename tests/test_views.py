@@ -43,7 +43,7 @@ class TestCatalog:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}]})
         res = api100.get("/collections").assert_status_code(200).json
-        assert set(c["id"] for c in res["collections"]) == {"S1", "S3"}
+        assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
 
 
 class TestAuthentication:
