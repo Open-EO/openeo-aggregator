@@ -183,6 +183,8 @@ class AggregatorProcessing(Processing):
 
 
 class AggregatorBatchJobs(BatchJobs):
+    JOB_START_TIMEOUT = 5 * 60
+
     def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
@@ -225,7 +227,8 @@ class AggregatorBatchJobs(BatchJobs):
             raise ProcessGraphMissingException()
         backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph)
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request):
+        with con.authenticated_from_request(request=flask.request), \
+                con.override(default_timeout=self.JOB_START_TIMEOUT):
             try:
                 job = con.create_job(
                     process_graph=process_graph,
@@ -269,6 +272,7 @@ class AggregatorBatchJobs(BatchJobs):
     def start_job(self, job_id: str, user: 'User'):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
+                con.override(default_timeout=self.JOB_START_TIMEOUT), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 

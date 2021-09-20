@@ -11,7 +11,7 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT
-from openeo_aggregator.utils import TtlCache
+from openeo_aggregator.utils import TtlCache, _UNSET
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
     AuthenticationSchemeInvalidException, InternalException
@@ -85,6 +85,22 @@ class BackendConnection(Connection):
         finally:
             self.auth = None
             self._auth_locked = True
+
+    @contextlib.contextmanager
+    def override(self, default_timeout: int = _UNSET, default_headers: dict = _UNSET):
+        """
+        Context manager to temporarily override default settings of the connection
+        """
+        # TODO move this to Python client
+        orig_default_timeout = self.default_timeout
+        orig_default_headers = self.default_headers
+        if default_timeout is not _UNSET:
+            self.default_timeout = default_timeout
+        if default_headers is not _UNSET:
+            self.default_headers = default_headers
+        yield self
+        self.default_timeout = orig_default_timeout
+        self.default_headers = orig_default_headers
 
 
 class MultiBackendConnection:

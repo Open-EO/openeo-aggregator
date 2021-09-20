@@ -1,6 +1,10 @@
+import logging
 import time
 from typing import Callable
-import logging
+
+# Generic "sentinel object" for unset values (where `None` is valid value)
+# https://python-patterns.guide/python/sentinel-object/)
+_UNSET = object()
 
 
 class CacheMissException(KeyError):

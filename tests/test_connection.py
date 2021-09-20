@@ -7,6 +7,7 @@ import requests
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo.rest.auth.auth import BearerAuth
+from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
 from openeo_aggregator.connection import BackendConnection, MultiBackendConnection, LockedAuthException
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException
@@ -106,6 +107,28 @@ class TestBackendConnection:
                 raise exception
         # auth should be reset even with exception in `authenticated_from_request` body
         assert con.auth is None
+
+    def test_override_default_timetout(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+        con = BackendConnection(id="foo", url="https://foo.test")
+        assert con.default_timeout == CONNECTION_TIMEOUT_DEFAULT
+        with con.override(default_timeout=67):
+            assert con.default_timeout == 67
+        assert con.default_timeout == CONNECTION_TIMEOUT_DEFAULT
+
+    def test_override_default_headers(self, requests_mock):
+        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+
+        def handler(request, context):
+            return "The UA is " + request.headers["User-Agent"]
+
+        requests_mock.get("https://foo.test/ua", text=handler)
+
+        con = BackendConnection(id="foo", url="https://foo.test")
+        assert con.get("/ua").text.startswith("The UA is openeo-aggregator/")
+        with con.override(default_headers={"User-Agent": "Foobur 1.2"}):
+            assert con.get("/ua").text == "The UA is Foobur 1.2"
+        assert con.get("/ua").text.startswith("The UA is openeo-aggregator/")
 
 
 class TestMultiBackendConnection:
