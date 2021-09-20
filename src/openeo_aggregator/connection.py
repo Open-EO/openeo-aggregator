@@ -125,8 +125,8 @@ class MultiBackendConnection:
         self.api_version = self._get_api_version()
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
-        # Prime OIDC data and OIDC provider mapping
-        self.build_oidc_data()
+        _log.info("Prime OIDC provider data")
+        self.get_oidc_providers()
 
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self._connections)
@@ -161,9 +161,9 @@ class MultiBackendConnection:
             yield con.id, res
 
     def get_oidc_providers(self) -> List[OidcProvider]:
-        return self._cache.get_or_call(key="oidc_data", callback=self.build_oidc_data)
+        return self._cache.get_or_call(key="oidc_data", callback=self._build_oidc_data)
 
-    def build_oidc_data(self) -> List[OidcProvider]:
+    def _build_oidc_data(self) -> List[OidcProvider]:
         """
         Build list of common OIDC providers to advertise as aggregator OIDC provider
         and set up the provider mapping in the connections
@@ -183,8 +183,9 @@ class MultiBackendConnection:
             for providers in providers_per_backend.values()
         ]
         intersection: Set[str] = functools.reduce((lambda x, y: x.intersection(y)), issuers_per_backend)
+        _log.info(f"OIDC provider intersection: {intersection}")
         if len(intersection) == 0:
-            _log.warning(f"Emtpy OIDC intersection. Issuers per backend: {issuers_per_backend}")
+            _log.warning(f"Emtpy OIDC provider intersection. Issuers per backend: {issuers_per_backend}")
         agg_providers = [
             p for p in providers_per_backend[self.first().id]
             if p.issuer in intersection
