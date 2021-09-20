@@ -1,7 +1,7 @@
 import pytest
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, AggregatorBackendImplementation
-from openeo_driver.errors import OpenEOApiException
+from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException
 
 
 class TestAggregatorBackendImplementation:
@@ -198,12 +198,58 @@ class TestAggregatorCollectionCatalog:
         with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
             catalog.get_best_backend_for_collections(["S3", "S4", "S5"])
 
-    def test_get_collection_metadata(self, multi_backend_connection, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections/S2", status_code=400)
-        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+    def test_get_collection_metadata_basic(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        requests_mock.get(backend2 + "/collections/S3", json={"id": "S3", "title": "b2's S3"})
+
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_collection_metadata("S2")
-        assert metadata == {"id": "S2", "title": "b2's S2"}
+        assert metadata == {"id": "S2", "title": "b1's S2"}
+        metadata = catalog.get_collection_metadata("S3")
+        assert metadata == {"id": "S3", "title": "b2's S3"}
+
+        with pytest.raises(CollectionNotFoundException):
+            catalog.get_collection_metadata("S5")
+
+    def test_get_collection_metadata_merging(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            "stac_version": "0.9.0",
+            "id": "S2",
+            "description": "S2",
+            "title": "b1's S2",
+            "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
+            "license": "proprietary",
+            "links": [],
+        }
+
+    def test_get_collection_metadata_merging_with_error(
+            self, multi_backend_connection, backend1, backend2, requests_mock,
+    ):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", status_code=500)
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            "stac_version": "0.9.0",
+            "id": "S2",
+            "description": "S2",
+            "title": "b2's S2",
+            "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
+            "license": "proprietary",
+            "links": [],
+        }
 
     # TODO tests for caching of collection metadata
 

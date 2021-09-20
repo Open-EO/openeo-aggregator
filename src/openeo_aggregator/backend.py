@@ -169,16 +169,27 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
-        for con in self.backends:
-            try:
-                # TODO: merge when same collection is on multiple back-ends
-                # TODO: check collection overview (cache) if it is necessary to query backend for full metadata
-                return con.describe_collection(name=collection_id)
-            except OpenEoApiError as e:
-                if e.code == "CollectionNotFound":
+        # Get backend ids that support this collection
+        metadata, internal = self._get_all_metadata_cached()
+        backends: List[str] = internal.get(collection_id, {}).get("backends", [])
+
+        if len(backends) == 1:
+            con = self.backends.get_connection(backend_id=backends[0])
+            return con.describe_collection(name=collection_id)
+        elif len(backends) > 1:
+            by_backend = {}
+            for bid in backends:
+                con = self.backends.get_connection(backend_id=bid)
+                try:
+                    by_backend[bid] = con.describe_collection(name=collection_id)
+                except OpenEoApiError as e:
+                    _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
+                    # TODO: avoid caching of final result?
                     continue
-                _log.warning(f"Unexpected error on lookup of collection {collection_id} at {con.id}", exc_info=True)
-        raise CollectionNotFoundException(collection_id)
+            _log.info(f"Merging metadata for collection {collection_id}.")
+            return self._merge_collection_metadata(by_backend=by_backend)
+        else:
+            raise CollectionNotFoundException(collection_id)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
