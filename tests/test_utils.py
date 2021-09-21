@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.utils import TtlCache, CacheMissException
+from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter
 
 
 class FakeClock:
@@ -84,3 +84,48 @@ class TestTtlCache:
         clock.set(200)
         with pytest.raises(StopIteration):
             cache.get_or_call("foo", callback)
+
+
+class TestMultiDictGetter:
+
+    def test_basic(self):
+        getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
+        assert list(getter.get("a")) == [1]
+        assert list(getter.get("b")) == [2, 222]
+        assert list(getter.get("c")) == [333]
+        assert list(getter.get("d")) == []
+
+    def test_union(self):
+        getter = MultiDictGetter([{"a": [1, 11], "b": [2, 22], "c": [33]}, {"b": [222, 2222], "c": [33, 3333]}])
+        assert getter.union("a") == [1, 11]
+        assert getter.union("b") == [2, 22, 222, 2222]
+        assert getter.union("c") == [33, 33, 3333]
+        assert getter.union("c", skip_duplicates=True) == [33, 3333]
+        assert getter.union("d") == []
+
+    def test_first(self):
+        getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
+        assert getter.first("a") == 1
+        assert getter.first("b") == 2
+        assert getter.first("c") == 333
+        assert getter.first("d") is None
+        assert getter.first("d", default=666) == 666
+
+    def test_select(self):
+        getter = MultiDictGetter([
+            {"a": {"aa": {"aaa": 1, "aab": 2}, "ab": 3}, "b": {"ba": 4, "bb": {"bba": 5}}},
+            {"a": {"aa": {"aaa": 10, "aac": 12}, "ac": 13}, "b": {"ba": 14, "bc": {"bbc": 15}}},
+        ])
+        assert list(getter.select("a").get("aa")) == [{"aaa": 1, "aab": 2}, {"aaa": 10, "aac": 12}]
+        assert list(getter.select("a").get("ab")) == [3]
+        assert list(getter.select("b").get("a")) == []
+        assert list(getter.select("b").get("ba")) == [4, 14]
+        assert list(getter.select("b").get("bb")) == [{"bba": 5}]
+        assert list(getter.select("b").get("bc")) == [{"bbc": 15}]
+        assert list(getter.select("a").select("aa").get("aaa")) == [1, 10]
+        assert list(getter.select("a").select("aa").get("aab")) == [2]
+        assert list(getter.select("a").select("aa").get("aac")) == [12]
+        assert list(getter.select("a").select("aa").get("aad")) == []
+        assert list(getter.select("b").select("ba").get("x")) == []
+        assert list(getter.select("b").select("bb").get("bba")) == [5]
+        assert list(getter.select("x").select("y").select("z").get("z")) == []

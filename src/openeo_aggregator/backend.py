@@ -1,16 +1,18 @@
 import contextlib
+import functools
 import logging
-from typing import List, Dict, Union, Tuple, Optional
+from collections import defaultdict
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator
 
 import flask
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
-from openeo.util import dict_no_none
+from openeo.util import dict_no_none, TimingLogger
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
-from openeo_aggregator.utils import TtlCache
+from openeo_aggregator.utils import TtlCache, MultiDictGetter
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
@@ -23,40 +25,167 @@ from openeo_driver.utils import EvalEnv
 _log = logging.getLogger(__name__)
 
 
+class _InternalCollectionMetadata:
+    def __init__(self):
+        self._data = {}
+
+    def set_backends_for_collection(self, cid: str, backends: Iterable[str]):
+        self._data.setdefault(cid, {})
+        self._data[cid]["backends"] = list(backends)
+
+    def get_backends_for_collection(self, cid: str) -> List[str]:
+        if cid not in self._data:
+            raise CollectionNotFoundException(collection_id=cid)
+        return self._data[cid]["backends"]
+
+    def list_backends_per_collection(self) -> Iterator[Tuple[str, List[str]]]:
+        for cid, data in self._data.items():
+            yield cid, data.get("backends", [])
+
+
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
-    METADATA_KEY = "_aggregator"
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
     def get_all_metadata(self) -> List[dict]:
-        return self._cache.get_or_call(
-            key=("all",),
-            callback=self._get_all_metadata,
-        )
+        metadata, internal = self._get_all_metadata_cached()
+        return metadata
 
-    def _get_all_metadata(self) -> List[dict]:
-        all_collections = {}
-        duplicates = set([])
-        for con in self.backends:
-            try:
-                backend_collections = con.list_collections()
-            except Exception:
-                # TODO: fail instead of warn?
-                _log.warning(f"Failed to get collections from {con.id}", exc_info=True)
-            else:
+    def _get_all_metadata_cached(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
+        return self._cache.get_or_call(key=("all",), callback=self._get_all_metadata)
+
+    def _get_all_metadata(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
+        """
+        Get all collection metadata from all backends and combine.
+
+        :return: tuple (metadata, internal), with `metadata`: combined collection metadata,
+            `internal`: internal description of how backends and collections relate
+        """
+        # Group collection metadata by hierarchically: collection id -> backend id -> metadata
+        grouped = defaultdict(dict)
+        with TimingLogger(title="Collect collection metadata from all backends", logger=_log):
+            for con in self.backends:
+                try:
+                    backend_collections = con.list_collections()
+                except Exception:
+                    # TODO: instead of log warning: hard fail or log error?
+                    _log.warning(f"Failed to get collection metadata from {con.id}", exc_info=True)
+                    # On failure: still cache, but with shorter TTL? (#2)
+                    continue
                 for collection_metadata in backend_collections:
-                    cid = collection_metadata["id"]
-                    if cid in all_collections:
-                        duplicates.add(cid)
-                    collection_metadata[self.METADATA_KEY] = {"backend": {"id": con.id, "url": con.root_url}}
-                    all_collections[cid] = collection_metadata
-        for cid in duplicates:
-            # TODO  #5 resolve duplication issue in more forgiving way?
-            _log.warning(f"Not exposing duplicated collection id {cid}")
-            del all_collections[cid]
-        return list(all_collections.values())
+                    if "id" in collection_metadata:
+                        grouped[collection_metadata["id"]][con.id] = collection_metadata
+                    else:
+                        # TODO: there must be something seriously wrong with this backend: skip all its results?
+                        _log.warning(f"Invalid collection metadata from {con.id}: %r", collection_metadata)
+
+        # Merge down to single set of collection metadata
+        collections_metadata = []
+        internal_data = _InternalCollectionMetadata()
+        for cid, by_backend in grouped.items():
+            if len(by_backend) == 1:
+                # Simple case: collection is only available on single backend.
+                _log.debug(f"Accept single backend collection {cid} as is")
+                (bid, metadata), = by_backend.items()
+            else:
+                _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
+                metadata = self._merge_collection_metadata(by_backend)
+            collections_metadata.append(metadata)
+            internal_data.set_backends_for_collection(cid, by_backend.keys())
+
+        return collections_metadata, internal_data
+
+    def _merge_collection_metadata(self, by_backend: Dict[str, dict]) -> dict:
+        """
+        Merge collection metadata dicts from multiple backends
+        """
+        getter = MultiDictGetter(by_backend.values())
+
+        ids = set(getter.get("id"))
+        if len(ids) != 1:
+            raise ValueError(f"Single collection id expected, but got {ids}")
+        cid = ids.pop()
+        _log.info(f"Merging collection metadata for {cid!r}")
+
+        result = {
+            "id": cid,
+        }
+
+        result["stac_version"] = max(list(getter.get("stac_version")) + ["0.9.0"])
+        stac_extensions = sorted(getter.union("stac_extensions", skip_duplicates=True))
+        if stac_extensions:
+            result["stac_extensions"] = stac_extensions
+        # TODO: better merging of title and description?
+        result["title"] = getter.first("title", default=result["id"])
+        result["description"] = getter.first("description", default=result["id"])
+        keywords = getter.union("keywords", skip_duplicates=True)
+        if keywords:
+            result["keywords"] = keywords
+        versions = set(getter.get("version"))
+        if versions:
+            # TODO: smarter version maximum?
+            result["version"] = max(versions)
+        deprecateds = list(getter.get("deprecated"))
+        if deprecateds:
+            result["deprecated"] = all(deprecateds)
+        licenses = set(getter.get("license"))
+        result["license"] = licenses.pop() if len(licenses) == 1 else ("various" if licenses else "proprietary")
+        # TODO: .. "various" if multiple licenses apply ... links to the license texts SHOULD be added,
+        providers = getter.union("providers", skip_duplicates=True)
+        if providers:
+            result["providers"] = list(providers)
+        result["extent"] = {
+            "spatial": {
+                "bbox": getter.select("extent").select("spatial").union("bbox", skip_duplicates=True) \
+                        or [[-180, -90, 180, 90]],
+            },
+            "temporal": {
+                "interval": getter.select("extent").select("temporal").union("interval", skip_duplicates=True) \
+                            or [[None, None]],
+            },
+        }
+        result["links"] = list(getter.union("links"))
+        # TODO         cube_dimensions = getter.get("cube:dimensions") ...
+        # TODO merge summaries?
+        # TODO: add provider summary to allow provider based `load_collection` property filtering
+        # TODO: assets ?
+
+        return result
+
+    def get_best_backend_for_collections(self, collections: Iterable[str]) -> str:
+        """
+        Get best backend id providing all given collections
+        :param collections: list/set of collection ids
+        :return:
+        """
+        metadata, internal = self._get_all_metadata_cached()
+
+        # cid -> tuple of backends that provide it
+        collection_backends_map = {cid: tuple(backends) for cid, backends in internal.list_backends_per_collection()}
+
+        try:
+            backend_combos = set(collection_backends_map[cid] for cid in collections)
+        except KeyError as e:
+            raise CollectionNotFoundException(collection_id=e.args[0])
+
+        if len(backend_combos) == 1:
+            backend_id = backend_combos.pop()[0]
+        elif len(backend_combos) == 0:
+            backend_id = self.backends.first().id
+        else:
+            # Search for common backends in all sets (and preserve order)
+            intersection = functools.reduce(lambda a, b: [x for x in a if x in b], backend_combos)
+            if intersection:
+                backend_id = intersection[0]
+            else:
+                union = functools.reduce(lambda a, b: set(a).union(b), backend_combos)
+                raise OpenEOApiException(
+                    message=f"Collections across multiple backends ({union}): {collections}."
+                )
+
+        return backend_id
 
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(
@@ -65,14 +194,27 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
-        for con in self.backends:
-            try:
-                return con.describe_collection(name=collection_id)
-            except OpenEoApiError as e:
-                if e.code == "CollectionNotFound":
+        # Get backend ids that support this collection
+        metadata, internal = self._get_all_metadata_cached()
+        backends = internal.get_backends_for_collection(collection_id)
+
+        if len(backends) == 1:
+            con = self.backends.get_connection(backend_id=backends[0])
+            return con.describe_collection(name=collection_id)
+        elif len(backends) > 1:
+            by_backend = {}
+            for bid in backends:
+                con = self.backends.get_connection(backend_id=bid)
+                try:
+                    by_backend[bid] = con.describe_collection(name=collection_id)
+                except OpenEoApiError as e:
+                    _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
+                    # TODO: avoid caching of final result? (#2)
                     continue
-                _log.warning(f"Unexpected error on lookup of collection {collection_id} at {con.id}", exc_info=True)
-        raise CollectionNotFoundException(collection_id)
+            _log.info(f"Merging metadata for collection {collection_id}.")
+            return self._merge_collection_metadata(by_backend=by_backend)
+        else:
+            raise CollectionNotFoundException(collection_id)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
@@ -120,13 +262,6 @@ class AggregatorProcessing(Processing):
 
         return process_registry
 
-    def _get_collection_map(self) -> Dict[str, str]:
-        """Get mapping of collection id to backend it's hosted on."""
-        return {
-            collection["id"]: collection[AggregatorCollectionCatalog.METADATA_KEY]["backend"]["id"]
-            for collection in self._catalog.get_all_metadata()
-        }
-
     def get_backend_for_process_graph(self, process_graph: dict) -> str:
         """
         Get backend capable of executing given process graph (based on used collections)
@@ -141,22 +276,7 @@ class AggregatorProcessing(Processing):
         except Exception:
             raise ProcessGraphMissingException()
 
-        collection_map = self._get_collection_map()
-        try:
-            backends = set(collection_map[cid] for cid in collections)
-        except KeyError as e:
-            raise CollectionNotFoundException(collection_id=e.args[0])
-
-        if len(backends) == 1:
-            backend_id = backends.pop()
-        elif len(backends) == 0:
-            backend_id = self.backends.first().id
-        else:
-            raise OpenEOApiException(
-                message=f"Collections across multiple backends: {collections}."
-            )
-
-        return backend_id
+        return self._catalog.get_best_backend_for_collections(collections)
 
     def evaluate(self, process_graph: dict, env: EvalEnv = None):
         """Evaluate given process graph (flat dict format)."""
