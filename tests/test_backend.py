@@ -1,6 +1,7 @@
 import pytest
 
-from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, AggregatorBackendImplementation
+from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
+    AggregatorBackendImplementation, _InternalCollectionMetadata
 from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException
 
 
@@ -96,6 +97,27 @@ class TestAggregatorBackendImplementation:
                 "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
             }
         }
+
+
+class TestInternalCollectionMetadata:
+
+    def test_get_set_backends_for_collection(self):
+        internal = _InternalCollectionMetadata()
+        internal.set_backends_for_collection("S2", ["b1", "b3"])
+        internal.set_backends_for_collection("S1", {"b1": 1, "b2": 2}.keys())
+        assert internal.get_backends_for_collection("S2") == ["b1", "b3"]
+        assert internal.get_backends_for_collection("S1") == ["b1", "b2"]
+        with pytest.raises(CollectionNotFoundException):
+            internal.get_backends_for_collection("S2222")
+
+    def test_list_backends_for_collections(self):
+        internal = _InternalCollectionMetadata()
+        internal.set_backends_for_collection("S2", ["b1", "b3"])
+        internal.set_backends_for_collection("S1", ["b1", "b2"])
+        assert sorted(internal.list_backends_per_collection()) == [
+            ("S1", ["b1", "b2"]),
+            ("S2", ["b1", "b3"]),
+        ]
 
 
 class TestAggregatorCollectionCatalog:
@@ -250,6 +272,7 @@ class TestAggregatorCollectionCatalog:
             "license": "proprietary",
             "links": [],
         }
+        # TODO: test that caching of result is different from merging without error? (#2)
 
     # TODO tests for caching of collection metadata
 

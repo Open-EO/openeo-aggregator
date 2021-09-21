@@ -2,7 +2,7 @@ import contextlib
 import functools
 import logging
 from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator
 
 import flask
 
@@ -25,6 +25,24 @@ from openeo_driver.utils import EvalEnv
 _log = logging.getLogger(__name__)
 
 
+class _InternalCollectionMetadata:
+    def __init__(self):
+        self._data = {}
+
+    def set_backends_for_collection(self, cid: str, backends: Iterable[str]):
+        self._data.setdefault(cid, {})
+        self._data[cid]["backends"] = list(backends)
+
+    def get_backends_for_collection(self, cid: str) -> List[str]:
+        if cid not in self._data:
+            raise CollectionNotFoundException(collection_id=cid)
+        return self._data[cid]["backends"]
+
+    def list_backends_per_collection(self) -> Iterator[Tuple[str, List[str]]]:
+        for cid, data in self._data.items():
+            yield cid, data.get("backends", [])
+
+
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def __init__(self, backends: MultiBackendConnection):
@@ -35,10 +53,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         metadata, internal = self._get_all_metadata_cached()
         return metadata
 
-    def _get_all_metadata_cached(self) -> Tuple[List[dict], dict]:
+    def _get_all_metadata_cached(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
         return self._cache.get_or_call(key=("all",), callback=self._get_all_metadata)
 
-    def _get_all_metadata(self) -> Tuple[List[dict], dict]:
+    def _get_all_metadata(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
         """
         Get all collection metadata from all backends and combine.
 
@@ -54,16 +72,18 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 except Exception:
                     # TODO: instead of log warning: hard fail or log error?
                     _log.warning(f"Failed to get collection metadata from {con.id}", exc_info=True)
+                    # On failure: still cache, but with shorter TTL? (#2)
                     continue
                 for collection_metadata in backend_collections:
                     if "id" in collection_metadata:
                         grouped[collection_metadata["id"]][con.id] = collection_metadata
                     else:
+                        # TODO: there must be something seriously wrong with this backend: skip all its results?
                         _log.warning(f"Invalid collection metadata from {con.id}: %r", collection_metadata)
 
         # Merge down to single set of collection metadata
         collections_metadata = []
-        internal_data = {}
+        internal_data = _InternalCollectionMetadata()
         for cid, by_backend in grouped.items():
             if len(by_backend) == 1:
                 # Simple case: collection is only available on single backend.
@@ -73,7 +93,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 metadata = self._merge_collection_metadata(by_backend)
             collections_metadata.append(metadata)
-            internal_data[cid] = {"backends": list(by_backend.keys())}
+            internal_data.set_backends_for_collection(cid, by_backend.keys())
 
         return collections_metadata, internal_data
 
@@ -83,16 +103,21 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         """
         getter = MultiDictGetter(by_backend.values())
 
-        result = {}
+        ids = set(getter.get("id"))
+        if len(ids) != 1:
+            raise ValueError(f"Single collection id expected, but got {ids}")
+        cid = ids.pop()
+        _log.info(f"Merging collection metadata for {cid!r}")
+
+        result = {
+            "id": cid,
+        }
 
         result["stac_version"] = max(list(getter.get("stac_version")) + ["0.9.0"])
         stac_extensions = sorted(getter.union("stac_extensions", skip_duplicates=True))
         if stac_extensions:
             result["stac_extensions"] = stac_extensions
-        ids = set(getter.get("id"))
-        if len(ids) != 1:
-            raise ValueError(f"Single collection id expected, but got {ids}")
-        result["id"] = ids.pop()
+        # TODO: better merging of title and description?
         result["title"] = getter.first("title", default=result["id"])
         result["description"] = getter.first("description", default=result["id"])
         keywords = getter.union("keywords", skip_duplicates=True)
@@ -138,7 +163,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         metadata, internal = self._get_all_metadata_cached()
 
         # cid -> tuple of backends that provide it
-        collection_backends_map = {cid: tuple(data["backends"]) for cid, data in internal.items()}
+        collection_backends_map = {cid: tuple(backends) for cid, backends in internal.list_backends_per_collection()}
 
         try:
             backend_combos = set(collection_backends_map[cid] for cid in collections)
@@ -171,7 +196,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def _get_collection_metadata(self, collection_id: str) -> dict:
         # Get backend ids that support this collection
         metadata, internal = self._get_all_metadata_cached()
-        backends: List[str] = internal.get(collection_id, {}).get("backends", [])
+        backends = internal.get_backends_for_collection(collection_id)
 
         if len(backends) == 1:
             con = self.backends.get_connection(backend_id=backends[0])
@@ -184,7 +209,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     by_backend[bid] = con.describe_collection(name=collection_id)
                 except OpenEoApiError as e:
                     _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
-                    # TODO: avoid caching of final result?
+                    # TODO: avoid caching of final result? (#2)
                     continue
             _log.info(f"Merging metadata for collection {collection_id}.")
             return self._merge_collection_metadata(by_backend=by_backend)

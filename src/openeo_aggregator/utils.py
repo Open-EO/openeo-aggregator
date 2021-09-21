@@ -86,7 +86,10 @@ class MultiDictGetter:
                 yield d[key]
 
     def union(self, key: str, skip_duplicates=False) -> list:
-        """Simple list based union"""
+        """
+        Simple list based union of the items
+        (each of which must be an iterable itself, such as list or set) at given key.
+        """
         result = []
         for items in self.get(key):
             for item in items:
