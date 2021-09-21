@@ -125,9 +125,6 @@ class MultiBackendConnection:
         self.api_version = self._get_api_version()
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
-        _log.info("Prime OIDC provider data")
-        self.get_oidc_providers()
-
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self._connections)
 
