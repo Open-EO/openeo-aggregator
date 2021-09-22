@@ -45,6 +45,9 @@ class _InternalCollectionMetadata:
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
+    # STAC property to use in collection "summaries" and user defined backend selection
+    STAC_PROPERTY_BACKEND_PROVIDER = "provider:backend"
+
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
@@ -148,8 +151,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         }
         result["links"] = list(getter.union("links"))
         # TODO         cube_dimensions = getter.get("cube:dimensions") ...
-        # TODO merge summaries?
-        # TODO: add provider summary to allow provider based `load_collection` property filtering
+        # TODO merge existing summaries?
+        result["summaries"] = {
+            # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
+            self.STAC_PROPERTY_BACKEND_PROVIDER: list(by_backend.keys())
+        }
         # TODO: assets ?
 
         return result
