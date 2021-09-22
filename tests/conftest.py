@@ -4,6 +4,7 @@ import pytest
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import MultiBackendConnection
 from openeo_aggregator.config import AggregatorConfig
+from openeo_driver.testing import ApiTester
 
 
 @pytest.fixture
@@ -53,6 +54,11 @@ def flask_app(config: AggregatorConfig) -> flask.Flask:
     app.config['TESTING'] = True
     app.config['SERVER_NAME'] = 'oeoa.test'
     return app
+
+
+@pytest.fixture
+def api100(flask_app) -> ApiTester:
+    return ApiTester(api_version="1.0.0", client=flask_app.test_client())
 
 
 def assert_dict_subset(d1: dict, d2: dict):
