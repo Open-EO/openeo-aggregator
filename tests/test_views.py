@@ -246,7 +246,7 @@ class TestProcessing:
             "process_id": "load_collection",
             "arguments": {
                 "id": "S2",
-                "properties": {AggregatorCollectionCatalog.STAC_PROPERTY_BACKEND_PROVIDER: {"process_graph": {
+                "properties": {AggregatorCollectionCatalog.STAC_PROPERTY_PROVIDER_BACKEND: {"process_graph": {
                     "eq": {
                         "process_id": "eq",
                         "arguments": {"x": {"from_parameter": "value"}, "y": user_selected_backend},

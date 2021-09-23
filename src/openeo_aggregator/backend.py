@@ -47,7 +47,7 @@ class _InternalCollectionMetadata:
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     # STAC property to use in collection "summaries" and user defined backend selection
-    STAC_PROPERTY_BACKEND_PROVIDER = "provider:backend"
+    STAC_PROPERTY_PROVIDER_BACKEND = "provider:backend"
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
@@ -155,7 +155,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         # TODO merge existing summaries?
         result["summaries"] = {
             # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
-            self.STAC_PROPERTY_BACKEND_PROVIDER: list(by_backend.keys())
+            self.STAC_PROPERTY_PROVIDER_BACKEND: list(by_backend.keys())
         }
         # TODO: assets ?
 
@@ -285,33 +285,38 @@ class AggregatorProcessing(Processing):
         Get backend capable of executing given process graph (based on used collections)
         """
         # TODO: also check used processes?
-        concrete_processing = ConcreteProcessing()  # TODO: just do subset of supported processes?
-        backend_implementation = OpenEoBackendImplementation(processing=concrete_processing)
         try:
             collections = set()
             backend_constraints = []
-            for n in process_graph.values():
-                if n["process_id"] == "load_collection":
-                    collections.add(n["arguments"]["id"])
-                    provider_pg = deep_get(
-                        n,
-                        "arguments", "properties", self._catalog.STAC_PROPERTY_BACKEND_PROVIDER, "process_graph",
+            for pg_node in process_graph.values():
+                if pg_node["process_id"] == "load_collection":
+                    collections.add(pg_node["arguments"]["id"])
+                    provider_backend_pg = deep_get(
+                        pg_node,
+                        "arguments", "properties", self._catalog.STAC_PROPERTY_PROVIDER_BACKEND, "process_graph",
                         default=None
                     )
-                    if provider_pg:
-                        backend_constraints.append(
-                            lambda value: concrete_processing.evaluate(
-                                provider_pg,
-                                env=EvalEnv({
-                                    "backend_implementation": backend_implementation,
-                                    "parameters": {"value": value},
-                                    "version": api_version,
-                                })
-                            )
-                        )
+                    if provider_backend_pg:
+                        backend_constraints.append(provider_backend_pg)
         except Exception:
             _log.error("Failed to parse process graph", exc_info=True)
             raise ProcessGraphMissingException()
+
+        if backend_constraints:
+            # Convert constraint process graphs to real callable
+            concrete_processing = ConcreteProcessing()  # TODO: just do subset of supported processes?
+            backend_implementation = OpenEoBackendImplementation(processing=concrete_processing)
+            env = EvalEnv({
+                "backend_implementation": backend_implementation,
+                "version": api_version,
+            })
+            backend_constraints = [
+                lambda value: concrete_processing.evaluate(
+                    pg,
+                    env=env.push(parameters={"value": value})
+                )
+                for pg in backend_constraints
+            ]
 
         return self._catalog.get_best_backend_for_collections(collections, backend_constraints=backend_constraints)
 
