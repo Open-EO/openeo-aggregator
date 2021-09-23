@@ -14,7 +14,7 @@ from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter
-from openeo_driver.ProcessGraphDeserializer import ConcreteProcessing
+from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
@@ -304,14 +304,10 @@ class AggregatorProcessing(Processing):
 
         if backend_constraints:
             # Convert constraint process graphs to real callable
-            concrete_processing = ConcreteProcessing()  # TODO: just do subset of supported processes?
-            backend_implementation = OpenEoBackendImplementation(processing=concrete_processing)
-            env = EvalEnv({
-                "backend_implementation": backend_implementation,
-                "version": api_version,
-            })
+            processing = SimpleProcessing()
+            env = processing.get_basic_env()
             backend_constraints = [
-                lambda value: concrete_processing.evaluate(
+                lambda value: processing.evaluate(
                     pg,
                     env=env.push(parameters={"value": value})
                 )
