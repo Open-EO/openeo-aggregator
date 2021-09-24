@@ -3,14 +3,10 @@ import pytest
 import requests
 
 from openeo_aggregator.app import create_app
+from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
 from .conftest import assert_dict_subset
-
-
-@pytest.fixture
-def api100(flask_app) -> ApiTester:
-    return ApiTester(api_version="1.0.0", client=flask_app.test_client())
 
 
 class TestGeneral:
@@ -221,6 +217,55 @@ class TestProcessing:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/result", json={"process": {"process_graph": pg}})
         res.assert_error(400, "ProcessGraphMissing")
+
+    @pytest.mark.parametrize(["user_selected_backend", "expected_response", "expected_call_counts"], [
+        ("b1", (200, None), (1, 0)),
+        ("b2", (200, None), (0, 1)),
+        ("b3", (400, "BackendLookupFailure"), (0, 0)),
+    ])
+    def test_load_collection_from_user_selected_backend(
+            self, api100, backend1, backend2, requests_mock,
+            user_selected_backend, expected_response, expected_call_counts
+    ):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2"})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2"})
+
+        def post_result(request: requests.Request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            assert request.json()["process"]["process_graph"] == pg
+            context.headers["Content-Type"] = "application/json"
+            return 123
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {"lc": {
+            "process_id": "load_collection",
+            "arguments": {
+                "id": "S2",
+                "properties": {AggregatorCollectionCatalog.STAC_PROPERTY_PROVIDER_BACKEND: {"process_graph": {
+                    "eq": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_parameter": "value"}, "y": user_selected_backend},
+                        "result": True
+                    }
+                }}}
+            },
+            "result": True
+        }}
+        request = {"process": {"process_graph": pg}}
+        response = api100.post("/result", json=request)
+
+        expected_status, expected_error_code = expected_response
+        if expected_status < 400:
+            response.assert_status_code(expected_status)
+        else:
+            response.assert_error(status_code=expected_status, error_code=expected_error_code)
+
+        assert (b1_mock.call_count, b2_mock.call_count) == expected_call_counts
 
 
 class TestBatchJobs:

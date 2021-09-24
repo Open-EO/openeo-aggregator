@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased: 0.1.0a1]
 
 ### Added
+- Initial support for user selected backend through `load_collection` properties filtering (EP-4011, [openEOPlatform/architecture-docs#85](https://github.com/openEOPlatform/architecture-docs/issues/85))
 
 ### Changed
 

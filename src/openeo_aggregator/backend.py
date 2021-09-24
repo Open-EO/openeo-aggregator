@@ -2,17 +2,19 @@ import contextlib
 import functools
 import logging
 from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable
 
 import flask
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
-from openeo.util import dict_no_none, TimingLogger
+from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
+from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter
+from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
@@ -44,6 +46,8 @@ class _InternalCollectionMetadata:
 
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
+    # STAC property to use in collection "summaries" and user defined backend selection
+    STAC_PROPERTY_PROVIDER_BACKEND = "provider:backend"
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
@@ -148,13 +152,19 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         }
         result["links"] = list(getter.union("links"))
         # TODO         cube_dimensions = getter.get("cube:dimensions") ...
-        # TODO merge summaries?
-        # TODO: add provider summary to allow provider based `load_collection` property filtering
+        # TODO merge existing summaries?
+        result["summaries"] = {
+            # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
+            self.STAC_PROPERTY_PROVIDER_BACKEND: list(by_backend.keys())
+        }
         # TODO: assets ?
 
         return result
 
-    def get_best_backend_for_collections(self, collections: Iterable[str]) -> str:
+    def get_best_backend_for_collections(
+            self, collections: Iterable[str],
+            backend_constraints: List[Callable[[str], bool]] = None
+    ) -> str:
         """
         Get best backend id providing all given collections
         :param collections: list/set of collection ids
@@ -171,21 +181,29 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             raise CollectionNotFoundException(collection_id=e.args[0])
 
         if len(backend_combos) == 1:
-            backend_id = backend_combos.pop()[0]
+            backend_candidates = list(backend_combos.pop())
         elif len(backend_combos) == 0:
-            backend_id = self.backends.first().id
+            backend_candidates = [self.backends.first().id]
         else:
             # Search for common backends in all sets (and preserve order)
             intersection = functools.reduce(lambda a, b: [x for x in a if x in b], backend_combos)
             if intersection:
-                backend_id = intersection[0]
+                backend_candidates = list(intersection)
             else:
                 union = functools.reduce(lambda a, b: set(a).union(b), backend_combos)
-                raise OpenEOApiException(
+                raise BackendLookupFailureException(
                     message=f"Collections across multiple backends ({union}): {collections}."
                 )
+        _log.info(f"Backend candidates {backend_candidates} for collections {collections}")
 
-        return backend_id
+        if backend_constraints:
+            backend_candidates = [b for b in backend_candidates if all(c(b) for c in backend_constraints)]
+            _log.info(f"Backend candidates (after constraints) {backend_candidates} for collections {collections}")
+
+        if not backend_candidates:
+            raise BackendLookupFailureException(message="No backend matching all constraints")
+
+        return backend_candidates[0]
 
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(
@@ -262,26 +280,46 @@ class AggregatorProcessing(Processing):
 
         return process_registry
 
-    def get_backend_for_process_graph(self, process_graph: dict) -> str:
+    def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:
         """
         Get backend capable of executing given process graph (based on used collections)
         """
         # TODO: also check used processes?
         try:
-            collections = set(
-                n["arguments"]["id"]
-                for n in process_graph.values()
-                if n["process_id"] == "load_collection"
-            )
+            collections = set()
+            backend_constraints = []
+            for pg_node in process_graph.values():
+                if pg_node["process_id"] == "load_collection":
+                    collections.add(pg_node["arguments"]["id"])
+                    provider_backend_pg = deep_get(
+                        pg_node,
+                        "arguments", "properties", self._catalog.STAC_PROPERTY_PROVIDER_BACKEND, "process_graph",
+                        default=None
+                    )
+                    if provider_backend_pg:
+                        backend_constraints.append(provider_backend_pg)
         except Exception:
+            _log.error("Failed to parse process graph", exc_info=True)
             raise ProcessGraphMissingException()
 
-        return self._catalog.get_best_backend_for_collections(collections)
+        if backend_constraints:
+            # Convert constraint process graphs to real callable
+            processing = SimpleProcessing()
+            env = processing.get_basic_env()
+            backend_constraints = [
+                lambda value: processing.evaluate(
+                    pg,
+                    env=env.push(parameters={"value": value})
+                )
+                for pg in backend_constraints
+            ]
+
+        return self._catalog.get_best_backend_for_collections(collections, backend_constraints=backend_constraints)
 
     def evaluate(self, process_graph: dict, env: EvalEnv = None):
         """Evaluate given process graph (flat dict format)."""
 
-        backend_id = self.get_backend_for_process_graph(process_graph)
+        backend_id = self.get_backend_for_process_graph(process_graph, api_version=env.get("version"))
 
         # Send process graph to backend
         con = self.backends.get_connection(backend_id=backend_id)
@@ -345,7 +383,9 @@ class AggregatorBatchJobs(BatchJobs):
             process_graph = process["process_graph"]
         except (KeyError, TypeError) as e:
             raise ProcessGraphMissingException()
-        backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph)
+        backend_id = self.processing.get_backend_for_process_graph(
+            process_graph=process_graph, api_version=api_version
+        )
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request), \
                 con.override(default_timeout=self.JOB_START_TIMEOUT):

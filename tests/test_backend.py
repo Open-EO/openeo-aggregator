@@ -143,6 +143,7 @@ class TestAggregatorCollectionCatalog:
                 "stac_version": "0.9.0",
                 "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
                 "license": "proprietary",
+                "summaries": {"provider:backend": ["b1", "b2"]},
                 "links": [],
             },
             {"id": "S5"},
@@ -199,6 +200,7 @@ class TestAggregatorCollectionCatalog:
                                               ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}},
                 "license": "various",
                 "providers": [{"name": "ESA", "roles": ["producer"]}, {"name": "ESA", "roles": ["licensor"]}],
+                "summaries": {"provider:backend": ["b1", "b2"]},
                 "links": [
                     {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
                     {"rel": "license", "href": "https://spdx.org/licenses/Apache-1.0.html"},
@@ -250,6 +252,7 @@ class TestAggregatorCollectionCatalog:
             "title": "b1's S2",
             "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
             "license": "proprietary",
+            "summaries": {"provider:backend": ["b1", "b2"]},
             "links": [],
         }
 
@@ -270,6 +273,7 @@ class TestAggregatorCollectionCatalog:
             "title": "b2's S2",
             "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
             "license": "proprietary",
+            "summaries": {"provider:backend": ["b2"]},
             "links": [],
         }
         # TODO: test that caching of result is different from merging without error? (#2)
