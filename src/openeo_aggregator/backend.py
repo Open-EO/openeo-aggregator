@@ -19,7 +19,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException, JobNotFinishedException
+    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -300,7 +300,7 @@ class AggregatorProcessing(Processing):
                         backend_constraints.append(provider_backend_pg)
         except Exception:
             _log.error("Failed to parse process graph", exc_info=True)
-            raise ProcessGraphMissingException()
+            raise ProcessGraphInvalidException()
 
         if backend_constraints:
             # Convert constraint process graphs to real callable
@@ -396,9 +396,10 @@ class AggregatorBatchJobs(BatchJobs):
                     plan=metadata.get("plan"), budget=metadata.get("budget")
                 )
             except OpenEoApiError as e:
-                if e.code == "ProcessGraphMissing":
-                    raise ProcessGraphMissingException()
-                raise
+                for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
+                    if e.code == exc_class.code:
+                        raise exc_class
+                raise OpenEOApiException(f"Failed to create job on backend {backend_id}: {e!r}")
         return BatchJobMetadata(
             id=self._get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
             status="dummy", created="dummy", process="dummy"

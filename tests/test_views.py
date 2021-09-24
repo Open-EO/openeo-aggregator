@@ -4,7 +4,8 @@ import requests
 
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import AggregatorCollectionCatalog
-from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException
+from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException, \
+    ProcessGraphInvalidException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
 from .conftest import assert_dict_subset
 
@@ -216,7 +217,7 @@ class TestProcessing:
 
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/result", json={"process": {"process_graph": pg}})
-        res.assert_error(400, "ProcessGraphMissing")
+        res.assert_error(400, "ProcessGraphInvalid")
 
     @pytest.mark.parametrize(["user_selected_backend", "expected_response", "expected_call_counts"], [
         ("b1", (200, None), (1, 0)),
@@ -324,19 +325,30 @@ class TestBatchJobs:
     @pytest.mark.parametrize("body", [
         {"foo": "meh"},
         {"process": "meh"},
-        {"process": {"process_graph": "meh"}},
-        {"process": {"process_graph": {}}},
-        {"process": {"process_graph": {"foo": "meh"}}},
     ])
-    def test_create_job_invalid(self, api100, requests_mock, backend1, body):
+    def test_create_job_pg_missing(self, api100, requests_mock, backend1, body):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.post(
-            backend1 + "/jobs",
-            status_code=ProcessGraphMissingException.status_code, json=ProcessGraphMissingException().to_dict()
-        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs", json=body)
         res.assert_error(400, "ProcessGraphMissing")
+
+    @pytest.mark.parametrize("body", [
+        {"process": {"process_graph": "meh"}},
+        {"process": {"process_graph": {}}},
+        {"process": {"process_graph": {"foo": "meh"}}},
+        {"process": {"process_graph": {"foo": {"bar": "meh"}}}},
+        {"process": {"process_graph": {"foo": {"process_id": "meh"}}}},
+    ])
+    def test_create_job_pg_invalid(self, api100, requests_mock, backend1, body):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.post(
+            backend1 + "/jobs",
+            status_code=ProcessGraphInvalidException.status_code,
+            json=ProcessGraphInvalidException().to_dict(),
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json=body)
+        res.assert_error(400, "ProcessGraphInvalid")
 
     def test_get_job_metadata(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/jobs/th3j0b", json={
