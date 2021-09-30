@@ -188,6 +188,29 @@ class TestMultiBackendConnection:
             OidcProvider(id="y1", issuer="https://y.test", title="YY1", scopes=["openid"]),
         ]
 
+    def test_oidc_providers_issuer_intersection_order(
+            self, multi_backend_connection, requests_mock, backend1, backend2
+    ):
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "d1", "issuer": "https://d.test", "title": "D1"},
+            {"id": "b1", "issuer": "https://b.test", "title": "B1"},
+            {"id": "c1", "issuer": "https://c.test", "title": "C1"},
+            {"id": "a1", "issuer": "https://a.test", "title": "A1"},
+            {"id": "e1", "issuer": "https://e.test", "title": "E1"},
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "e2", "issuer": "https://e.test", "title": "E2"},
+            {"id": "b2", "issuer": "https://b.test", "title": "B2"},
+            {"id": "c2", "issuer": "https://c.test", "title": "C2"},
+            {"id": "a2", "issuer": "https://a.test", "title": "A2"},
+            {"id": "d2", "issuer": "https://d.test", "title": "D2"},
+        ]})
+
+        providers = multi_backend_connection.get_oidc_providers()
+        assert [p.issuer for p in providers] == [
+            "https://d.test", "https://b.test", "https://c.test", "https://a.test", "https://e.test"
+        ]
+
     def test_oidc_provider_mapping(self, requests_mock):
         domain1 = "https://b1.test/v1"
         requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})

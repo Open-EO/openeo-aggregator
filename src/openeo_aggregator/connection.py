@@ -183,6 +183,7 @@ class MultiBackendConnection:
         _log.info(f"OIDC provider intersection: {intersection}")
         if len(intersection) == 0:
             _log.warning(f"Emtpy OIDC provider intersection. Issuers per backend: {issuers_per_backend}")
+        # Use provider order as used in first backend
         agg_providers = [
             p for p in providers_per_backend[self.first().id]
             if p.issuer in intersection
