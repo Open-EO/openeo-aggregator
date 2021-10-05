@@ -93,10 +93,12 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         collections_metadata = []
         internal_data = _InternalCollectionMetadata()
         for cid, by_backend in grouped.items():
+            # TODO: don't differentiate between single and multi-backend case
             if len(by_backend) == 1:
                 # Simple case: collection is only available on single backend.
                 _log.debug(f"Accept single backend collection {cid} as is")
                 (bid, metadata), = by_backend.items()
+                metadata["backends"] = [bid]
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 metadata = self._merge_collection_metadata(by_backend)
@@ -161,6 +163,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
             self.STAC_PROPERTY_PROVIDER_BACKEND: list(by_backend.keys())
         }
+        # TODO: #10 proper schema of this backend listing?
+        result["backends"] = list(by_backend.keys())
         # TODO: assets ?
 
         return result

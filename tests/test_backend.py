@@ -150,7 +150,10 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
-        assert metadata == [{"id": "S2"}, {"id": "S3"}]
+        assert metadata == [
+            {"id": "S2", "backends": ["b1"]},
+            {"id": "S3", "backends": ["b2"]},
+        ]
 
     def test_get_all_metadata_common_collections_minimal(
             self, multi_backend_connection, backend1, backend2, requests_mock
@@ -160,16 +163,23 @@ class TestAggregatorCollectionCatalog:
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
         assert metadata == [
-            {"id": "S3"},
+            {
+                "id": "S3",
+                "backends": ["b1"],
+            },
             {
                 "id": "S4", "description": "S4", "title": "S4",
                 "stac_version": "0.9.0",
                 "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
                 "license": "proprietary",
                 "summaries": {"provider:backend": ["b1", "b2"]},
+                "backends": ["b1", "b2"],
                 "links": [],
             },
-            {"id": "S5"},
+            {
+                "id": "S5",
+                "backends": ["b2"],
+            },
         ]
 
     def test_get_all_metadata_common_collections_merging(
@@ -224,6 +234,7 @@ class TestAggregatorCollectionCatalog:
                 "license": "various",
                 "providers": [{"name": "ESA", "roles": ["producer"]}, {"name": "ESA", "roles": ["licensor"]}],
                 "summaries": {"provider:backend": ["b1", "b2"]},
+                "backends": ["b1", "b2"],
                 "links": [
                     {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
                     {"rel": "license", "href": "https://spdx.org/licenses/Apache-1.0.html"},
@@ -279,6 +290,7 @@ class TestAggregatorCollectionCatalog:
             "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
             "license": "proprietary",
             "summaries": {"provider:backend": ["b1", "b2"]},
+            "backends": ["b1", "b2"],
             "links": [],
         }
 
@@ -300,6 +312,7 @@ class TestAggregatorCollectionCatalog:
             "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
             "license": "proprietary",
             "summaries": {"provider:backend": ["b2"]},
+            "backends": ["b2"],
             "links": [],
         }
         # TODO: test that caching of result is different from merging without error? (#2)
