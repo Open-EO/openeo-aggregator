@@ -19,7 +19,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException
+    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -511,3 +511,15 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             merge(input_formats, file_formats.get("input", {}))
             merge(output_formats, file_formats.get("output", {}))
         return {"input": input_formats, "output": output_formats}
+
+    def user_access_validation(self, user: User, request: flask.Request) -> User:
+        if "eduperson_entitlement" not in user.info:
+            raise PermissionsInsufficientException("No eduperson_entitlement information")
+        eduperson_entitlements = user.info.get("eduperson_entitlement", [])
+        # TODO: better parsing of entitlements
+        # TODO: broader whitelist of accepted entitlements? Per config?
+        if "urn:mace:egi.eu:group:vo.openeo.cloud:role=Early_Adopter#aai.egi.eu" not in eduperson_entitlements:
+            _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
+            raise PermissionsInsufficientException("Not an early adopter")
+
+        return user
