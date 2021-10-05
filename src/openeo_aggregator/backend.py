@@ -322,6 +322,8 @@ class AggregatorProcessing(Processing):
 
         process_registry = ProcessRegistry()
         for pid, spec in combined_processes.items():
+            # TODO: #10 proper schema of this backend listing?
+            spec["backends"] = [bid for bid, procs in processes_per_backend.items() if pid in procs]
             process_registry.add_spec(spec=spec)
 
         return process_registry

@@ -229,9 +229,21 @@ class TestProcessing:
         res = api100.get("/processes").assert_status_code(200).json
         assert res == {
             "processes": [
-                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-                {"id": "mean", "parameters": [{"name": "data"}]},
-                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+                {
+                    "id": "multiply",
+                    "parameters": [{"name": "x"}, {"name": "y"}],
+                    "backends": ["b2"],
+                },
+                {
+                    "id": "mean",
+                    "parameters": [{"name": "data"}],
+                    "backends": ["b1", "b2"],
+                },
+                {
+                    "id": "add",
+                    "parameters": [{"name": "x"}, {"name": "y"}],
+                    "backends": ["b1"],
+                },
             ],
             "links": [],
         }
