@@ -12,6 +12,7 @@ from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
+from openeo_aggregator.egi import is_early_adopter
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
@@ -516,10 +517,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         if "eduperson_entitlement" not in user.info:
             raise PermissionsInsufficientException("No eduperson_entitlement information")
         eduperson_entitlements = user.info.get("eduperson_entitlement", [])
-        # TODO: better parsing of entitlements
-        # TODO: broader whitelist of accepted entitlements? Per config?
-        if "urn:mace:egi.eu:group:vo.openeo.cloud:role=Early_Adopter#aai.egi.eu" not in eduperson_entitlements:
+        if not any(is_early_adopter(e) for e in eduperson_entitlements):
             _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
-            raise PermissionsInsufficientException("Not an early adopter")
+            raise PermissionsInsufficientException("Not an openEO Platform Early Adopter")
 
         return user
