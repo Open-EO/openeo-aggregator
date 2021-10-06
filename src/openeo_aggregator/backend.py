@@ -514,11 +514,17 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         return {"input": input_formats, "output": output_formats}
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:
-        if "eduperson_entitlement" not in user.info:
-            raise PermissionsInsufficientException("No eduperson_entitlement information")
-        eduperson_entitlements = user.info.get("eduperson_entitlement", [])
+        if user.internal_auth_data["authentication_method"] != "OIDC":
+            raise PermissionsInsufficientException("OIDC auth required")
+        try:
+            eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
+        except KeyError:
+            _log.error("No eduperson_entitlement data", exc_info=True)
+            raise PermissionsInsufficientException("No eduperson_entitlement data")
         if not any(is_early_adopter(e) for e in eduperson_entitlements):
             _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
             raise PermissionsInsufficientException("Not an openEO Platform Early Adopter")
 
+        # TODO: list multiple roles/levels? Better "status" signaling?
+        user.info["level"] = "EarlyAdopter"
         return user
