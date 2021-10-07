@@ -2,12 +2,11 @@ import logging
 import pytest
 import requests
 
-from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException, \
     ProcessGraphInvalidException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
-from .conftest import assert_dict_subset
+from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
 class TestGeneral:
@@ -63,7 +62,7 @@ class TestAuthentication:
             {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
         ]})
         # Manually creating app and api100 (which we do with fixtures elsewhere)
-        api100 = ApiTester(api_version="1.0.0", client=create_app(config).test_client())
+        api100 = get_api100(get_flask_app(config))
 
         res = api100.get("/credentials/oidc").assert_status_code(200).json
         assert res == {"providers": [
@@ -81,6 +80,69 @@ class TestAuthentication:
         headers = TEST_USER_AUTH_HEADER
         res = api100.get("/me", headers=headers).assert_status_code(200)
         assert res.json["user_id"] == TEST_USER
+
+
+class TestAuthEntitlementCheck:
+    def test_basic_auth(self, api100_with_entitlement_check):
+        api100_with_entitlement_check.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100_with_entitlement_check.get("/me")
+        res.assert_error(403, "PermissionsInsufficient", message="OIDC auth required")
+
+    def test_oidc_no_entitlement_data(self, api100_with_entitlement_check, requests_mock):
+        def get_userinfo(request: requests.Request, context):
+            assert request.headers["Authorization"] == "Bearer funiculifunicula"
+            return {"sub": "john"}
+
+        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
+            "userinfo_endpoint": "https://egi.test/userinfo"
+        })
+        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+        api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
+
+        res = api100_with_entitlement_check.get("/me")
+        res.assert_error(403, "PermissionsInsufficient", message="No eduperson_entitlement data")
+
+    def test_oidc_no_early_adopter(self, api100_with_entitlement_check, requests_mock):
+        def get_userinfo(request: requests.Request, context):
+            assert request.headers["Authorization"] == "Bearer funiculifunicula"
+            return {
+                "sub": "john",
+                "eduperson_entitlement": [
+                    "urn:mace:egi.eu:group:vo.openeo.test:role=foo#test",
+                    "urn:mace:egi.eu:group:vo.openeo.test:role=member#test",
+                ],
+            }
+
+        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
+            "userinfo_endpoint": "https://egi.test/userinfo"
+        })
+        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+        api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
+
+        res = api100_with_entitlement_check.get("/me")
+        res.assert_error(403, "PermissionsInsufficient", message="No early adopter role")
+
+    def test_oidc_early_adopter(self, api100_with_entitlement_check, requests_mock):
+        def get_userinfo(request: requests.Request, context):
+            assert request.headers["Authorization"] == "Bearer funiculifunicula"
+            return {
+                "sub": "john",
+                "eduperson_entitlement": [
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+                ]
+            }
+
+        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
+            "userinfo_endpoint": "https://egi.test/userinfo"
+        })
+        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+        api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
+
+        res = api100_with_entitlement_check.get("/me").assert_status_code(200)
+        data = res.json
+        assert data["user_id"] == "john"
+        assert data["info"]["roles"] == ["EarlyAdopter"]
 
 
 class TestProcessing:
@@ -149,7 +211,7 @@ class TestProcessing:
     @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
     def test_result_large_response_streaming(self, config, chunk_size, requests_mock, backend1, backend2):
         config.streaming_chunk_size = chunk_size
-        api100 = ApiTester(api_version="1.0.0", client=create_app(config).test_client())
+        api100 = get_api100(get_flask_app(config))
 
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]

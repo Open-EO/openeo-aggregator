@@ -525,9 +525,10 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 raise PermissionsInsufficientException("No eduperson_entitlement data")
             if not any(is_early_adopter(e) for e in eduperson_entitlements):
                 _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
-                raise PermissionsInsufficientException("Not an openEO Platform Early Adopter")
+                raise PermissionsInsufficientException("No early adopter role")
 
             # TODO: list multiple roles/levels? Better "status" signaling?
-            user.info["level"] = "EarlyAdopter"
+            user.info["roles"] = ["EarlyAdopter"]
 
         return user
+   
