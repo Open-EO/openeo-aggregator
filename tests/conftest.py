@@ -45,11 +45,12 @@ def config(backend1, backend2) -> AggregatorConfig:
     }
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
+    # Disable OIDC/EGI entitlement check by default.
+    conf.auth_entitlement_check = False
     return conf
 
 
-@pytest.fixture
-def flask_app(config: AggregatorConfig) -> flask.Flask:
+def get_flask_app(config: AggregatorConfig) -> flask.Flask:
     app = create_app(config=config, auto_logging_setup=False)
     app.config['TESTING'] = True
     app.config['SERVER_NAME'] = 'oeoa.test'
@@ -57,8 +58,23 @@ def flask_app(config: AggregatorConfig) -> flask.Flask:
 
 
 @pytest.fixture
-def api100(flask_app) -> ApiTester:
+def flask_app(config: AggregatorConfig) -> flask.Flask:
+    return get_flask_app(config)
+
+
+def get_api100(flask_app: flask.Flask) -> ApiTester:
     return ApiTester(api_version="1.0.0", client=flask_app.test_client())
+
+
+@pytest.fixture
+def api100(flask_app: flask.Flask) -> ApiTester:
+    return get_api100(flask_app)
+
+
+@pytest.fixture
+def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
+    config.auth_entitlement_check = True
+    return get_api100(get_flask_app(config))
 
 
 def assert_dict_subset(d1: dict, d2: dict):

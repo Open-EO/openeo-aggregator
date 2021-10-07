@@ -12,6 +12,7 @@ from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
+from openeo_aggregator.egi import is_early_adopter
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
@@ -19,7 +20,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException
+    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -483,6 +484,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user_defined_processes=None,
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._auth_entitlement_check = config.auth_entitlement_check
 
     def oidc_providers(self) -> List[OidcProvider]:
         return self._backends.get_oidc_providers()
@@ -511,3 +513,22 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             merge(input_formats, file_formats.get("input", {}))
             merge(output_formats, file_formats.get("output", {}))
         return {"input": input_formats, "output": output_formats}
+
+    def user_access_validation(self, user: User, request: flask.Request) -> User:
+        if self._auth_entitlement_check:
+            if user.internal_auth_data["authentication_method"] != "OIDC":
+                raise PermissionsInsufficientException("OIDC auth required")
+            try:
+                eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
+            except KeyError:
+                _log.error("No eduperson_entitlement data", exc_info=True)
+                raise PermissionsInsufficientException("No eduperson_entitlement data")
+            if not any(is_early_adopter(e) for e in eduperson_entitlements):
+                _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
+                raise PermissionsInsufficientException("No early adopter role")
+
+            # TODO: list multiple roles/levels? Better "status" signaling?
+            user.info["roles"] = ["EarlyAdopter"]
+
+        return user
+   
