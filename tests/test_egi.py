@@ -26,6 +26,12 @@ def test_parse_eduperson_entitlement():
         namespace="urn:mace:egi-dev.eu", vo="vo.openeo-dev.cloud", group="vo.openeo-sub.cloud", role="Early-Adop.ter",
         authority="aai.egi-dev.eu"
     )
+    assert parse_eduperson_entitlement(
+        "urn:mace:egi.eu:group:openEO_test:education_package.openEO_test:admins:role=member#aai.egi.eu"
+    ) == Entitlement(
+        namespace="urn:mace:egi.eu", vo="openEO_test", group="education_package.openEO_test:admins", role="member",
+        authority="aai.egi.eu"
+    )
 
 
 def test_parse_eduperson_entitlement_strict():

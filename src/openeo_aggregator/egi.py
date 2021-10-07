@@ -13,7 +13,7 @@ _eduperson_entitlement_regex = re.compile(
         (?P<namespace>[a-z0-9:._-]+)
         :group:
         (?P<vo>[a-z0-9._-]+)
-        (:(?P<group>[a-z0-9._-]+))?
+        (:(?P<group>[a-z0-9:._-]+))?
         (:role=(?P<role>[a-z0-9._-]+))?
         \#(?P<authority>[a-z0-9._-]+)
         $
