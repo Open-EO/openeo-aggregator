@@ -520,8 +520,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 raise PermissionsInsufficientException("OIDC auth required")
             try:
                 eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
-            except KeyError:
-                _log.error("No eduperson_entitlement data", exc_info=True)
+            except KeyError as e:
+                _log.warning(f"No eduperson_entitlement data ({e!r})")
                 raise PermissionsInsufficientException("No eduperson_entitlement data")
             if not any(is_early_adopter(e) for e in eduperson_entitlements):
                 _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
