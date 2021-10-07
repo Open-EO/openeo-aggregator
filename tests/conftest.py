@@ -5,6 +5,7 @@ from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import MultiBackendConnection
 from openeo_aggregator.config import AggregatorConfig
 from openeo_driver.testing import ApiTester
+from openeo_driver.users.oidc import OidcProvider
 
 
 @pytest.fixture
@@ -44,6 +45,13 @@ def config(backend1, backend2) -> AggregatorConfig:
         "b2": backend2,
     }
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
+
+    conf.configured_oidc_providers = [
+        OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
+        OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
+        OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
+        OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
+    ]
 
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False

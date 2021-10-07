@@ -485,9 +485,14 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
         self._auth_entitlement_check = config.auth_entitlement_check
+        self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
 
     def oidc_providers(self) -> List[OidcProvider]:
-        return self._backends.get_oidc_providers()
+        key = "oidc_providers"
+        if key not in self._cache:
+            providers = self._backends.build_oidc_handling(configured_providers=self._configured_oidc_providers)
+            self._cache.set(key, value=providers)
+        return self._cache[key]
 
     def file_formats(self) -> dict:
         return self._cache.get_or_call(key="file_formats", callback=self._file_formats)
@@ -531,4 +536,3 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user.info["roles"] = ["EarlyAdopter"]
 
         return user
-   

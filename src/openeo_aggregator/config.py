@@ -3,9 +3,10 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 from typing import Union
 
+from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
 
 _log = logging.getLogger(__name__)
@@ -31,6 +32,8 @@ class AggregatorConfig(dict):
     flask_error_handling = dict_item(default=True)
     streaming_chunk_size = dict_item(default=STREAM_CHUNK_SIZE_DEFAULT)
 
+    # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?
+    configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check = dict_item(default=True)
 
     @classmethod
@@ -43,6 +46,15 @@ class AggregatorConfig(dict):
             return cls(json.load(f))
 
 
+_DEFAULT_OIDC_CLIENT_EGI = {
+    "id": "openeo-platform-default-client",
+    "grant_types": [
+        "authorization_code+pkce",
+        "urn:ietf:params:oauth:grant-type:device_code+pkce",
+        "refresh_token",
+    ]
+}
+
 DEFAULT_CONFIG = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo.vito.be/openeo/1.0/",
@@ -51,6 +63,32 @@ DEFAULT_CONFIG = AggregatorConfig(
         # "eodcdev": "https://openeo-dev.eodc.eu/v1.0/",
     },
     auth_entitlement_check=True,
+    configured_oidc_providers=[
+        OidcProvider(
+            id="egi",
+            issuer="https://aai.egi.eu/oidc/",
+            scopes=[
+                "openid", "email",
+                "eduperson_entitlement",
+                "eduperson_scoped_affiliation",
+            ],
+            title="EGI Check-in",
+            default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+            default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+        ),
+        OidcProvider(
+            id="egi-dev",
+            issuer="https://aai-dev.egi.eu/oidc/",
+            scopes=[
+                "openid", "email",
+                "eduperson_entitlement",
+                "eduperson_scoped_affiliation",
+            ],
+            title="EGI Check-in (dev)",
+            default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+            default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+        ),
+    ],
 )
 
 

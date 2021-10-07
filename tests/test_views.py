@@ -66,7 +66,7 @@ class TestAuthentication:
 
         res = api100.get("/credentials/oidc").assert_status_code(200).json
         assert res == {"providers": [
-            {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
+            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]}
         ]}
 
     def test_me_unauthorized(self, api100):

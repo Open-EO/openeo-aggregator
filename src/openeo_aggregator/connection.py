@@ -157,24 +157,31 @@ class MultiBackendConnection:
             # TODO: customizable exception handling: skip, warn, re-raise?
             yield con.id, res
 
-    def get_oidc_providers(self) -> List[OidcProvider]:
-        return self._cache.get_or_call(key="oidc_data", callback=self._build_oidc_data)
+    def get_oidc_providers_per_backend(self) -> Dict[str, List[OidcProvider]]:
+        return self._cache.get_or_call(key="oidc_providers_per_backend", callback=self._get_oidc_providers_per_backend)
 
-    def _build_oidc_data(self) -> List[OidcProvider]:
-        """
-        Build list of common OIDC providers to advertise as aggregator OIDC provider
-        and set up the provider mapping in the connections
-        """
+    def _get_oidc_providers_per_backend(self) -> Dict[str, List[OidcProvider]]:
         # Collect provider info per backend
         providers_per_backend: Dict[str, List[OidcProvider]] = {}
         for con in self._connections:
             providers_per_backend[con.id] = []
             for provider_data in con.get("/credentials/oidc", expected_status=200).json()["providers"]:
-                # Normalize issuer a bit to have useful intersection later.
-                provider_data["issuer"] = provider_data["issuer"].rstrip("/")
+                # Normalize issuer for sensible comparison operations.
+                provider_data["issuer"] = provider_data["issuer"].rstrip("/").lower()
                 providers_per_backend[con.id].append(OidcProvider.from_dict(provider_data))
+        return providers_per_backend
 
-        # Calculate intersection (based on issuer URL)
+    def build_oidc_handling(self, configured_providers: List[OidcProvider]) -> List[OidcProvider]:
+        """
+        Determine OIDC providers to use in aggregator (based on OIDC issuers supported by all backends)
+        and set up provider id mapping in the backend connections
+
+        :param configured_providers: OIDC providers dedicated/configured for the aggregator
+        :return: list of actual OIDC providers to use (configured for aggregator and supported by all backends)
+        """
+        providers_per_backend = self.get_oidc_providers_per_backend()
+
+        # Find OIDC issuers supported by each backend (intersection of issuer sets).
         issuers_per_backend = [
             set(p.issuer for p in providers)
             for providers in providers_per_backend.values()
@@ -183,18 +190,18 @@ class MultiBackendConnection:
         _log.info(f"OIDC provider intersection: {intersection}")
         if len(intersection) == 0:
             _log.warning(f"Emtpy OIDC provider intersection. Issuers per backend: {issuers_per_backend}")
-        # Use provider order as used in first backend
-        agg_providers = [
-            p for p in providers_per_backend[self.first().id]
-            if p.issuer in intersection
-        ]
 
-        # Build and register mapping of aggregator provider id to backend provider id.
+        # Take configured providers for common issuers.
+        agg_providers = [p for p in configured_providers if p.issuer.rstrip("/").lower() in intersection]
+
+        # Set up provider id mapping (aggregator pid to original backend pid) for the connections
         for con in self._connections:
             backend_providers = providers_per_backend[con.id]
             pid_map = {}
             for agg_provider in agg_providers:
-                pid_map[agg_provider.id] = next(bp.id for bp in backend_providers if bp.issuer == agg_provider.issuer)
+                agg_issuer = agg_provider.issuer.rstrip("/").lower()
+                orig_pid = next(bp.id for bp in backend_providers if bp.issuer == agg_issuer)
+                pid_map[agg_provider.id] = orig_pid
             con.set_oidc_provider_map(pid_map)
 
         return agg_providers
