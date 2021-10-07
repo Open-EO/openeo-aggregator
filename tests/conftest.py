@@ -45,6 +45,8 @@ def config(backend1, backend2) -> AggregatorConfig:
     }
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
+    # Disable OIDC/EGI entitlement check by default.
+    conf.auth_entitlement_check = False
     return conf
 
 

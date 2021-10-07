@@ -31,6 +31,8 @@ class AggregatorConfig(dict):
     flask_error_handling = dict_item(default=True)
     streaming_chunk_size = dict_item(default=STREAM_CHUNK_SIZE_DEFAULT)
 
+    auth_entitlement_check = dict_item(default=True)
+
     @classmethod
     def from_json(cls, data: str):
         return cls(json.loads(data))
@@ -47,7 +49,8 @@ DEFAULT_CONFIG = AggregatorConfig(
         # "creo": "https://openeo.creo.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
         # "eodcdev": "https://openeo-dev.eodc.eu/v1.0/",
-    }
+    },
+    auth_entitlement_check=True,
 )
 
 
