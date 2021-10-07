@@ -37,7 +37,7 @@ def parse_eduperson_entitlement(entitlement: str, strict=True) -> Entitlement:
 
 def is_early_adopter(entitlement: str) -> bool:
     """Check if given eduperson_entitlement corresponds to an early adopter role."""
-    e = parse_eduperson_entitlement(entitlement)
+    e = parse_eduperson_entitlement(entitlement, strict=False)
     return (
             e.namespace in {"urn:mace:egi.eu", "urn:mace:egi-dev.eu"}
             and e.vo in {"vo.openeo.cloud", "vo.openeo-dev.cloud"}
