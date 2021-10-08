@@ -3,6 +3,7 @@ import pytest
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
     AggregatorBackendImplementation, _InternalCollectionMetadata
 from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException
+from openeo_driver.users.oidc import OidcProvider
 
 
 class TestAggregatorBackendImplementation:
@@ -18,10 +19,32 @@ class TestAggregatorBackendImplementation:
         ]})
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
         providers = implementation.oidc_providers()
-        assert len(providers) == 1
-        provider = providers[0]
-        expected = {"id": "y", "issuer": "https://y.test", "title": "YY", "scopes": ["openid"]}
-        assert provider.prepare_for_json() == expected
+        assert providers == [
+            OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")
+        ]
+
+    def test_oidc_providers_caching(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        m1 = requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "x", "issuer": "https://x.test", "title": "X"},
+            {"id": "y", "issuer": "https://y.test", "title": "YY"},
+        ]})
+        m2 = requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "y", "issuer": "https://y.test", "title": "YY"},
+            {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
+        ]})
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        assert (m1.call_count, m2.call_count) == (0, 0)
+        providers = implementation.oidc_providers()
+        assert providers == [OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")]
+        assert (m1.call_count, m2.call_count) == (1, 1)
+        providers = implementation.oidc_providers()
+        assert providers == [OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")]
+        assert (m1.call_count, m2.call_count) == (1, 1)
+        implementation._cache.flush_all()
+        implementation._backends._cache.flush_all()
+        providers = implementation.oidc_providers()
+        assert providers == [OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")]
+        assert (m1.call_count, m2.call_count) == (2, 2)
 
     def test_file_formats_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
         just_geotiff = {

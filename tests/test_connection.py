@@ -1,3 +1,4 @@
+import logging
 import types
 
 import flask
@@ -160,18 +161,28 @@ class TestMultiBackendConnection:
     def test_api_version(self, multi_backend_connection):
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
 
-    def test_get_oidc_providers(self, multi_backend_connection, backend1, backend2):
-        providers = multi_backend_connection.get_oidc_providers()
+    @pytest.mark.parametrize(["pid", "issuer", "title"], [
+        ("egi", "https://egi.test", "EGI"),
+        ("agg-egi", "https://EGI.test/", "Agg EGI"),
+    ])
+    def test_build_oidc_handling_basic(self, multi_backend_connection, backend1, backend2, pid, issuer, title):
+        providers = multi_backend_connection.build_oidc_handling(configured_providers=[
+            OidcProvider(id=pid, issuer=issuer, title=title),
+            OidcProvider(id="egi-dev", issuer="https://egi-dev.test", title="EGI dev"),
+        ])
         assert providers == [
-            OidcProvider(id="egi", issuer="https://egi.test", title="EGI", scopes=["openid"]),
+            OidcProvider(id=pid, issuer=issuer, title=title, scopes=["openid"]),
         ]
+
+        for con in multi_backend_connection:
+            assert con._oidc_provider_map == {pid: "egi"}
 
     @pytest.mark.parametrize(["issuer_y1", "issuer_y2"], [
         ("https://y.test", "https://y.test"),
         ("https://y.test", "https://y.test/"),
         ("https://y.test/", "https://y.test/"),
     ])
-    def test_oidc_providers_issuer_intersection(
+    def test_build_oidc_handling_intersection(
             self, multi_backend_connection, requests_mock, backend1, backend2, issuer_y1, issuer_y2
     ):
         requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
@@ -183,32 +194,51 @@ class TestMultiBackendConnection:
             {"id": "z2", "issuer": "https://z.test", "title": "ZZZ2"},
         ]})
 
-        providers = multi_backend_connection.get_oidc_providers()
+        providers = multi_backend_connection.build_oidc_handling(configured_providers=[
+            OidcProvider("xa", "https://x.test", "A-X"),
+            OidcProvider("ya", "https://y.test", "A-Y"),
+            OidcProvider("za", "https://z.test", "A-Z"),
+        ])
         assert providers == [
-            OidcProvider(id="y1", issuer="https://y.test", title="YY1", scopes=["openid"]),
+            OidcProvider(id="ya", issuer="https://y.test", title="A-Y", scopes=["openid"]),
         ]
 
-    def test_oidc_providers_issuer_intersection_order(
+        assert [con._oidc_provider_map for con in multi_backend_connection] == [
+            {"ya": "y1"},
+            {"ya": "y2"},
+        ]
+
+    def test_build_oidc_handling_order(
             self, multi_backend_connection, requests_mock, backend1, backend2
     ):
         requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
             {"id": "d1", "issuer": "https://d.test", "title": "D1"},
             {"id": "b1", "issuer": "https://b.test", "title": "B1"},
-            {"id": "c1", "issuer": "https://c.test", "title": "C1"},
+            {"id": "c1", "issuer": "https://c.test/", "title": "C1"},
             {"id": "a1", "issuer": "https://a.test", "title": "A1"},
-            {"id": "e1", "issuer": "https://e.test", "title": "E1"},
+            {"id": "e1", "issuer": "https://e.test/", "title": "E1"},
         ]})
         requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
             {"id": "e2", "issuer": "https://e.test", "title": "E2"},
-            {"id": "b2", "issuer": "https://b.test", "title": "B2"},
+            {"id": "b2", "issuer": "https://b.test/", "title": "B2"},
             {"id": "c2", "issuer": "https://c.test", "title": "C2"},
             {"id": "a2", "issuer": "https://a.test", "title": "A2"},
             {"id": "d2", "issuer": "https://d.test", "title": "D2"},
         ]})
 
-        providers = multi_backend_connection.get_oidc_providers()
+        providers = multi_backend_connection.build_oidc_handling(configured_providers=[
+            OidcProvider("a-b", "https://b.test", "A-B"),
+            OidcProvider("a-e", "https://e.test/", "A-E"),
+            OidcProvider("a-a", "https://a.test", "A-A"),
+            OidcProvider("a-d", "https://d.test", "A-D"),
+            OidcProvider("a-c", "https://c.test/", "A-C"),
+        ])
         assert [p.issuer for p in providers] == [
-            "https://d.test", "https://b.test", "https://c.test", "https://a.test", "https://e.test"
+            "https://b.test", "https://e.test/", "https://a.test", "https://d.test", "https://c.test/"
+        ]
+        assert [con._oidc_provider_map for con in multi_backend_connection] == [
+            {'a-a': 'a1', 'a-b': 'b1', 'a-c': 'c1', 'a-d': 'd1', 'a-e': 'e1'},
+            {'a-a': 'a2', 'a-b': 'b2', 'a-c': 'c2', 'a-d': 'd2', 'a-e': 'e2'},
         ]
 
     def test_oidc_provider_mapping(self, requests_mock):
@@ -236,9 +266,12 @@ class TestMultiBackendConnection:
 
         multi_backend_connection = MultiBackendConnection({"b1": domain1, "b2": domain2, "b3": domain3})
 
-        assert multi_backend_connection.get_oidc_providers() == [
-            OidcProvider(id="x1", issuer="https://x.test", title="X1", scopes=["openid"]),
-            OidcProvider(id="y1", issuer="https://y.test", title="Y1", scopes=["openid"]),
+        assert multi_backend_connection.build_oidc_handling(configured_providers=[
+            OidcProvider("ax", "https://x.test", "A-X"),
+            OidcProvider("ay", "https://y.test", "A-Y"),
+        ]) == [
+            OidcProvider(id="ax", issuer="https://x.test", title="A-X", scopes=["openid"]),
+            OidcProvider(id="ay", issuer="https://y.test", title="A-Y", scopes=["openid"]),
         ]
 
         def get_me(request: requests.Request, context):
@@ -250,7 +283,7 @@ class TestMultiBackendConnection:
         requests_mock.get("https://b3.test/v1/me", json=get_me)
 
         # Fake aggregator request containing bearer token for aggregator providers
-        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/x1/yadayadayada"})
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
 
         con1 = multi_backend_connection.get_connection("b1")
         with con1.authenticated_from_request(request=request):
@@ -263,3 +296,57 @@ class TestMultiBackendConnection:
         con3 = multi_backend_connection.get_connection("b3")
         with con3.authenticated_from_request(request=request):
             assert con3.get("/me").json() == {"user_id": "Bearer oidc/x3/yadayadayada"}
+
+    def test_oidc_provider_mapping_changes(self, requests_mock, caplog):
+        domain1 = "https://b1.test/v1"
+        requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})
+        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
+            {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
+        ]})
+
+        def get_me(request: requests.Request, context):
+            auth = request.headers.get("Authorization")
+            return {"user_id": auth}
+
+        requests_mock.get("https://b1.test/v1/me", json=get_me)
+
+        multi_backend_connection = MultiBackendConnection({"b1": domain1})
+        con1 = multi_backend_connection.get_connection("b1")
+
+        configured_providers = [
+            OidcProvider("ax", "https://x.test", "A-X"),
+            OidcProvider("ay", "https://y.test", "A-Y"),
+        ]
+
+        agg_providers = multi_backend_connection.build_oidc_handling(configured_providers)
+        assert agg_providers == [OidcProvider(id="ax", issuer="https://x.test", title="A-X", scopes=["openid"])]
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert warnings == ""
+
+        # Fake aggregator request containing bearer token for aggregator providers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/x1/yadayadayada"}
+
+        # Change backend's oidc config, clear its cache and rebuild OIDC handling
+        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
+            {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
+        ]})
+        multi_backend_connection._cache.flush_all()
+        agg_providers = multi_backend_connection.build_oidc_handling(configured_providers)
+        assert agg_providers == [OidcProvider(id="ay", issuer="https://y.test", title="A-Y", scopes=["openid"])]
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert "Changing OIDC provider mapping" in warnings
+
+        # Try old auth headers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/ax/yadayadayada"}
+
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert "OIDC provider mapping failure" in warnings
+
+        # New headers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ay/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}
