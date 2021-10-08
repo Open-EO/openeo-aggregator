@@ -41,6 +41,21 @@ class TestCatalog:
         res = api100.get("/collections").assert_status_code(200).json
         assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
 
+    def test_collection_items(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def collection_items(request, context):
+            assert request.qs == {"bbox": ["5,45,20,50"], "datetime": ["2019-09-20/2019-09-22"], "limit": ["2"]}
+            context.headers["Content-Type"] = "application/json"
+            return {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": "blabla"}]}
+
+        requests_mock.get(backend1 + "/collections/S1/items", json=collection_items)
+
+        res = api100.get("/collections/S1/items?bbox=5,45,20,50&datetime=2019-09-20/2019-09-22&limit=2")
+        res.assert_status_code(200)
+        assert res.json == {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": "blabla"}]}
+
 
 class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):

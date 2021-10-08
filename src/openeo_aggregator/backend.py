@@ -11,7 +11,7 @@ from openeo.rest import OpenEoApiError
 from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
-from openeo_aggregator.connection import MultiBackendConnection, BackendConnection
+from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter
@@ -20,7 +20,8 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
     OidcProvider, BatchJobs, BatchJobMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException
+    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
+    FeatureUnsupportedException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -238,6 +239,19 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
 
+    def get_collection_items(self, collection_id: str, parameters: dict) -> Union[dict, flask.Response]:
+        metadata, internal = self._get_all_metadata_cached()
+        backends = internal.get_backends_for_collection(collection_id)
+
+        if len(backends) == 1:
+            con = self.backends.get_connection(backend_id=backends[0])
+            resp = con.get(f"/collections/{collection_id}/items", params=parameters, stream=True)
+            return streaming_flask_response(resp)
+        elif len(backends) > 1:
+            raise FeatureUnsupportedException(f"collection-items with multiple backends ({backends}) is not supported.")
+        else:
+            raise CollectionNotFoundException(collection_id)
+
 
 class AggregatorProcessing(Processing):
     def __init__(
@@ -331,14 +345,7 @@ class AggregatorProcessing(Processing):
                 stream=True, timeout=CONNECTION_TIMEOUT_RESULT
             )
 
-        # Convert `requests.Response` from backend to `flask.Response` for client
-        headers = [(k, v) for (k, v) in backend_response.headers.items() if k.lower() in ["content-type"]]
-        return flask.Response(
-            # Streaming response through `iter_content` generator (https://flask.palletsprojects.com/en/2.0.x/patterns/streaming/)
-            response=backend_response.iter_content(chunk_size=self._stream_chunk_size),
-            status=backend_response.status_code,
-            headers=headers,
-        )
+        return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
 
 
 class AggregatorBatchJobs(BatchJobs):

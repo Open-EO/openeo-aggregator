@@ -5,12 +5,13 @@ import re
 from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union
 
 import flask
+import requests
 
 import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
-from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT
+from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.utils import TtlCache, _UNSET
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
@@ -211,3 +212,26 @@ class MultiBackendConnection:
             con.set_oidc_provider_map(pid_map)
 
         return agg_providers
+
+
+def streaming_flask_response(
+        backend_response: requests.Response,
+        chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
+) -> flask.Response:
+    """
+    Convert a `requests.Response` coming from a backend
+    to a (streaming) `flask.Response` to send to the client
+
+    :param backend_response: `requests.Response` object (possibly created with "stream" option enabled)
+    :param chunk_size: chunk size to use for streaming
+    """
+    headers = [
+        (k, v) for (k, v) in backend_response.headers.items()
+        if k.lower() in ["content-type"]
+    ]
+    return flask.Response(
+        # Streaming response through `iter_content` generator (https://flask.palletsprojects.com/en/2.0.x/patterns/streaming/)
+        response=backend_response.iter_content(chunk_size=chunk_size),
+        status=backend_response.status_code,
+        headers=headers,
+    )
