@@ -1,3 +1,4 @@
+import logging
 import types
 
 import flask
@@ -295,3 +296,57 @@ class TestMultiBackendConnection:
         con3 = multi_backend_connection.get_connection("b3")
         with con3.authenticated_from_request(request=request):
             assert con3.get("/me").json() == {"user_id": "Bearer oidc/x3/yadayadayada"}
+
+    def test_oidc_provider_mapping_changes(self, requests_mock, caplog):
+        domain1 = "https://b1.test/v1"
+        requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})
+        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
+            {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
+        ]})
+
+        def get_me(request: requests.Request, context):
+            auth = request.headers.get("Authorization")
+            return {"user_id": auth}
+
+        requests_mock.get("https://b1.test/v1/me", json=get_me)
+
+        multi_backend_connection = MultiBackendConnection({"b1": domain1})
+        con1 = multi_backend_connection.get_connection("b1")
+
+        configured_providers = [
+            OidcProvider("ax", "https://x.test", "A-X"),
+            OidcProvider("ay", "https://y.test", "A-Y"),
+        ]
+
+        agg_providers = multi_backend_connection.build_oidc_handling(configured_providers)
+        assert agg_providers == [OidcProvider(id="ax", issuer="https://x.test", title="A-X", scopes=["openid"])]
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert warnings == ""
+
+        # Fake aggregator request containing bearer token for aggregator providers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/x1/yadayadayada"}
+
+        # Change backend's oidc config, clear its cache and rebuild OIDC handling
+        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
+            {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
+        ]})
+        multi_backend_connection._cache.flush_all()
+        agg_providers = multi_backend_connection.build_oidc_handling(configured_providers)
+        assert agg_providers == [OidcProvider(id="ay", issuer="https://y.test", title="A-Y", scopes=["openid"])]
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert "Changing OIDC provider mapping" in warnings
+
+        # Try old auth headers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/ax/yadayadayada"}
+
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert "OIDC provider mapping failure" in warnings
+
+        # New headers
+        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ay/yadayadayada"})
+        with con1.authenticated_from_request(request=request):
+            assert con1.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}

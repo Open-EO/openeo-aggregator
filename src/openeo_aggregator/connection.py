@@ -56,6 +56,9 @@ class BackendConnection(Connection):
     auth = property(_get_auth, _set_auth)
 
     def set_oidc_provider_map(self, pid_map: Dict[str, str]):
+        if len(self._oidc_provider_map) > 0 and self._oidc_provider_map != pid_map:
+            _log.warning(f"Changing OIDC provider mapping in connection {self.id} from {self._oidc_provider_map} to {pid_map}")
+        _log.info(f"Setting OIDC provider mapping for connection {self.id}: {pid_map}")
         self._oidc_provider_map = pid_map
 
     def _get_bearer(self, request: flask.Request) -> str:
@@ -68,6 +71,8 @@ class BackendConnection(Connection):
             return auth.partition("Bearer ")[2]
         elif auth.startswith("Bearer oidc/"):
             _, pid, token = auth.split("/")
+            if pid not in self._oidc_provider_map:
+                _log.warning(f"OIDC provider mapping failure: {pid} not in {self._oidc_provider_map}.")
             backend_pid = self._oidc_provider_map.get(pid, pid)
             return f"oidc/{backend_pid}/{token}"
         else:
@@ -193,6 +198,7 @@ class MultiBackendConnection:
 
         # Take configured providers for common issuers.
         agg_providers = [p for p in configured_providers if p.issuer.rstrip("/").lower() in intersection]
+        _log.info(f"Actual aggregator providers: {agg_providers}")
 
         # Set up provider id mapping (aggregator pid to original backend pid) for the connections
         for con in self._connections:
