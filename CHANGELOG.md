@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added support for `/collections/{cid}/items` (EP-4022, [openEOPlatform/architecture-docs#104](https://github.com/openEOPlatform/architecture-docs/issues/104))
+
+
 ### Changed
 
 - Access to authenticated endpoints requires the "early adopter" role now (through EGI Check-in `eduPersonEntitlement`) (EP-3969)
