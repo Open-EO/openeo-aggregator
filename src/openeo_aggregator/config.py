@@ -76,18 +76,18 @@ DEFAULT_CONFIG = AggregatorConfig(
             default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
             default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
         ),
-        OidcProvider(
-            id="egi-dev",
-            issuer="https://aai-dev.egi.eu/oidc/",
-            scopes=[
-                "openid", "email",
-                "eduperson_entitlement",
-                "eduperson_scoped_affiliation",
-            ],
-            title="EGI Check-in (dev)",
-            default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-            default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-        ),
+        # OidcProvider(
+        #     id="egi-dev",
+        #     issuer="https://aai-dev.egi.eu/oidc/",
+        #     scopes=[
+        #         "openid", "email",
+        #         "eduperson_entitlement",
+        #         "eduperson_scoped_affiliation",
+        #     ],
+        #     title="EGI Check-in (dev)",
+        #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+        #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+        # ),
     ],
 )
 
