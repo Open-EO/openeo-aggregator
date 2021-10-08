@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter
+from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict
 
 
 class FakeClock:
@@ -129,3 +129,15 @@ class TestMultiDictGetter:
         assert list(getter.select("b").select("ba").get("x")) == []
         assert list(getter.select("b").select("bb").get("bba")) == [5]
         assert list(getter.select("x").select("y").select("z").get("z")) == []
+
+
+def test_subdict():
+    d = {"foo": "bar", "meh": 3}
+    assert subdict(d) == {}
+    assert subdict(d, "foo") == {"foo": "bar"}
+    assert subdict(d, "foo", "meh") == {"foo": "bar", "meh": 3}
+    assert subdict(d, "foo", "bar") == {"foo": "bar", "bar": None}
+    assert subdict(d, keys=["foo"]) == {"foo": "bar"}
+    assert subdict(d, keys=["foo", "meh"]) == {"foo": "bar", "meh": 3}
+    assert subdict(d, keys=["foo", "bar"]) == {"foo": "bar", "bar": None}
+    assert subdict(d, "foo", keys=["meh", "bar"]) == {"foo": "bar", "meh": 3, "bar": None}

@@ -14,7 +14,7 @@ from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.utils import TtlCache, MultiDictGetter
+from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
@@ -491,7 +491,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user_defined_processes=None,
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
-        self._auth_entitlement_check = config.auth_entitlement_check
+        self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
         self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
 
     def oidc_providers(self) -> List[OidcProvider]:
@@ -528,16 +528,28 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:
-            if user.internal_auth_data["authentication_method"] != "OIDC":
-                raise PermissionsInsufficientException("OIDC auth required")
+            base_error_message = "Not a valid openEO Platform user"
+            int_data = user.internal_auth_data
+            issuer_whitelist = self._auth_entitlement_check.get("oidc_issuer_whitelist", {"https://aai.egi.eu/oidc"})
+            if not (
+                    int_data["authentication_method"] == "OIDC"
+                    and int_data["oidc_issuer"].rstrip("/").lower() in issuer_whitelist
+            ):
+                message = f"{base_error_message}: OIDC authentication with EGI Check-in is required."
+                debug_info = subdict(int_data, keys=["authentication_method", "oidc_issuer"])
+                _log.warning(f"{message} debug_info:{debug_info} whitelist:{issuer_whitelist}")
+                raise PermissionsInsufficientException(message)
             try:
                 eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
             except KeyError as e:
-                _log.warning(f"No eduperson_entitlement data ({e!r})")
-                raise PermissionsInsufficientException("No eduperson_entitlement data")
+                message = f"{base_error_message}: missing entitlement data."
+                # Note: just log userinfo keys to avoid leaking sensitive user data.
+                _log.warning(f"{message} {e!r} {user.info.keys()} {user.info.get('oidc_userinfo', {}).keys()}")
+                raise PermissionsInsufficientException(message)
             if not any(is_early_adopter(e) for e in eduperson_entitlements):
-                _log.warning(f"User {user.user_id} has no early adopter role: {eduperson_entitlements}")
-                raise PermissionsInsufficientException("No early adopter role")
+                message = f"{base_error_message}: no early adopter role."
+                _log.warning(f"{message} user:{user.user_id} entitlements:{eduperson_entitlements}")
+                raise PermissionsInsufficientException(message)
 
             # TODO: list multiple roles/levels? Better "status" signaling?
             user.info["roles"] = ["EarlyAdopter"]

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Access to authenticated endpoints requires the "early adopter" role now (through EGI Check-in `eduPersonEntitlement`) (EP-3969)
 - Work with aggregator-specific OIDC provider settings (e.g. dedicated default clients) (EP-4046, [#7](https://github.com/Open-EO/openeo-aggregator/issues/7))
 - Disable `egi-dev` OIDC provider (EP-4046, [#7](https://github.com/Open-EO/openeo-aggregator/issues/7))
+- Improve "early adopter check" error messages ([openEOPlatform/architecture-docs#105](https://github.com/openEOPlatform/architecture-docs/issues/105))
 
 
 ### Fixed

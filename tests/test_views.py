@@ -101,7 +101,10 @@ class TestAuthEntitlementCheck:
     def test_basic_auth(self, api100_with_entitlement_check):
         api100_with_entitlement_check.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100_with_entitlement_check.get("/me")
-        res.assert_error(403, "PermissionsInsufficient", message="OIDC auth required")
+        res.assert_error(
+            403, "PermissionsInsufficient",
+            message="Not a valid openEO Platform user: OIDC authentication with EGI Check-in is required."
+        )
 
     def test_oidc_no_entitlement_data(self, api100_with_entitlement_check, requests_mock):
         def get_userinfo(request: requests.Request, context):
@@ -115,7 +118,10 @@ class TestAuthEntitlementCheck:
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me")
-        res.assert_error(403, "PermissionsInsufficient", message="No eduperson_entitlement data")
+        res.assert_error(
+            403, "PermissionsInsufficient",
+            message="Not a valid openEO Platform user: missing entitlement data."
+        )
 
     def test_oidc_no_early_adopter(self, api100_with_entitlement_check, requests_mock):
         def get_userinfo(request: requests.Request, context):
@@ -135,7 +141,10 @@ class TestAuthEntitlementCheck:
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me")
-        res.assert_error(403, "PermissionsInsufficient", message="No early adopter role")
+        res.assert_error(
+            403, "PermissionsInsufficient",
+            message="Not a valid openEO Platform user: no early adopter role."
+        )
 
     def test_oidc_early_adopter(self, api100_with_entitlement_check, requests_mock):
         def get_userinfo(request: requests.Request, context):

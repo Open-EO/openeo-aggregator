@@ -104,3 +104,11 @@ class MultiDictGetter:
     def select(self, key: str) -> 'MultiDictGetter':
         """Create new getter, one step deeper in the dictionary hierarchy."""
         return MultiDictGetter(d for d in self.get(key=key) if isinstance(d, dict))
+
+
+def subdict(d: dict, *args, keys: list = None, default=None) -> dict:
+    """Extract dict with only selected keys from given dict"""
+    keys = set(keys or []) | set(args)
+    # TODO: way to not provide default and raise KeyError on missing keys
+    # TODO: move to openeo-python-driver?
+    return {k: d.get(k, default) for k in keys}

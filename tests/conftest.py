@@ -81,7 +81,7 @@ def api100(flask_app: flask.Flask) -> ApiTester:
 
 @pytest.fixture
 def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
-    config.auth_entitlement_check = True
+    config.auth_entitlement_check = {"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
     return get_api100(get_flask_app(config))
 
 

@@ -34,7 +34,7 @@ class AggregatorConfig(dict):
 
     # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
-    auth_entitlement_check = dict_item(default=True)
+    auth_entitlement_check: Union[bool, dict] = dict_item()
 
     @classmethod
     def from_json(cls, data: str):
@@ -67,7 +67,7 @@ DEFAULT_CONFIG = AggregatorConfig(
         "eodc": "https://openeo.eodc.eu/v1.0/",
         # "eodcdev": "https://openeo-dev.eodc.eu/v1.0/",
     },
-    auth_entitlement_check=True,
+    auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
     configured_oidc_providers=[
         OidcProvider(
             id="egi",
