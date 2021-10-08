@@ -52,6 +52,11 @@ _DEFAULT_OIDC_CLIENT_EGI = {
         "authorization_code+pkce",
         "urn:ietf:params:oauth:grant-type:device_code+pkce",
         "refresh_token",
+    ],
+    "redirect_urls": [
+        "https://editor.openeo.cloud",
+        "http://localhost:1410/",
+        "https://editor.openeo.org",
     ]
 }
 
