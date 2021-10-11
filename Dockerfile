@@ -36,6 +36,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 WORKDIR /home/openeo/aggregator
 COPY setup.py setup.py
 COPY src src
+COPY conf conf
 COPY pytest.ini pytest.ini
 COPY tests tests
 
@@ -47,4 +48,4 @@ RUN pip install -U pip==20.2.4
 RUN pip install .
 
 
-CMD ["gunicorn", "--workers=4", "--threads=1", "--bind=0.0.0.0:8080", "openeo_aggregator.app:create_app()"]
+CMD ["gunicorn", "--config=conf/gunicorn.prod.py", "openeo_aggregator.app:create_app()"]

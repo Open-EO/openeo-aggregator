@@ -30,7 +30,7 @@ The webapp should be available at http://localhost:5000/openeo/1.0
 To run the app as gunicorn application, with desired options,
 for example (also see `./scripts/run-gunicorn.sh`):
 
-    gunicorn --workers=2 --threads=2 --bind 0.0.0.0:8080 'openeo_aggregator.app:create_app()'
+    gunicorn --workers=4 --bind 0.0.0.0:8080 'openeo_aggregator.app:create_app()'
 
 The webapp should be available at http://localhost:8080/openeo/1.0
 

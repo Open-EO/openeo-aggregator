@@ -339,7 +339,8 @@ class AggregatorProcessing(Processing):
         # Send process graph to backend
         con = self.backends.get_connection(backend_id=backend_id)
         request_pg = {"process": {"process_graph": process_graph}}
-        with con.authenticated_from_request(flask.request):
+        timing_logger = TimingLogger(title=f"Evaluate process graph on backend {backend_id}", logger=_log.info)
+        with con.authenticated_from_request(flask.request), timing_logger:
             backend_response = con.post(
                 path="/result", json=request_pg,
                 stream=True, timeout=CONNECTION_TIMEOUT_RESULT
