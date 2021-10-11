@@ -49,7 +49,6 @@ def test_is_early_adopter():
     assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=Early_Adopter#aai.egi.eu")
     assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=Early-Adopter#aai.egi.eu")
     assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=EarlyAdopter#aai.egi.eu")
-    assert is_early_adopter("urn:mace:egi-dev.eu:group:vo.openeo-dev.cloud:role=early-adopter#aai.egi.eu")
 
     assert not is_early_adopter("urn:mace:uho.ai:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu")
     assert not is_early_adopter("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=early_adopter#aai.egi.eu")
