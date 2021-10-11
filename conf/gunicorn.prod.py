@@ -6,4 +6,4 @@ workers = 10
 threads = 1
 
 # Worker timeout
-timeout = 5 * 60
+timeout = 15 * 60
