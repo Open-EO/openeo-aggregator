@@ -17,7 +17,10 @@ from openeo_driver.errors import AuthenticationRequiredException
 class TestBackendConnection:
 
     def test_plain_basic_auth_fails(self, requests_mock):
-        requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
+        requests_mock.get("https://foo.test/", json={
+            "api_version": "1.0.0",
+            "endpoints": [{"path": "/credentials/basic", "methods":["GET"]}]
+        })
         requests_mock.get("https://foo.test/credentials/basic", json={"access_token": "3nt3r"})
         con = BackendConnection(id="foo", url="https://foo.test")
         with pytest.raises(LockedAuthException):
