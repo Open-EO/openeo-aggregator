@@ -436,6 +436,21 @@ class TestBatchJobs:
         res = api100.post("/jobs", json=body)
         res.assert_error(400, "ProcessGraphInvalid")
 
+    @pytest.mark.parametrize("status_code", [200, 201, 500])
+    def test_create_job_backend_failure(self, api100, requests_mock, backend1, status_code):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_jobs(request: requests.Request, context):
+            # Go wrong here: missing headers or unexpected status code
+            context.status_code = status_code
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}})
+        res.assert_error(500, "Internal", message="Failed to create job on backend 'b1'")
+
     def test_get_job_metadata(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/jobs/th3j0b", json={
             "id": "th3j0b",

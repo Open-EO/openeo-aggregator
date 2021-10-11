@@ -7,7 +7,7 @@ from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Calla
 import flask
 
 from openeo.capabilities import ComparableVersion
-from openeo.rest import OpenEoApiError
+from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
@@ -407,7 +407,9 @@ class AggregatorBatchJobs(BatchJobs):
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
                     if e.code == exc_class.code:
                         raise exc_class
-                raise OpenEOApiException(f"Failed to create job on backend {backend_id}: {e!r}")
+                raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
+            except (OpenEoRestError, OpenEoClientException) as e:
+                raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(
             id=self._get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
             status="dummy", created="dummy", process="dummy"
