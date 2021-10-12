@@ -32,6 +32,47 @@ class TestGeneral:
             "backends": [{"id": "b1", "root_url": "https://b1.test/v1"}, {"id": "b2", "root_url": "https://b2.test/v1"}]
         }
 
+    def test_health_check_basic(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/health", json={"health": "OK"}, headers={"Content-type": "application/json"})
+        requests_mock.get(backend2 + "/health", text="OK")
+        resp = api100.get("/health").assert_status_code(200)
+        assert resp.json == {
+            "backend_status": {
+                "b1": {"status_code": 200, "json": {"health": "OK"}, "response_time": pytest.approx(0.1, abs=0.1)},
+                "b2": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+            },
+            "status_code": 200,
+        }
+
+    @pytest.mark.parametrize(["status_code"], [(404,), (500,)])
+    def test_health_check_failed_backend(self, api100, requests_mock, backend1, backend2, status_code):
+        requests_mock.get(backend1 + "/health", json={"health": "OK"}, headers={"Content-type": "application/json"})
+        requests_mock.get(backend2 + "/health", status_code=status_code, text="broken")
+        resp = api100.get("/health").assert_status_code(status_code)
+        assert resp.json == {
+            "backend_status": {
+                "b1": {"status_code": 200, "json": {"health": "OK"}, "response_time": pytest.approx(0.1, abs=0.1)},
+                "b2": {"status_code": status_code, "text": "broken", "response_time": pytest.approx(0.1, abs=0.1)},
+            },
+            "status_code": status_code,
+        }
+
+    def test_health_check_invalid_backend(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/health", json={"health": "OK"}, headers={"Content-type": "application/json"})
+        requests_mock.get(backend2 + "/health", text='Inva{id J}0n', headers={"Content-type": "application/json"})
+        resp = api100.get("/health").assert_status_code(500)
+        assert resp.json == {
+            "backend_status": {
+                "b1": {"status_code": 200, "json": {"health": "OK"}, "response_time": pytest.approx(0.1, abs=0.1)},
+                "b2": {
+                    "status_code": 200,
+                    "error": "JSONDecodeError('Expecting value: line 1 column 1 (char 0)',)",
+                    "response_time": pytest.approx(0.1, abs=0.1)
+                },
+            },
+            "status_code": 500,
+        }
+
 
 class TestCatalog:
 

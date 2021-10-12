@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import logging
+import time
 from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable
 
@@ -562,3 +563,32 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user.info["roles"] = ["EarlyAdopter"]
 
         return user
+
+    def health_check(self) -> Union[str, dict, flask.Response]:
+        backend_status = {}
+        overall_status_code = 200
+        for con in self._backends:
+            backend_status[con.id] = {}
+            try:
+                start_time = time.time()
+                # TODO: this `/health` endpoint is not standardized. Get it from `aggregator_backends` config?
+                resp = con.get("/health", check_error=False)
+                elapsed = time.time() - start_time
+                backend_status[con.id]["status_code"] = resp.status_code
+                backend_status[con.id]["response_time"] = elapsed
+                if resp.status_code >= 400:
+                    overall_status_code = max(overall_status_code, resp.status_code)
+                if resp.headers.get("Content-type") == "application/json":
+                    backend_status[con.id]["json"] = resp.json()
+                else:
+                    backend_status[con.id]["text"] = resp.text
+            except Exception as e:
+                backend_status[con.id]["error"] = repr(e)
+                overall_status_code = 500
+
+        response = flask.jsonify({
+            "status_code": overall_status_code,
+            "backend_status": backend_status,
+        })
+        response.status_code = overall_status_code
+        return response
