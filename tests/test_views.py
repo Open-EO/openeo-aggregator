@@ -19,6 +19,12 @@ class TestGeneral:
         assert {"methods": ["GET"], "path": "/collections/{collection_id}"} in endpoints
         assert {"methods": ["GET"], "path": "/processes"} in endpoints
 
+    def test_only_oidc_auth(self, api100):
+        res = api100.get("/").assert_status_code(200)
+        capabilities = res.json
+        endpoints = {e["path"] for e in capabilities["endpoints"]}
+        assert {e for e in endpoints if e.startswith("/credentials")} == {"/credentials/oidc"}
+
     def test_info(self, flask_app):
         api100 = ApiTester(api_version="1.0.0", client=flask_app.test_client(), url_root="/")
         res = api100.get("_info").assert_status_code(200)

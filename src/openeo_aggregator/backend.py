@@ -478,6 +478,10 @@ class AggregatorBatchJobs(BatchJobs):
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
+
+    # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
+    enable_basic_auth = False
+
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
         catalog = AggregatorCollectionCatalog(backends=backends)
