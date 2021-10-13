@@ -1,8 +1,8 @@
 import pytest
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
-    AggregatorBackendImplementation, _InternalCollectionMetadata
-from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException
+    AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping
+from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException
 from openeo_driver.users.oidc import OidcProvider
 
 
@@ -235,15 +235,18 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        assert catalog.get_best_backend_for_collections([]) == "b1"
-        assert catalog.get_best_backend_for_collections(["S3"]) == "b1"
-        assert catalog.get_best_backend_for_collections(["S4"]) == "b1"
-        assert catalog.get_best_backend_for_collections(["S5"]) == "b2"
-        assert catalog.get_best_backend_for_collections(["S3", "S4"]) == "b1"
-        assert catalog.get_best_backend_for_collections(["S4", "S5"]) == "b2"
+
+        with pytest.raises(OpenEOApiException, match="Empty collection set given"):
+            catalog.get_backend_candidates_for_collections([])
+
+        assert catalog.get_backend_candidates_for_collections(["S3"]) == ["b1"]
+        assert catalog.get_backend_candidates_for_collections(["S4"]) == ["b1", "b2"]
+        assert catalog.get_backend_candidates_for_collections(["S5"]) == ["b2"]
+        assert catalog.get_backend_candidates_for_collections(["S3", "S4"]) == ["b1"]
+        assert catalog.get_backend_candidates_for_collections(["S4", "S5"]) == ["b2"]
 
         with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
-            catalog.get_best_backend_for_collections(["S3", "S4", "S5"])
+            catalog.get_backend_candidates_for_collections(["S3", "S4", "S5"])
 
     def test_get_collection_metadata_basic(self, multi_backend_connection, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -302,6 +305,41 @@ class TestAggregatorCollectionCatalog:
         # TODO: test that caching of result is different from merging without error? (#2)
 
     # TODO tests for caching of collection metadata
+
+    def test_generate_backend_constraint_callables(self):
+        callables = AggregatorCollectionCatalog.generate_backend_constraint_callables([
+            {"eq": {"process_id": "eq", "arguments": {"x": {"from_parameter": "value"}, "y": "b1"}, "result": True}},
+            {"eq": {"process_id": "neq", "arguments": {"x": {"from_parameter": "value"}, "y": "b2"}, "result": True}},
+        ])
+        equals_b1, differs_from_b2 = callables
+        assert equals_b1("b1") is True
+        assert equals_b1("b2") is False
+        assert equals_b1("b3") is False
+        assert differs_from_b2("b1") is True
+        assert differs_from_b2("b2") is False
+        assert differs_from_b2("b3") is True
+
+
+class TestJobIdMapping:
+
+    def test_get_aggregator_job_id(self):
+        assert JobIdMapping.get_aggregator_job_id(
+            backend_job_id="j0bId-f00b6r", backend_id="vito"
+        ) == "vito-j0bId-f00b6r"
+
+    def test_parse_aggregator_job_id(self, multi_backend_connection):
+        assert JobIdMapping.parse_aggregator_job_id(
+            backends=multi_backend_connection, aggregator_job_id="b1-j000b"
+        ) == ("j000b", "b1")
+        assert JobIdMapping.parse_aggregator_job_id(
+            backends=multi_backend_connection, aggregator_job_id="b2-b6tch-j0b-o123423"
+        ) == ("b6tch-j0b-o123423", "b2")
+
+    def test_parse_aggregator_job_id_fail(self, multi_backend_connection):
+        with pytest.raises(JobNotFoundException):
+            JobIdMapping.parse_aggregator_job_id(
+                backends=multi_backend_connection, aggregator_job_id="b3-b6tch-j0b-o123423"
+            )
 
 
 class TestAggregatorProcessing:

@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict
+from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge
 
 
 class FakeClock:
@@ -141,3 +141,15 @@ def test_subdict():
     assert subdict(d, keys=["foo", "meh"]) == {"foo": "bar", "meh": 3}
     assert subdict(d, keys=["foo", "bar"]) == {"foo": "bar", "bar": None}
     assert subdict(d, "foo", keys=["meh", "bar"]) == {"foo": "bar", "meh": 3, "bar": None}
+
+
+def test_dict_merge():
+    assert dict_merge() == {}
+    assert dict_merge({1: 2}) == {1: 2}
+    assert dict_merge({1: 2}, {3: 4}) == {1: 2, 3: 4}
+    assert dict_merge({1: 2}, {1: 11}) == {1: 11}
+    assert dict_merge({"foo": 1, "meh": 11}, {"foo": 2, "bar": 22}, {"foo": 3}) == {"foo": 3, "bar": 22, "meh": 11}
+    assert dict_merge({"foo": 1}, {"foo": 2}) == {"foo": 2}
+    assert dict_merge({"foo": 1}, {"foo": 2}, foo=3) == {"foo": 3}
+    assert dict_merge({"foo": 1}, {"foo": 2}, foo=3, bar=4) == {"foo": 3, "bar": 4}
+    assert dict_merge({"foo": 1, "meh": 11}, {"foo": 2, "bar": 22}, foo=3, meh=55) == {"foo": 3, "bar": 22, "meh": 55}

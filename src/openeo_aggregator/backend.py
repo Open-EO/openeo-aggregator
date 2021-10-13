@@ -3,11 +3,12 @@ import functools
 import logging
 import time
 from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any, Set
 
 import flask
 
 from openeo.capabilities import ComparableVersion
+from openeo.internal.process_graph_visitor import ProcessGraphVisitor
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
@@ -15,7 +16,7 @@ from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict
+from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
@@ -164,10 +165,24 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         return result
 
-    def get_best_backend_for_collections(
-            self, collections: Iterable[str],
-            backend_constraints: List[Callable[[str], bool]] = None
-    ) -> str:
+    @staticmethod
+    def generate_backend_constraint_callables(process_graphs: Iterable[dict]) -> List[Callable[[str], bool]]:
+        """
+        Convert a collection of process graphs (implementing a condition that works on backend id)
+        to a list of Python functions.
+        """
+        processing = SimpleProcessing()
+        env = processing.get_basic_env()
+
+        def evaluate(backend_id, pg):
+            return processing.evaluate(
+                process_graph=pg,
+                env=env.push(parameters={"value": backend_id})
+            )
+
+        return [functools.partial(evaluate, pg=pg) for pg in process_graphs]
+
+    def get_backend_candidates_for_collections(self, collections: Iterable[str]) -> List[str]:
         """
         Get best backend id providing all given collections
         :param collections: list/set of collection ids
@@ -183,10 +198,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         except KeyError as e:
             raise CollectionNotFoundException(collection_id=e.args[0])
 
-        if len(backend_combos) == 1:
+        if len(backend_combos) == 0:
+            raise BackendLookupFailureException("Empty collection set given")
+        elif len(backend_combos) == 1:
             backend_candidates = list(backend_combos.pop())
-        elif len(backend_combos) == 0:
-            backend_candidates = [self.backends.first().id]
         else:
             # Search for common backends in all sets (and preserve order)
             intersection = functools.reduce(lambda a, b: [x for x in a if x in b], backend_combos)
@@ -197,16 +212,9 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 raise BackendLookupFailureException(
                     message=f"Collections across multiple backends ({union}): {collections}."
                 )
+
         _log.info(f"Backend candidates {backend_candidates} for collections {collections}")
-
-        if backend_constraints:
-            backend_candidates = [b for b in backend_candidates if all(c(b) for c in backend_constraints)]
-            _log.info(f"Backend candidates (after constraints) {backend_candidates} for collections {collections}")
-
-        if not backend_candidates:
-            raise BackendLookupFailureException(message="No backend matching all constraints")
-
-        return backend_candidates[0]
+        return backend_candidates
 
     def get_collection_metadata(self, collection_id: str) -> dict:
         return self._cache.get_or_call(
@@ -254,6 +262,24 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             raise CollectionNotFoundException(collection_id)
 
 
+class JobIdMapping:
+    """Mapping between aggregator job ids and backend job ids"""
+
+    @staticmethod
+    def get_aggregator_job_id(backend_job_id: str, backend_id: str) -> str:
+        """Construct aggregator job id from given backend job id and backend id"""
+        return f"{backend_id}-{backend_job_id}"
+
+    @staticmethod
+    def parse_aggregator_job_id(backends: MultiBackendConnection, aggregator_job_id: str) -> Tuple[str, str]:
+        """Given aggregator job id: extract backend job id and backend id"""
+        for prefix in [f"{con.id}-" for con in backends]:
+            if aggregator_job_id.startswith(prefix):
+                backend_id, backend_job_id = aggregator_job_id.split("-", maxsplit=1)
+                return backend_job_id, backend_id
+        raise JobNotFoundException(job_id=aggregator_job_id)
+
+
 class AggregatorProcessing(Processing):
     def __init__(
             self,
@@ -298,44 +324,59 @@ class AggregatorProcessing(Processing):
 
     def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:
         """
-        Get backend capable of executing given process graph (based on used collections)
+        Get backend capable of executing given process graph (based on used collections, processes, ...)
         """
+        # Initial list of candidates
+        backend_candidates: List[str] = [b.id for b in self.backends]
+
         # TODO: also check used processes?
+        collections = set()
+        collection_backend_constraints = []
         try:
-            collections = set()
-            backend_constraints = []
             for pg_node in process_graph.values():
-                if pg_node["process_id"] == "load_collection":
-                    collections.add(pg_node["arguments"]["id"])
+                process_id = pg_node["process_id"]
+                arguments = pg_node["arguments"]
+                if process_id == "load_collection":
+                    collections.add(arguments["id"])
                     provider_backend_pg = deep_get(
-                        pg_node,
-                        "arguments", "properties", self._catalog.STAC_PROPERTY_PROVIDER_BACKEND, "process_graph",
+                        arguments, "properties", self._catalog.STAC_PROPERTY_PROVIDER_BACKEND, "process_graph",
                         default=None
                     )
                     if provider_backend_pg:
-                        backend_constraints.append(provider_backend_pg)
+                        collection_backend_constraints.append(provider_backend_pg)
+                elif process_id == "load_result":
+                    # Extract backend id that has this batch job result to load
+                    _, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                        backends=self.backends,
+                        aggregator_job_id=arguments["id"]
+                    )
+                    backend_candidates = [b for b in backend_candidates if b == job_backend_id]
         except Exception:
             _log.error("Failed to parse process graph", exc_info=True)
             raise ProcessGraphInvalidException()
 
-        if backend_constraints:
-            # Convert constraint process graphs to real callable
-            processing = SimpleProcessing()
-            env = processing.get_basic_env()
-            backend_constraints = [
-                lambda value: processing.evaluate(
-                    pg,
-                    env=env.push(parameters={"value": value})
-                )
-                for pg in backend_constraints
-            ]
+        if collections:
+            # Determine backend candidates based on collections used in load_collection processes.
+            collection_candidates = self._catalog.get_backend_candidates_for_collections(collections=collections)
+            backend_candidates = [b for b in backend_candidates if b in collection_candidates]
 
-        return self._catalog.get_best_backend_for_collections(collections, backend_constraints=backend_constraints)
+            if collection_backend_constraints:
+                conditions = self._catalog.generate_backend_constraint_callables(
+                    process_graphs=collection_backend_constraints
+                )
+                backend_candidates = [b for b in backend_candidates if all(c(b) for c in conditions)]
+
+        if not backend_candidates:
+            raise BackendLookupFailureException(message="No backend matching all constraints")
+        return backend_candidates[0]
 
     def evaluate(self, process_graph: dict, env: EvalEnv = None):
         """Evaluate given process graph (flat dict format)."""
 
         backend_id = self.get_backend_for_process_graph(process_graph, api_version=env.get("version"))
+
+        # Preprocess process graph (e.g. translate job ids and other references)
+        process_graph = self.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         # Send process graph to backend
         con = self.backends.get_connection(backend_id=backend_id)
@@ -349,6 +390,27 @@ class AggregatorProcessing(Processing):
 
         return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
 
+    def preprocess_process_graph(self, process_graph: dict, backend_id: str) -> dict:
+        def preprocess(node: Any) -> Any:
+            if isinstance(node, dict):
+                if "process_id" in node and "arguments" in node:
+                    process_id = node["process_id"]
+                    arguments = node["arguments"]
+                    if process_id == "load_result" and "id" in arguments:
+                        job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                            backends=self.backends,
+                            aggregator_job_id=arguments["id"]
+                        )
+                        assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
+                        # Create new load_result node dict with updated job id
+                        return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
+                return {k: preprocess(v) for k, v in node.items()}
+            elif isinstance(node, list):
+                return [preprocess(x) for x in node]
+            return node
+
+        return preprocess(process_graph)
+
 
 class AggregatorBatchJobs(BatchJobs):
     JOB_START_TIMEOUT = 5 * 60
@@ -357,18 +419,6 @@ class AggregatorBatchJobs(BatchJobs):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
         self.processing = processing
-
-    def _get_aggregator_job_id(self, backend_job_id: str, backend_id: str) -> str:
-        """Construct aggregator job id from given backend job id and backend id"""
-        return f"{backend_id}-{backend_job_id}"
-
-    def _parse_aggregator_job_id(self, aggregator_job_id: str) -> Tuple[str, str]:
-        """Given aggregator job id: extract backend job id and backend id"""
-        for prefix in [f"{con.id}-" for con in self.backends]:
-            if aggregator_job_id.startswith(prefix):
-                backend_id, backend_job_id = aggregator_job_id.split("-", maxsplit=1)
-                return backend_job_id, backend_id
-        raise JobNotFoundException(job_id=aggregator_job_id)
 
     def get_user_jobs(self, user_id: str) -> List[BatchJobMetadata]:
         jobs = []
@@ -381,7 +431,7 @@ class AggregatorBatchJobs(BatchJobs):
                     # TODO attach failure to response? https://github.com/Open-EO/openeo-api/issues/412
                     backend_jobs = []
                 for job in backend_jobs:
-                    job["id"] = self._get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
+                    job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_dict(job))
         return jobs
 
@@ -413,12 +463,15 @@ class AggregatorBatchJobs(BatchJobs):
             except (OpenEoRestError, OpenEoClientException) as e:
                 raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(
-            id=self._get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
             status="dummy", created="dummy", process="dummy"
         )
 
     def _get_connection_and_backend_job_id(self, aggregator_job_id: str) -> Tuple[BackendConnection, str]:
-        backend_job_id, backend_id = self._parse_aggregator_job_id(aggregator_job_id=aggregator_job_id)
+        backend_job_id, backend_id = JobIdMapping.parse_aggregator_job_id(
+            backends=self.backends,
+            aggregator_job_id=aggregator_job_id
+        )
         con = self.backends.get_connection(backend_id)
         return con, backend_job_id
 
@@ -479,7 +532,6 @@ class AggregatorBatchJobs(BatchJobs):
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
-
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
 

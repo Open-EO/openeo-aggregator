@@ -112,3 +112,17 @@ def subdict(d: dict, *args, keys: list = None, default=None) -> dict:
     # TODO: way to not provide default and raise KeyError on missing keys
     # TODO: move to openeo-python-driver?
     return {k: d.get(k, default) for k in keys}
+
+
+def dict_merge(*args, **kwargs) -> dict:
+    """
+    Helper to merge dictionaries.
+
+    Creates new dictionary, input dictionary are left untouched.
+    Priority of items increases to the right (with highest priority for keyword arguments).
+    """
+    # TODO: move this to upstream dependency (openeo package)?
+    result = {}
+    for d in args + (kwargs,):
+        result.update(d)
+    return result
