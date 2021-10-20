@@ -307,7 +307,7 @@ class AggregatorProcessing(Processing):
         for con in self.backends:
             try:
                 processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
-            except Exception:
+            except OpenEoClientException:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}", exc_info=True)
 
@@ -385,10 +385,14 @@ class AggregatorProcessing(Processing):
         request_pg = {"process": {"process_graph": process_graph}}
         timing_logger = TimingLogger(title=f"Evaluate process graph on backend {backend_id}", logger=_log.info)
         with con.authenticated_from_request(flask.request), timing_logger:
-            backend_response = con.post(
-                path="/result", json=request_pg,
-                stream=True, timeout=CONNECTION_TIMEOUT_RESULT
-            )
+            try:
+                backend_response = con.post(
+                    path="/result", json=request_pg,
+                    stream=True, timeout=CONNECTION_TIMEOUT_RESULT,
+                    expected_status=200,
+                )
+            except OpenEoClientException as e:
+                raise OpenEOApiException(message=f"Failed to process synchronously on backend {con.id}: {e!r}")
 
         return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
 

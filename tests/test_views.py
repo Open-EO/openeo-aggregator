@@ -291,6 +291,35 @@ class TestProcessing:
             "links": [],
         }
 
+    @pytest.mark.parametrize(["backend1_up", "backend2_up", "expected"], [
+        (True, False, [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "data"}]},
+        ]),
+        (False, True, [
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "mean", "parameters": [{"name": "data"}]},
+        ]),
+        (False, False, []),
+    ])
+    def test_processes_resilience(self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected):
+        if backend1_up:
+            requests_mock.get(backend1 + "/processes", json={"processes": [
+                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+                {"id": "mean", "parameters": [{"name": "data"}]},
+            ]})
+        else:
+            requests_mock.get(backend1 + "/processes", status_code=404, text="nope")
+        if backend2_up:
+            requests_mock.get(backend2 + "/processes", json={"processes": [
+                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+                {"id": "mean", "parameters": [{"name": "data"}]},
+            ]})
+        else:
+            requests_mock.get(backend2 + "/processes", status_code=404, text="nope")
+        res = api100.get("/processes").assert_status_code(200).json
+        assert res == {"processes": expected, "links": []}
+
     def test_result_basic_math_basic_auth(self, api100, requests_mock, backend1, backend2):
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
@@ -333,6 +362,15 @@ class TestProcessing:
         request = {"process": {"process_graph": pg}}
         res = api100.post("/result", json=request).assert_status_code(200)
         assert res.json == 8
+
+    @pytest.mark.parametrize("status_code", [201, 302, 404, 500])
+    def test_result_basic_math_error(self, api100, requests_mock, backend1, backend2, status_code):
+        requests_mock.post(backend1 + "/result", status_code=status_code, text="nope")
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+        request = {"process": {"process_graph": pg}}
+        res = api100.post("/result", json=request)
+        res.assert_error(500, "Internal", message="Failed to process synchronously on backend b1")
 
     @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
     def test_result_large_response_streaming(self, config, chunk_size, requests_mock, backend1, backend2):
