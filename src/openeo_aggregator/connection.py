@@ -14,7 +14,7 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT
-from openeo_aggregator.utils import TtlCache, _UNSET
+from openeo_aggregator.utils import TtlCache, _UNSET, EventHandler
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
     AuthenticationSchemeInvalidException, InternalException
@@ -130,6 +130,7 @@ class MultiBackendConnection:
 
     _TIMEOUT = 5
 
+    # TODO: API version management: just do single-version aggregation, or also handle version discovery?
     # TODO: keep track of (recent) backend failures, e.g. to automatically blacklist a backend
     # TODO: synchronized backend connection caching/flushing across gunicorn workers, for better consistency?
 
@@ -141,10 +142,12 @@ class MultiBackendConnection:
             )
         # TODO: backend_urls as dict does not have explicit order, while this is important.
         self._backend_urls = backends
+
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
-        # TODO: API version management: just do single-version aggregation, or also handle version discovery?
-        self.api_version = self._get_api_version()
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+
+        self.on_connections_change = EventHandler("connection_change")
+        self.on_connections_change.add(self._cache.flush_all)
 
     def _get_connections(self, skip_failure=False) -> Iterator[BackendConnection]:
         """Create new backend connections."""
@@ -163,15 +166,21 @@ class MultiBackendConnection:
         """Get backend connections (re-created automatically if cache ttl expired)"""
         now = time.time()
         if now > self._connections_cache.expiry:
-            _log.info(f"Connections cache miss: setting up new connections")
+            orig_bids = [c.id for c in self._connections_cache.connections]
+            _log.info(f"Connections cache miss: creating new connections")
             self._connections_cache = _ConnectionsCache(
                 expiry=now + self._CONNECTION_CACHING_TTL,
                 connections=list(self._get_connections(skip_failure=True))
             )
+            new_bids = [c.id for c in self._connections_cache.connections]
             _log.info(
                 f"Created {len(self._connections_cache.connections)} actual"
                 f" of {len(self._backend_urls)} configured connections"
             )
+            if orig_bids != new_bids:
+                _log.info(f"Connections changed {orig_bids} -> {new_bids}: calling on_connections_change callbacks")
+                self.on_connections_change.trigger(skip_failures=True)
+
         return self._connections_cache.connections
 
     def __iter__(self) -> Iterator[BackendConnection]:
@@ -205,6 +214,10 @@ class MultiBackendConnection:
         if len(versions) != 1:
             raise OpenEOApiException(f"Only single version is supported, but found: {versions}")
         return ComparableVersion(versions.pop())
+
+    @property
+    def api_version(self) -> ComparableVersion:
+        return self._cache.get_or_call(key="api_version", callback=self._get_api_version)
 
     def map(self, callback: Callable[[BackendConnection], Any]) -> Iterator[Tuple[str, Any]]:
         """

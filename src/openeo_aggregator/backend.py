@@ -56,6 +56,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self.backends.on_connections_change.add(self._cache.flush_all)
 
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
@@ -292,6 +293,7 @@ class AggregatorProcessing(Processing):
         self.backends = backends
         # TODO Cache per backend results instead of output?
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self.backends.on_connections_change.add(self._cache.flush_all)
         self._catalog = catalog
         self._stream_chunk_size = stream_chunk_size
 
@@ -557,6 +559,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user_defined_processes=None,
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._backends.on_connections_change.add(self._cache.flush_all)
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
         self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
 
