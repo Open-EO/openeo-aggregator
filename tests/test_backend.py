@@ -293,14 +293,8 @@ class TestAggregatorCollectionCatalog:
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            "stac_version": "0.9.0",
             "id": "S2",
-            "description": "S2",
             "title": "b2's S2",
-            "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
-            "license": "proprietary",
-            "summaries": {"provider:backend": ["b2"]},
-            "links": [],
         }
         # TODO: test that caching of result is different from merging without error? (#2)
 

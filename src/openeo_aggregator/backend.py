@@ -78,7 +78,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 try:
                     backend_collections = con.list_collections()
                 except Exception:
-                    # TODO: instead of log warning: hard fail or log error?
+                    # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get collection metadata from {con.id}", exc_info=True)
                     # On failure: still cache, but with shorter TTL? (#2)
                     continue
@@ -227,23 +227,25 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         metadata, internal = self._get_all_metadata_cached()
         backends = internal.get_backends_for_collection(collection_id)
 
-        if len(backends) == 1:
-            con = self.backends.get_connection(backend_id=backends[0])
-            return con.describe_collection(name=collection_id)
-        elif len(backends) > 1:
-            by_backend = {}
-            for bid in backends:
-                con = self.backends.get_connection(backend_id=bid)
-                try:
-                    by_backend[bid] = con.describe_collection(name=collection_id)
-                except OpenEoApiError as e:
-                    _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
-                    # TODO: avoid caching of final result? (#2)
-                    continue
+        by_backend = {}
+        for bid in backends:
+            con = self.backends.get_connection(backend_id=bid)
+            try:
+                by_backend[bid] = con.describe_collection(name=collection_id)
+            except OpenEoApiError as e:
+                # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
+                _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
+                # TODO: avoid caching of final result? (#2)
+                continue
+
+        if len(by_backend) == 0:
+            raise CollectionNotFoundException(collection_id=collection_id)
+        elif len(by_backend) == 1:
+            # TODO: also go through _merge_collection_metadata procedure (for clean up/normalization)?
+            return by_backend.popitem()[1]
+        else:
             _log.info(f"Merging metadata for collection {collection_id}.")
             return self._merge_collection_metadata(by_backend=by_backend)
-        else:
-            raise CollectionNotFoundException(collection_id)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")
@@ -306,7 +308,7 @@ class AggregatorProcessing(Processing):
             try:
                 processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
             except Exception:
-                # TODO: fail instead of warn?
+                # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}", exc_info=True)
 
         # TODO #4: combined set of processes: union, intersection or something else?
@@ -427,8 +429,8 @@ class AggregatorBatchJobs(BatchJobs):
                 try:
                     backend_jobs = con.list_jobs()
                 except OpenEoApiError as e:
+                    # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get job listing from backend {con.id!r}: {e!r}")
-                    # TODO attach failure to response? https://github.com/Open-EO/openeo-api/issues/412
                     backend_jobs = []
                 for job in backend_jobs:
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)

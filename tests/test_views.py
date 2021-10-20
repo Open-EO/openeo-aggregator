@@ -5,7 +5,7 @@ import requests
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException, \
     ProcessGraphInvalidException
-from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN
+from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet
 from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
@@ -88,6 +88,25 @@ class TestCatalog:
         res = api100.get("/collections").assert_status_code(200).json
         assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
 
+    def test_collection_full_metadata(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S1", json={"id": "S1", "title": "b1 S1"})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1 S2"})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        requests_mock.get(backend2 + "/collections/S3", json={"id": "S3", "title": "b2 S3"})
+
+        res = api100.get("/collections/S1").assert_status_code(200).json
+        assert res == DictSubSet({"id": "S1", "title": "b1 S1"})
+
+        res = api100.get("/collections/S2").assert_status_code(200).json
+        assert res == DictSubSet({"id": "S2", "title": "b1 S2"})
+
+        res = api100.get("/collections/S3").assert_status_code(200).json
+        assert res == DictSubSet({"id": "S3", "title": "b2 S3"})
+
+        res = api100.get("/collections/S4")
+        res.assert_error(404, "CollectionNotFound")
+
     def test_collection_items(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -102,6 +121,42 @@ class TestCatalog:
         res = api100.get("/collections/S1/items?bbox=5,45,20,50&datetime=2019-09-20/2019-09-22&limit=2")
         res.assert_status_code(200)
         assert res.json == {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": "blabla"}]}
+
+    @pytest.mark.parametrize(["backend1_up", "backend2_up", "expected"], [
+        (True, False, {"S1", "S2"}),
+        (False, True, {"S3"}),
+        (False, False, set()),
+    ])
+    def test_collections_resilience(
+            self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected
+    ):
+        if backend1_up:
+            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
+        else:
+            requests_mock.get(backend1 + "/collections", status_code=404, text="down")
+        if backend2_up:
+            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        else:
+            requests_mock.get(backend2 + "/collections", status_code=404, text="down")
+
+        res = api100.get("/collections").assert_status_code(200).json
+        assert set(c["id"] for c in res["collections"]) == expected
+        # TODO: test caching of results
+
+    def test_collection_full_metadata_resilience(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        requests_mock.get(backend1 + "/collections/S1", json={"id": "S1", "title": "b1 S1"})
+        requests_mock.get(backend1 + "/collections/S2", status_code=404, text="down")
+        requests_mock.get(backend2 + "/collections/S3", status_code=404, text="down")
+
+        res = api100.get("/collections/S1").assert_status_code(200).json
+        assert res == DictSubSet({"id": "S1", "title": "b1 S1"})
+
+        api100.get("/collections/S2").assert_error(404, "CollectionNotFound")
+        api100.get("/collections/S3").assert_error(404, "CollectionNotFound")
+        api100.get("/collections/S4").assert_error(404, "CollectionNotFound")
+        # TODO: test caching of results
 
 
 class TestAuthentication:
