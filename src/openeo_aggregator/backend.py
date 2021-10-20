@@ -543,6 +543,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
 
+    # Simplify mocking time for unit tests.
+    _clock = time.time
+
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
         catalog = AggregatorCollectionCatalog(backends=backends)
@@ -631,10 +634,10 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         for con in self._backends:
             backend_status[con.id] = {}
             try:
-                start_time = time.time()
+                start_time = self._clock()
                 # TODO: this `/health` endpoint is not standardized. Get it from `aggregator_backends` config?
                 resp = con.get("/health", check_error=False)
-                elapsed = time.time() - start_time
+                elapsed = self._clock() - start_time
                 backend_status[con.id]["status_code"] = resp.status_code
                 backend_status[con.id]["response_time"] = elapsed
                 if resp.status_code >= 400:

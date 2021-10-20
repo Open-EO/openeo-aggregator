@@ -124,15 +124,17 @@ class MultiBackendConnection:
     """
     Collection of multiple connections to different backends
     """
+    # TODO: API version management: just do single/fixed-version federation, or also handle version discovery?
+    # TODO: keep track of (recent) backend failures, e.g. to automatically blacklist a backend
+    # TODO: synchronized backend connection caching/flushing across gunicorn workers, for better consistency?
 
-    # TODO: move this caching ttl to config?
-    _CONNECTION_CACHING_TTL = 5 * 60
+    # TODO: move this connections caching ttl to config?
+    _CONNECTIONS_CACHING_TTL = 5 * 60
 
     _TIMEOUT = 5
 
-    # TODO: API version management: just do single-version aggregation, or also handle version discovery?
-    # TODO: keep track of (recent) backend failures, e.g. to automatically blacklist a backend
-    # TODO: synchronized backend connection caching/flushing across gunicorn workers, for better consistency?
+    # Simplify mocking time for unit tests.
+    _clock = time.time
 
     def __init__(self, backends: Dict[str, str]):
         if any(not re.match(r"^[a-z0-9]+$", bid) for bid in backends.keys()):
@@ -146,36 +148,37 @@ class MultiBackendConnection:
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
 
-        self.on_connections_change = EventHandler("connection_change")
+        self.on_connections_change = EventHandler("connections_change")
         self.on_connections_change.add(self._cache.flush_all)
 
-    def _get_connections(self, skip_failure=False) -> Iterator[BackendConnection]:
+    def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
         """Create new backend connections."""
         for (bid, url) in self._backend_urls.items():
             try:
                 _log.info(f"Create backend {bid!r} connection to {url!r}")
-                # TODO: also do a health check on the connection?
+                # TODO: Creating connection usually involves version discovery and request of capability doc.
+                #       Additional health check necessary?
                 yield BackendConnection(id=bid, url=url)
             except Exception as e:
-                if skip_failure:
-                    _log.warning(f"Failed to create backend {bid!r} connection to {url!r}: {e!r}")
-                else:
+                _log.warning(f"Failed to create backend {bid!r} connection to {url!r}: {e!r}")
+                if not skip_failures:
                     raise
 
     def get_connections(self) -> List[BackendConnection]:
         """Get backend connections (re-created automatically if cache ttl expired)"""
-        now = time.time()
+        now = self._clock()
         if now > self._connections_cache.expiry:
+            _log.info(f"Connections cache expired ({now:.2f}>{self._connections_cache.expiry:.2f})")
             orig_bids = [c.id for c in self._connections_cache.connections]
-            _log.info(f"Connections cache miss: creating new connections")
             self._connections_cache = _ConnectionsCache(
-                expiry=now + self._CONNECTION_CACHING_TTL,
-                connections=list(self._get_connections(skip_failure=True))
+                expiry=now + self._CONNECTIONS_CACHING_TTL,
+                connections=list(self._get_connections(skip_failures=True))
             )
             new_bids = [c.id for c in self._connections_cache.connections]
             _log.info(
                 f"Created {len(self._connections_cache.connections)} actual"
                 f" of {len(self._backend_urls)} configured connections"
+                f" (TTL {self._CONNECTIONS_CACHING_TTL}s)"
             )
             if orig_bids != new_bids:
                 _log.info(f"Connections changed {orig_bids} -> {new_bids}: calling on_connections_change callbacks")
