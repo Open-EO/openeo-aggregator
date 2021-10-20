@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added support for `/collections/{cid}/items` (EP-4022, [openEOPlatform/architecture-docs#104](https://github.com/openEOPlatform/architecture-docs/issues/104))
+- Implement `/health` endpoint for monitoring (EP-3906)
 
 
 ### Changed
@@ -19,9 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Work with aggregator-specific OIDC provider settings (e.g. dedicated default clients) (EP-4046, [#7](https://github.com/Open-EO/openeo-aggregator/issues/7))
 - Disable `egi-dev` OIDC provider (EP-4046, [#7](https://github.com/Open-EO/openeo-aggregator/issues/7))
 - Improve "early adopter check" error messages ([openEOPlatform/architecture-docs#105](https://github.com/openEOPlatform/architecture-docs/issues/105))
+- Only allow OIDC authentication in production (no basic auth)
+- User email address as user name in `/me`
 
 
 ### Fixed
+
+- Use only one thread per gunicorn worker to avoid race conditions and thread safety issues ([#13](https://github.com/Open-EO/openeo-aggregator/issues/13))
+- Increase gunicorn worker timeout to handle long (sync) requests better ([#15](https://github.com/Open-EO/openeo-aggregator/issues/15))
+- support aggregator job id mapping in `load_result` ([#19](https://github.com/Open-EO/openeo-aggregator/issues/19))
+
+
 
 ## [0.1.0a1]
 
