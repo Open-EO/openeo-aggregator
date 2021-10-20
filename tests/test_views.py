@@ -143,12 +143,13 @@ class TestCatalog:
         assert set(c["id"] for c in res["collections"]) == expected
         # TODO: test caching of results
 
-    def test_collection_full_metadata_resilience(self, api100, requests_mock, backend1, backend2):
+    @pytest.mark.parametrize("status_code", [204, 303, 404, 500])
+    def test_collection_full_metadata_resilience(self, api100, requests_mock, backend1, backend2, status_code):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
         requests_mock.get(backend1 + "/collections/S1", json={"id": "S1", "title": "b1 S1"})
-        requests_mock.get(backend1 + "/collections/S2", status_code=404, text="down")
-        requests_mock.get(backend2 + "/collections/S3", status_code=404, text="down")
+        requests_mock.get(backend1 + "/collections/S2", status_code=status_code, text="down")
+        requests_mock.get(backend2 + "/collections/S3", status_code=status_code, text="down")
 
         res = api100.get("/collections/S1").assert_status_code(200).json
         assert res == DictSubSet({"id": "S1", "title": "b1 S1"})
@@ -586,12 +587,13 @@ class TestBatchJobs:
             {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
         ]
 
-    def test_list_jobs_failing_backend(self, api100, requests_mock, backend1, backend2, caplog):
+    @pytest.mark.parametrize("status_code", [204, 303, 404, 500])
+    def test_list_jobs_failing_backend(self, api100, requests_mock, backend1, backend2, caplog, status_code):
         requests_mock.get(backend1 + "/jobs", json={"jobs": [
             {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
             {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
         ]})
-        requests_mock.get(backend2 + "/jobs", status_code=404, json={"code": "nope", "message": "and nope"})
+        requests_mock.get(backend2 + "/jobs", status_code=status_code, json={"code": "nope", "message": "and nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
         assert res["jobs"] == [

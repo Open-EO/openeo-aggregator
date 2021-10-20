@@ -232,7 +232,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             con = self.backends.get_connection(backend_id=bid)
             try:
                 by_backend[bid] = con.describe_collection(name=collection_id)
-            except OpenEoApiError as e:
+            except OpenEoClientException as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
                 # TODO: avoid caching of final result? (#2)
@@ -432,7 +432,7 @@ class AggregatorBatchJobs(BatchJobs):
             with con.authenticated_from_request(request=flask.request):
                 try:
                     backend_jobs = con.list_jobs()
-                except OpenEoApiError as e:
+                except OpenEoClientException as e:
                     # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get job listing from backend {con.id!r}: {e!r}")
                     backend_jobs = []
