@@ -12,6 +12,7 @@ from openeo_driver.utils import dict_item
 _log = logging.getLogger(__name__)
 
 OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
+ENVIRONMENT_INDICATOR = "ENV"
 
 CACHE_TTL_DEFAULT = 6 * 60 * 60
 
@@ -60,40 +61,52 @@ _DEFAULT_OIDC_CLIENT_EGI = {
     ]
 }
 
-DEFAULT_CONFIG = AggregatorConfig(
+DEFAULT_AUTH_ENTITLEMENT_CHECKS = {"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}}
+
+DEFAULT_OIDC_PROVIDERS = [
+    OidcProvider(
+        id="egi",
+        issuer="https://aai.egi.eu/oidc/",
+        scopes=[
+            "openid", "email",
+            "eduperson_entitlement",
+            "eduperson_scoped_affiliation",
+        ],
+        title="EGI Check-in",
+        default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+    ),
+    # OidcProvider(
+    #     id="egi-dev",
+    #     issuer="https://aai-dev.egi.eu/oidc/",
+    #     scopes=[
+    #         "openid", "email",
+    #         "eduperson_entitlement",
+    #         "eduperson_scoped_affiliation",
+    #     ],
+    #     title="EGI Check-in (dev)",
+    #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+    #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+    # ),
+]
+
+DEVELOPMENT_CONFIG = AggregatorConfig(
+    aggregator_backends={
+        "vito": "https://openeo-dev.vito.be/openeo/1.0/",
+        "eodc": "https://openeo-dev.eodc.eu/v1.0/",
+    },
+    auth_entitlement_check=DEFAULT_AUTH_ENTITLEMENT_CHECKS,
+    configured_oidc_providers=DEFAULT_OIDC_PROVIDERS,
+)
+
+PRODUCTION_CONFIG = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo.vito.be/openeo/1.0/",
         # "creo": "https://openeo.creo.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
-        # "eodcdev": "https://openeo-dev.eodc.eu/v1.0/",
     },
-    auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
-    configured_oidc_providers=[
-        OidcProvider(
-            id="egi",
-            issuer="https://aai.egi.eu/oidc/",
-            scopes=[
-                "openid", "email",
-                "eduperson_entitlement",
-                "eduperson_scoped_affiliation",
-            ],
-            title="EGI Check-in",
-            default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-            default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-        ),
-        # OidcProvider(
-        #     id="egi-dev",
-        #     issuer="https://aai-dev.egi.eu/oidc/",
-        #     scopes=[
-        #         "openid", "email",
-        #         "eduperson_entitlement",
-        #         "eduperson_scoped_affiliation",
-        #     ],
-        #     title="EGI Check-in (dev)",
-        #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-        #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-        # ),
-    ],
+    auth_entitlement_check=DEFAULT_AUTH_ENTITLEMENT_CHECKS,
+    configured_oidc_providers=DEFAULT_OIDC_PROVIDERS,
 )
 
 
@@ -109,8 +122,16 @@ def get_config(x: Any) -> AggregatorConfig:
             x = os.environ[OPENEO_AGGREGATOR_CONFIG]
             _log.info(f"Loading config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
         else:
-            x = DEFAULT_CONFIG
-            _log.info(f"Using default config: {x}")
+            if ENVIRONMENT_INDICATOR in os.environ:
+                if os.environ.get(ENVIRONMENT_INDICATOR) == "dev":
+                    x = DEVELOPMENT_CONFIG
+                    _log.info(f"Using development config: {x}")
+                elif os.environ.get(ENVIRONMENT_INDICATOR) == "prod":
+                    x = PRODUCTION_CONFIG
+                    _log.info(f"Using production config: {x}")
+            else:
+                x = DEVELOPMENT_CONFIG
+                _log.info(f"No environment specified, using development config: {x}")
 
     if isinstance(x, AggregatorConfig):
         return x
