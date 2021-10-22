@@ -92,8 +92,8 @@ DEFAULT_OIDC_PROVIDERS = [
 
 DEVELOPMENT_CONFIG = AggregatorConfig(
     aggregator_backends={
-        "vito": "https://openeo-dev.vito.be/openeo/1.0/",
-        "eodc": "https://openeo-dev.eodc.eu/v1.0/",
+        "vito": "https://openeo.vito.be/openeo/1.0/",
+        "eodc": "https://openeo.eodc.eu/v1.0/",
     },
     auth_entitlement_check=DEFAULT_AUTH_ENTITLEMENT_CHECKS,
     configured_oidc_providers=DEFAULT_OIDC_PROVIDERS,
