@@ -1,8 +1,10 @@
+import itertools
 import logging
 import pytest
 import requests
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog
+from openeo_aggregator.connection import MultiBackendConnection
 from openeo_driver.errors import JobNotFoundException, ProcessGraphMissingException, JobNotFinishedException, \
     ProcessGraphInvalidException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet
@@ -880,3 +882,61 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/nope-and-nope/logs")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+
+class TestResilience:
+
+    def test_startup_during_backend_downtime(self, backend1, base_config, requests_mock, caplog):
+        caplog.set_level(logging.WARNING)
+
+        # Backend1 is up
+        requests_mock.get(backend1 + "/health", text="OK")
+
+        # Instead of `backend2` from fixture, set up a broken one
+        backend2 = "https://b2.test/v1"
+        m = requests_mock.get(backend2 + "/", status_code=500)
+        base_config.aggregator_backends = {"b1": backend1, "b2": backend2}
+        api100 = get_api100(get_flask_app(base_config))
+
+        assert "Failed to create backend 'b2' connection" in caplog.text
+        assert m.call_count == 1
+
+        api100.get("/").assert_status_code(200)
+
+        resp = api100.get("/health").assert_status_code(200)
+        assert resp.json == {
+            "backend_status": {
+                "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+            },
+            "status_code": 200,
+        }
+
+    def test_startup_during_backend_downtime_and_recover(self, backend1, base_config, requests_mock):
+        # Set up fake clock
+        MultiBackendConnection._clock = itertools.count(1).__next__
+
+        requests_mock.get(backend1 + "/health", text="OK")
+
+        # Instead of `backend2` from fixture, set up a broken one
+        backend2 = "https://b2.test/v1"
+        m = requests_mock.get(backend2 + "/", status_code=500)
+        base_config.aggregator_backends = {"b1": backend1, "b2": backend2}
+        api100 = get_api100(get_flask_app(base_config))
+
+        assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
+            "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+        }
+
+        # Backend 2 is up again, but cached is still active
+        requests_mock.get(backend2 + "/", json={"api_version": "1.0.0"})
+        requests_mock.get(backend2 + "/health", text="ok again")
+        assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
+            "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+        }
+
+        # Wait a bit so that cache is flushed
+        MultiBackendConnection._clock = itertools.count(10 * 60).__next__
+        assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
+            "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+            "b2": {"status_code": 200, "text": "ok again", "response_time": pytest.approx(0.1, abs=0.1)},
+        }

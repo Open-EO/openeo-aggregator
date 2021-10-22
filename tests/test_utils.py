@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge
+from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler
 
 
 class FakeClock:
@@ -153,3 +153,31 @@ def test_dict_merge():
     assert dict_merge({"foo": 1}, {"foo": 2}, foo=3) == {"foo": 3}
     assert dict_merge({"foo": 1}, {"foo": 2}, foo=3, bar=4) == {"foo": 3, "bar": 4}
     assert dict_merge({"foo": 1, "meh": 11}, {"foo": 2, "bar": 22}, foo=3, meh=55) == {"foo": 3, "bar": 22, "meh": 55}
+
+
+class TestEventHandler:
+
+    def test_empty(self):
+        handler = EventHandler("event")
+        handler.trigger()
+
+    def test_simple(self):
+        data = []
+        handler = EventHandler("event")
+        handler.add(lambda: data.append("foo"))
+        assert data == []
+        handler.trigger()
+        assert data == ["foo"]
+
+    def test_failure(self):
+        data = []
+        handler = EventHandler("event")
+        handler.add(lambda: data.append("foo"))
+        handler.add(lambda: data.append(4 / 0))
+        handler.add(lambda: data.append("bar"))
+        assert data == []
+        with pytest.raises(ZeroDivisionError):
+            handler.trigger()
+        assert data == ["foo"]
+        handler.trigger(skip_failures=True)
+        assert data == ["foo", "foo", "bar"]

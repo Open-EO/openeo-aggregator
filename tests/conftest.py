@@ -38,12 +38,9 @@ def multi_backend_connection(backend1, backend2) -> MultiBackendConnection:
 
 
 @pytest.fixture
-def config(backend1, backend2) -> AggregatorConfig:
+def base_config() -> AggregatorConfig:
+    """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
-    conf.aggregator_backends = {
-        "b1": backend1,
-        "b2": backend2,
-    }
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
     conf.configured_oidc_providers = [
@@ -55,6 +52,17 @@ def config(backend1, backend2) -> AggregatorConfig:
 
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False
+    return conf
+
+
+@pytest.fixture
+def config(base_config, backend1, backend2) -> AggregatorConfig:
+    """Config for most tests with two backends."""
+    conf = base_config
+    conf.aggregator_backends = {
+        "b1": backend1,
+        "b2": backend2,
+    }
     return conf
 
 
