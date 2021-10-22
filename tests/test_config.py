@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 
-from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
+from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, PRODUCTION_CONFIG
 from openeo_aggregator.config import OPENEO_AGGREGATOR_CONFIG, ENVIRONMENT_INDICATOR
 from openeo_aggregator.config import DEVELOPMENT_CONFIG, get_config
 
@@ -80,6 +80,20 @@ def test_get_config_none_env_json_path(tmp_path):
         config = get_config(None)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.streaming_chunk_size == 123
+
+
+@pytest.mark.parametrize("env", ["dev", "DEV"])
+def test_get_config_none_env_dev(env):
+    with mock.patch.dict(os.environ, {ENVIRONMENT_INDICATOR: env}):
+        config = get_config(None)
+    assert config is DEVELOPMENT_CONFIG
+
+
+@pytest.mark.parametrize("env", ["prod", "PROD"])
+def test_get_config_none_env_prod(env):
+    with mock.patch.dict(os.environ, {ENVIRONMENT_INDICATOR: env}):
+        config = get_config(None)
+    assert config is PRODUCTION_CONFIG
 
 
 def test_get_config_json_url_encoded():

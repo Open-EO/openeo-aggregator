@@ -121,17 +121,15 @@ def get_config(x: Any) -> AggregatorConfig:
         if OPENEO_AGGREGATOR_CONFIG in os.environ:
             x = os.environ[OPENEO_AGGREGATOR_CONFIG]
             _log.info(f"Loading config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
+        elif ENVIRONMENT_INDICATOR in os.environ:
+            x = {
+                "dev": DEVELOPMENT_CONFIG,
+                "prod": PRODUCTION_CONFIG,
+            }[os.environ[ENVIRONMENT_INDICATOR].lower()]
+            _log.info(f"Using env {os.environ[ENVIRONMENT_INDICATOR]!r} config: {x}")
         else:
-            if ENVIRONMENT_INDICATOR in os.environ:
-                if os.environ.get(ENVIRONMENT_INDICATOR) == "dev":
-                    x = DEVELOPMENT_CONFIG
-                    _log.info(f"Using development config: {x}")
-                elif os.environ.get(ENVIRONMENT_INDICATOR) == "prod":
-                    x = PRODUCTION_CONFIG
-                    _log.info(f"Using production config: {x}")
-            else:
-                x = DEVELOPMENT_CONFIG
-                _log.info(f"No environment specified, using development config: {x}")
+            x = DEVELOPMENT_CONFIG
+            _log.info(f"No environment specified, using development config: {x}")
 
     if isinstance(x, AggregatorConfig):
         return x
