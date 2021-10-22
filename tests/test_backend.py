@@ -1,7 +1,11 @@
+import itertools
+import time
+
 import pytest
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
     AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping
+from openeo_aggregator.connection import MultiBackendConnection
 from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException
 from openeo_driver.users.oidc import OidcProvider
 
@@ -40,8 +44,10 @@ class TestAggregatorBackendImplementation:
         providers = implementation.oidc_providers()
         assert providers == [OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")]
         assert (m1.call_count, m2.call_count) == (1, 1)
+
+        MultiBackendConnection._clock = itertools.count(time.time() + 1000).__next__
         implementation._cache.flush_all()
-        implementation._backends._cache.flush_all()
+
         providers = implementation.oidc_providers()
         assert providers == [OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)")]
         assert (m1.call_count, m2.call_count) == (2, 2)

@@ -22,7 +22,7 @@ class TtlCache:
     def __init__(self, default_ttl: int = 60, clock: Callable[[], float] = time.time):
         self._cache = {}
         self.default_ttl = default_ttl
-        self._clock = clock
+        self._clock = clock  # TODO: centralized helper for this test pattern
 
     def set(self, key, value, ttl=None):
         """Add item to cache"""

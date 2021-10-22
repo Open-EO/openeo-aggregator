@@ -544,7 +544,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     enable_basic_auth = False
 
     # Simplify mocking time for unit tests.
-    _clock = time.time
+    _clock = time.time  # TODO: centralized helper for this test pattern
 
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
@@ -564,14 +564,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
         self._backends.on_connections_change.add(self._cache.flush_all)
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
-        self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
 
     def oidc_providers(self) -> List[OidcProvider]:
-        key = "oidc_providers"
-        if key not in self._cache:
-            providers = self._backends.build_oidc_handling(configured_providers=self._configured_oidc_providers)
-            self._cache.set(key, value=providers)
-        return self._cache[key]
+        # TODO: openeo-python-driver (HttpAuthHandler) currently does support changes in
+        #       the set of oidc_providers ids (id mapping is statically established at startup time)
+        return self._cache.get_or_call(
+            key="oidc_providers", callback=self._backends.get_oidc_providers
+        )
 
     def file_formats(self) -> dict:
         return self._cache.get_or_call(key="file_formats", callback=self._file_formats)
