@@ -6,13 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-## [Unreleased: 0.2.0a1]
+## [Unreleased: 0.3.0a1]
+
+### Added
+
+### Changed
+
+### Fixed
+
+
+
+## [0.2.0a1]
 
 ### Added
 
 - Added support for `/collections/{cid}/items` (EP-4022, [openEOPlatform/architecture-docs#104](https://github.com/openEOPlatform/architecture-docs/issues/104))
 - Implement `/health` endpoint for monitoring (EP-3906)
-
+- Initial implementation to list federation backends in capabilities doc ([#22](https://github.com/Open-EO/openeo-aggregator/issues/22))
 
 ### Changed
 
