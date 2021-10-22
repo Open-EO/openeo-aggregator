@@ -650,3 +650,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         })
         response.status_code = overall_status_code
         return response
+
+    def postprocess_capabilities(self, capabilities: dict) -> dict:
+        # TODO: which url to use? unversioned or versioned? see https://github.com/Open-EO/openeo-api/pull/419
+        capabilities["federation"] = {
+            bid: {
+                "url": status["root_url"],
+            }
+            for bid, status in self._backends.get_status().items()
+        }
+        return capabilities

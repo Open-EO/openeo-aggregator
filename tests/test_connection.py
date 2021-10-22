@@ -161,6 +161,12 @@ class TestMultiBackendConnection:
         assert isinstance(res, types.GeneratorType)
         assert list(res) == [("b1", {"bar": 1}), ("b2", {"meh": 2})]
 
+    def test_status(self, multi_backend_connection):
+        assert multi_backend_connection.get_status() == {
+            "b1": {"orig_url": "https://b1.test/v1", "root_url": "https://b1.test/v1"},
+            "b2": {"orig_url": "https://b2.test/v1", "root_url": "https://b2.test/v1"},
+        }
+
     def test_api_version(self, multi_backend_connection):
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
 

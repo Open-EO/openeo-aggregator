@@ -145,6 +145,17 @@ class MultiBackendConnection:
                 return con
         raise OpenEOApiException(f"No backend with id {backend_id!r}")
 
+    def get_status(self) -> dict:
+        return {
+            c.id: {
+                # TODO: avoid private attributes?
+                # TODO: add real backend status? (cached?)
+                "root_url": c._root_url,
+                "orig_url": c._orig_url,
+            }
+            for c in self._connections
+        }
+
     def _get_api_version(self) -> ComparableVersion:
         # TODO: ignore patch level of API versions?
         versions = set(v for (i, v) in self.map(lambda c: c.capabilities().api_version()))
