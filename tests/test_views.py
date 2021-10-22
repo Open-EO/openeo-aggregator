@@ -979,6 +979,9 @@ class TestResilience:
 
         # Backend 2 is up again, but cached is still active
         requests_mock.get(backend2 + "/", json={"api_version": "1.0.0"})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
+        ]})
         requests_mock.get(backend2 + "/health", text="ok again")
         assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
             "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
