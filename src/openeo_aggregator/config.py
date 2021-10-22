@@ -72,7 +72,7 @@ def get_config(x: Any) -> AggregatorConfig:
         else:
             # TODO: just use OPENEO_AGGREGATOR_CONFIG feature for this?
             env = os.environ.get(ENVIRONMENT_INDICATOR, "dev").lower()
-            x = Path(__file__).parent.parent.parent / "conf" / f"aggregator.{env}.py"
+            x = Path.cwd() / "conf" / f"aggregator.{env}.py"
             _log.info(f"Config file for env {env!r}: {x}")
 
     if isinstance(x, AggregatorConfig):
