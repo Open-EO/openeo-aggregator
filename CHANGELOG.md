@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve "early adopter check" error messages ([openEOPlatform/architecture-docs#105](https://github.com/openEOPlatform/architecture-docs/issues/105))
 - Only allow OIDC authentication in production (no basic auth)
 - User email address as user name in `/me`
-
+- Config loading: replace JSON based configs with Python based config files
+- Move aggregator configs to dedicated dev/prod config files
 
 ### Fixed
 

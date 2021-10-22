@@ -1,10 +1,7 @@
-import json
 import logging
 import os
-import urllib.parse
 from pathlib import Path
-from typing import Any, List
-from typing import Union
+from typing import Any, List, Union
 
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
@@ -22,10 +19,15 @@ CONNECTION_TIMEOUT_RESULT = 15 * 60
 STREAM_CHUNK_SIZE_DEFAULT = 10 * 1024
 
 
+class ConfigException(ValueError):
+    pass
+
+
 class AggregatorConfig(dict):
     """
     Simple dictionary based configuration for aggregator backend
     """
+    config_source = dict_item()
 
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
@@ -37,77 +39,23 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check: Union[bool, dict] = dict_item()
 
-    @classmethod
-    def from_json(cls, data: str):
-        return cls(json.loads(data))
-
-    @classmethod
-    def from_json_file(cls, path: Union[str, Path]):
-        with Path(path).open() as f:
-            return cls(json.load(f))
-
-
-_DEFAULT_OIDC_CLIENT_EGI = {
-    "id": "openeo-platform-default-client",
-    "grant_types": [
-        "authorization_code+pkce",
-        "urn:ietf:params:oauth:grant-type:device_code+pkce",
-        "refresh_token",
-    ],
-    "redirect_urls": [
-        "https://editor.openeo.cloud",
-        "http://localhost:1410/",
-        "https://editor.openeo.org",
-    ]
-}
-
-DEFAULT_AUTH_ENTITLEMENT_CHECKS = {"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}}
-
-DEFAULT_OIDC_PROVIDERS = [
-    OidcProvider(
-        id="egi",
-        issuer="https://aai.egi.eu/oidc/",
-        scopes=[
-            "openid", "email",
-            "eduperson_entitlement",
-            "eduperson_scoped_affiliation",
-        ],
-        title="EGI Check-in",
-        default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    ),
-    # OidcProvider(
-    #     id="egi-dev",
-    #     issuer="https://aai-dev.egi.eu/oidc/",
-    #     scopes=[
-    #         "openid", "email",
-    #         "eduperson_entitlement",
-    #         "eduperson_scoped_affiliation",
-    #     ],
-    #     title="EGI Check-in (dev)",
-    #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-    #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    # ),
-]
-
-DEVELOPMENT_CONFIG = AggregatorConfig(
-    aggregator_backends={
-        "vito": "https://openeo.vito.be/openeo/1.0/",
-        "eodc": "https://openeo.eodc.eu/v1.0/",
-    },
-    auth_entitlement_check=DEFAULT_AUTH_ENTITLEMENT_CHECKS,
-    configured_oidc_providers=DEFAULT_OIDC_PROVIDERS,
-)
-
-PRODUCTION_CONFIG = AggregatorConfig(
-    aggregator_backends={
-        "vito": "https://openeo.vito.be/openeo/1.0/",
-        # "creo": "https://openeo.creo.vito.be/openeo/1.0/",
-        "eodc": "https://openeo.eodc.eu/v1.0/",
-    },
-    auth_entitlement_check=DEFAULT_AUTH_ENTITLEMENT_CHECKS,
-    configured_oidc_providers=DEFAULT_OIDC_PROVIDERS,
-)
+    @staticmethod
+    def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
+        """Load config from Python file."""
+        path = Path(path)
+        _log.info(f"Loading config from Python file {path}")
+        # Based on flask's Config.from_pyfile
+        with path.open(mode="rb") as f:
+            code = compile(f.read(), path, "exec")
+        globals = {"__file__": str(path)}
+        exec(code, globals)
+        try:
+            config = globals["config"]
+        except KeyError:
+            raise ConfigException(f"No 'config' variable defined in config file {path}")
+        if not isinstance(config, AggregatorConfig):
+            raise ConfigException(f"Variable 'config' from {path} is not AggregatorConfig but {type(config)}")
+        return config
 
 
 def get_config(x: Any) -> AggregatorConfig:
@@ -120,28 +68,16 @@ def get_config(x: Any) -> AggregatorConfig:
     if x is None:
         if OPENEO_AGGREGATOR_CONFIG in os.environ:
             x = os.environ[OPENEO_AGGREGATOR_CONFIG]
-            _log.info(f"Loading config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
-        elif ENVIRONMENT_INDICATOR in os.environ:
-            x = {
-                "dev": DEVELOPMENT_CONFIG,
-                "prod": PRODUCTION_CONFIG,
-            }[os.environ[ENVIRONMENT_INDICATOR].lower()]
-            _log.info(f"Using env {os.environ[ENVIRONMENT_INDICATOR]!r} config: {x}")
+            _log.info(f"Config file from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
         else:
-            x = DEVELOPMENT_CONFIG
-            _log.info(f"No environment specified, using development config: {x}")
+            # TODO: just use OPENEO_AGGREGATOR_CONFIG feature for this?
+            env = os.environ.get(ENVIRONMENT_INDICATOR, "dev").lower()
+            x = Path(__file__).parent.parent.parent / "conf" / f"aggregator.{env}.py"
+            _log.info(f"Config file for env {env!r}: {x}")
 
     if isinstance(x, AggregatorConfig):
         return x
-    elif isinstance(x, str) and x.strip().startswith("{") and x.strip().endswith("}"):
-        # Assume it's a JSON dump
-        return AggregatorConfig.from_json(x)
-    elif isinstance(x, str) and x.strip().lower().startswith("%7b") and x.strip().lower().endswith("%7d"):
-        # Assume it's a URL-encoded JSON dump
-        x = urllib.parse.unquote(x)
-        return AggregatorConfig.from_json(x)
-    elif isinstance(x, (str, Path)) and Path(x).suffix.lower() == ".json":
-        # Assume it's a path to a JSON file
-        return AggregatorConfig.from_json_file(x)
+    elif isinstance(x, (str, Path)) and Path(x).suffix.lower() == '.py':
+        return AggregatorConfig.from_py_file(x)
 
     raise ValueError(repr(x))
