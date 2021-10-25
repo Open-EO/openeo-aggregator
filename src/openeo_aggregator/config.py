@@ -58,6 +58,9 @@ class AggregatorConfig(dict):
             raise ConfigException(f"Variable 'config' from {path} is not AggregatorConfig but {type(config)}")
         return config
 
+    def copy(self) -> 'AggregatorConfig':
+        return AggregatorConfig(self)
+
 
 def get_config(x: Any) -> AggregatorConfig:
     """
