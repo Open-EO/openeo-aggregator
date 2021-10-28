@@ -14,4 +14,5 @@ pythonPipeline {
   prod_hosts = 'docker-services01-prod.vgt.vito.be'
   docker_run_options_dev = ['-e ENV=dev', '-p 8081:8080']
   docker_run_options_prod = ['-e ENV=prod', '-p 8081:8080']
+  pep440 = true
 }
