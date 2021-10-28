@@ -663,6 +663,19 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         response.status_code = overall_status_code
         return response
 
+    def capabilities_billing(self) -> dict:
+        return {
+            "currency": "EUR",
+            "plans": [
+                {
+                    "name": "early-adopter",
+                    "description": "openEO.cloud early adopter plan",
+                    "url": "https://openeo.cloud/early-adopters/",
+                    "paid": True
+                }
+            ]
+        }
+
     def postprocess_capabilities(self, capabilities: dict) -> dict:
         # TODO: which url to use? unversioned or versioned? see https://github.com/Open-EO/openeo-api/pull/419
         capabilities["federation"] = {
