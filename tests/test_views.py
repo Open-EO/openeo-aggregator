@@ -1,8 +1,10 @@
 import itertools
 import logging
+import re
+from typing import Tuple
+
 import pytest
 import requests
-from typing import Tuple
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
@@ -209,15 +211,17 @@ class TestAuthentication:
 
 
 class TestAuthEntitlementCheck:
-    def test_basic_auth(self, api100_with_entitlement_check):
+    def test_basic_auth(self, api100_with_entitlement_check, caplog):
         api100_with_entitlement_check.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="Not a valid openEO Platform user: OIDC authentication with EGI Check-in is required."
+            message="An EGI account is required for using openEO Platform."
         )
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert re.search(r"internal_auth_data.*authentication_method.*basic", warnings)
 
-    def test_oidc_no_entitlement_data(self, api100_with_entitlement_check, requests_mock):
+    def test_oidc_no_entitlement_data(self, api100_with_entitlement_check, requests_mock, caplog):
         def get_userinfo(request: requests.Request, context):
             assert request.headers["Authorization"] == "Bearer funiculifunicula"
             return {"sub": "john"}
@@ -231,10 +235,12 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="Not a valid openEO Platform user: missing entitlement data."
+            message="The 'early adopter' role is required for using openEO Platform."
         )
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert re.search(r"KeyError.*eduperson_entitlement", warnings)
 
-    def test_oidc_no_early_adopter(self, api100_with_entitlement_check, requests_mock):
+    def test_oidc_no_early_adopter(self, api100_with_entitlement_check, requests_mock, caplog):
         def get_userinfo(request: requests.Request, context):
             assert request.headers["Authorization"] == "Bearer funiculifunicula"
             return {
@@ -254,8 +260,11 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="Not a valid openEO Platform user: no early adopter role."
+            message="The 'early adopter' role is required for using openEO Platform."
         )
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        assert re.search(r"user_id.*john", warnings)
+        assert re.search(r"eduperson_entitlements.*vo\.openeo\.test:role=foo", warnings)
 
     def test_oidc_early_adopter(self, api100_with_entitlement_check, requests_mock):
         def get_userinfo(request: requests.Request, context):
@@ -1051,4 +1060,3 @@ class TestResilience:
             {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"},
             {"id": "b2-j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"},
         ]
-

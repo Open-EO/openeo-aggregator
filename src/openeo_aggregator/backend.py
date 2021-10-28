@@ -599,28 +599,35 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:
-            base_error_message = "Not a valid openEO Platform user"
             int_data = user.internal_auth_data
             issuer_whitelist = self._auth_entitlement_check.get("oidc_issuer_whitelist", {"https://aai.egi.eu/oidc"})
             if not (
                     int_data["authentication_method"] == "OIDC"
                     and int_data["oidc_issuer"].rstrip("/").lower() in issuer_whitelist
             ):
-                message = f"{base_error_message}: OIDC authentication with EGI Check-in is required."
-                debug_info = subdict(int_data, keys=["authentication_method", "oidc_issuer"])
-                _log.warning(f"{message} debug_info:{debug_info} whitelist:{issuer_whitelist}")
-                raise PermissionsInsufficientException(message)
+                user_message = "An EGI account is required for using openEO Platform."
+                _log.warning(f"user_access_validation failure: %r %r", user_message, {
+                    "internal_auth_data": subdict(int_data, keys=["authentication_method", "oidc_issuer"]),
+                    "issuer_whitelist": issuer_whitelist,
+                })
+                raise PermissionsInsufficientException(user_message)
             try:
                 eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
             except KeyError as e:
-                message = f"{base_error_message}: missing entitlement data."
-                # Note: just log userinfo keys to avoid leaking sensitive user data.
-                _log.warning(f"{message} {e!r} {user.info.keys()} {user.info.get('oidc_userinfo', {}).keys()}")
-                raise PermissionsInsufficientException(message)
+                user_message = "The 'early adopter' role is required for using openEO Platform."
+                _log.warning(f"user_access_validation failure: %r %r", user_message, {
+                    "exception": repr(e),
+                    # Note: just log userinfo keys to avoid leaking sensitive user data.
+                    "userinfo keys": (user.info.keys(), user.info.get('oidc_userinfo', {}).keys())
+                })
+                raise PermissionsInsufficientException(user_message)
             if not any(is_early_adopter(e) for e in eduperson_entitlements):
-                message = f"{base_error_message}: no early adopter role."
-                _log.warning(f"{message} user:{user.user_id} entitlements:{eduperson_entitlements}")
-                raise PermissionsInsufficientException(message)
+                user_message = "The 'early adopter' role is required for using openEO Platform."
+                _log.warning(f"user_access_validation failure: %r %r", user_message, {
+                    "user_id": user.user_id,
+                    "eduperson_entitlements": eduperson_entitlements
+                })
+                raise PermissionsInsufficientException(user_message)
 
             # TODO: list multiple roles/levels? Better "status" signaling?
             user.info["roles"] = ["EarlyAdopter"]
