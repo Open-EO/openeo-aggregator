@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refresh back-end connection objects regularly instead of holding on the same ones.
+  Improves resilience of aggregator when a back-end is down. ([18](https://github.com/Open-EO/openeo-aggregator/issues/18) / EP-4049)
+
 ### Fixed
 
 
