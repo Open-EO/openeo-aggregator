@@ -21,8 +21,8 @@ setup(
     package_dir={"": "src"},
     install_requires=[
         "requests",
-        "openeo>=0.9.1a2.*",
-        "openeo_driver>=0.14.9a1.*",
+        "openeo>=0.9.1.a2.dev",
+        "openeo_driver>=0.14.9.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
     ],
