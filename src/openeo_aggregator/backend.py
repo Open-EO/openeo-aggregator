@@ -631,6 +631,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
             # TODO: list multiple roles/levels? Better "status" signaling?
             user.info["roles"] = ["EarlyAdopter"]
+            user.info["default_plan"] = self.BILLING_PLAN_EARLY_ADOPTER
 
         return user
 

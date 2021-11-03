@@ -295,6 +295,7 @@ class TestAuthEntitlementCheck:
         data = res.json
         assert data["user_id"] == "john"
         assert data["info"]["roles"] == ["EarlyAdopter"]
+        assert data["default_plan"] == "early-adopter"
 
 
 class TestProcessing:

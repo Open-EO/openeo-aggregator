@@ -22,7 +22,7 @@ setup(
     install_requires=[
         "requests",
         "openeo>=0.9.1.a2.dev",
-        "openeo_driver>=0.14.9.dev",
+        "openeo_driver>=0.14.10.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
     ],

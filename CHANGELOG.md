@@ -11,12 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- expose openEO Platform billing plans ([6](https://github.com/Open-EO/openeo-aggregator/issues/6))
+- Expose openEO Platform billing plans ([#6](https://github.com/Open-EO/openeo-aggregator/issues/6))
+- Set `default_plan` on `/me` for early adopters ([#6](https://github.com/Open-EO/openeo-aggregator/issues/6))
 
 ### Changed
 
 - Refresh back-end connection objects regularly instead of holding on the same ones.
-  Improves resilience of aggregator when a back-end is down. ([18](https://github.com/Open-EO/openeo-aggregator/issues/18) / EP-4049)
+  Improves resilience of aggregator when a back-end is down. ([#18](https://github.com/Open-EO/openeo-aggregator/issues/18) / EP-4049)
 - Fine-tune EGI Early Adopter related "entitlement" error messages ([openEOPlatform/architecture-docs#105](https://github.com/openEOPlatform/architecture-docs/issues/105))
 
 ### Fixed
