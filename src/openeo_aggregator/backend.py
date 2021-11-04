@@ -56,6 +56,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self.backends.on_connections_change.add(self._cache.flush_all)
 
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
@@ -292,6 +293,7 @@ class AggregatorProcessing(Processing):
         self.backends = backends
         # TODO Cache per backend results instead of output?
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self.backends.on_connections_change.add(self._cache.flush_all)
         self._catalog = catalog
         self._stream_chunk_size = stream_chunk_size
 
@@ -541,6 +543,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
 
+    # Simplify mocking time for unit tests.
+    _clock = time.time  # TODO: centralized helper for this test pattern
+
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
         catalog = AggregatorCollectionCatalog(backends=backends)
@@ -557,15 +562,15 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user_defined_processes=None,
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._backends.on_connections_change.add(self._cache.flush_all)
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
-        self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
 
     def oidc_providers(self) -> List[OidcProvider]:
-        key = "oidc_providers"
-        if key not in self._cache:
-            providers = self._backends.build_oidc_handling(configured_providers=self._configured_oidc_providers)
-            self._cache.set(key, value=providers)
-        return self._cache[key]
+        # TODO: openeo-python-driver (HttpAuthHandler) currently does support changes in
+        #       the set of oidc_providers ids (id mapping is statically established at startup time)
+        return self._cache.get_or_call(
+            key="oidc_providers", callback=self._backends.get_oidc_providers
+        )
 
     def file_formats(self) -> dict:
         return self._cache.get_or_call(key="file_formats", callback=self._file_formats)
@@ -628,10 +633,10 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         for con in self._backends:
             backend_status[con.id] = {}
             try:
-                start_time = time.time()
+                start_time = self._clock()
                 # TODO: this `/health` endpoint is not standardized. Get it from `aggregator_backends` config?
                 resp = con.get("/health", check_error=False)
-                elapsed = time.time() - start_time
+                elapsed = self._clock() - start_time
                 backend_status[con.id]["status_code"] = resp.status_code
                 backend_status[con.id]["response_time"] = elapsed
                 if resp.status_code >= 400:

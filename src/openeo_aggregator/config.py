@@ -13,6 +13,7 @@ ENVIRONMENT_INDICATOR = "ENV"
 
 CACHE_TTL_DEFAULT = 6 * 60 * 60
 
+# Timeouts for requests to back-ends
 CONNECTION_TIMEOUT_DEFAULT = 30
 CONNECTION_TIMEOUT_RESULT = 15 * 60
 
@@ -56,6 +57,9 @@ class AggregatorConfig(dict):
         if not isinstance(config, AggregatorConfig):
             raise ConfigException(f"Variable 'config' from {path} is not AggregatorConfig but {type(config)}")
         return config
+
+    def copy(self) -> 'AggregatorConfig':
+        return AggregatorConfig(self)
 
 
 def get_config(x: Any) -> AggregatorConfig:

@@ -1,3 +1,5 @@
+from typing import List
+
 import flask
 import pytest
 
@@ -30,32 +32,41 @@ def backend2(requests_mock):
 
 
 @pytest.fixture
-def multi_backend_connection(backend1, backend2) -> MultiBackendConnection:
-    return MultiBackendConnection({
-        "b1": backend1,
-        "b2": backend2,
-    })
-
-
-@pytest.fixture
-def config(backend1, backend2) -> AggregatorConfig:
-    conf = AggregatorConfig()
-    conf.aggregator_backends = {
-        "b1": backend1,
-        "b2": backend2,
-    }
-    # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
-
-    conf.configured_oidc_providers = [
+def configured_oidc_providers() -> List[OidcProvider]:
+    return [
         OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
         OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
         OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
         OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
     ]
 
+
+@pytest.fixture
+def base_config(configured_oidc_providers) -> AggregatorConfig:
+    """Base config for tests (without any configured backends)."""
+    conf = AggregatorConfig()
+    # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
+
+    conf.configured_oidc_providers = configured_oidc_providers
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False
     return conf
+
+
+@pytest.fixture
+def config(base_config, backend1, backend2) -> AggregatorConfig:
+    """Config for most tests with two backends."""
+    conf = base_config
+    conf.aggregator_backends = {
+        "b1": backend1,
+        "b2": backend2,
+    }
+    return conf
+
+
+@pytest.fixture
+def multi_backend_connection(config) -> MultiBackendConnection:
+    return MultiBackendConnection.from_config(config)
 
 
 def get_flask_app(config: AggregatorConfig) -> flask.Flask:

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Callable, Iterable, Iterator
+from typing import Callable, Iterable, Iterator, List
 
 # Generic "sentinel object" for unset values (where `None` is valid value)
 # https://python-patterns.guide/python/sentinel-object/)
@@ -22,7 +22,7 @@ class TtlCache:
     def __init__(self, default_ttl: int = 60, clock: Callable[[], float] = time.time):
         self._cache = {}
         self.default_ttl = default_ttl
-        self._clock = clock
+        self._clock = clock  # TODO: centralized helper for this test pattern
 
     def set(self, key, value, ttl=None):
         """Add item to cache"""
@@ -126,3 +126,26 @@ def dict_merge(*args, **kwargs) -> dict:
     for d in args + (kwargs,):
         result.update(d)
     return result
+
+
+class EventHandler:
+    """Simple event handler that allows to collect callbacks to call on a certain event."""
+
+    def __init__(self, name: str):
+        self._name = name
+        self._callbacks: List[Callable[[], None]] = []
+
+    def add(self, callback: Callable[[], None]):
+        """Add a callback to call when the event is triggered."""
+        self._callbacks.append(callback)
+
+    def trigger(self, skip_failures=False):
+        """Call all callbacks."""
+        _log.info(f"Triggering event {self._name!r}")
+        for callback in self._callbacks:
+            try:
+                callback()
+            except Exception as e:
+                _log.error(f"Failure calling event {self._name!r} callback {callback!r}: {e}")
+                if not skip_failures:
+                    raise

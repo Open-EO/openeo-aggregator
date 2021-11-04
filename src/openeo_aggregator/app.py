@@ -32,7 +32,7 @@ def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
     _log.info(f"Using config: {config}")
 
     _log.info(f"Creating MultiBackendConnection with {config.aggregator_backends}")
-    backends = MultiBackendConnection(backends=config.aggregator_backends)
+    backends = MultiBackendConnection.from_config(config)
 
     _log.info("Creating AggregatorBackendImplementation")
     backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
