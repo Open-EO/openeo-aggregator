@@ -1,4 +1,5 @@
 import logging
+import logging.config
 import os
 from pathlib import Path
 from typing import Any, List, Union
@@ -62,6 +63,10 @@ class AggregatorConfig(dict):
         return AggregatorConfig(self)
 
 
+def get_config_dir() -> Path:
+    return Path.cwd() / "conf"
+
+
 def get_config(x: Any) -> AggregatorConfig:
     """
     Get aggregator config from given object:
@@ -76,7 +81,7 @@ def get_config(x: Any) -> AggregatorConfig:
         else:
             # TODO: just use OPENEO_AGGREGATOR_CONFIG feature for this?
             env = os.environ.get(ENVIRONMENT_INDICATOR, "dev").lower()
-            x = Path.cwd() / "conf" / f"aggregator.{env}.py"
+            x = get_config_dir() / f"aggregator.{env}.py"
             _log.info(f"Config file for env {env!r}: {x}")
 
     if isinstance(x, AggregatorConfig):
@@ -85,3 +90,17 @@ def get_config(x: Any) -> AggregatorConfig:
         return AggregatorConfig.from_py_file(x)
 
     raise ValueError(repr(x))
+
+
+def setup_logging(force=False):
+    # TODO option to use standard text logging instead of JSON, for local development?
+    if not logging.getLogger().handlers or force:
+        config_file = get_config_dir() / "logging-json.conf"
+        logging.config.fileConfig(config_file, disable_existing_loggers=False)
+
+    for name in [
+        "openeo", "openeo_aggregator", "openeo_driver",
+        "flask", "werkzeug",
+    ]:
+        logger = logging.getLogger(name)
+        logger.log(level=logger.getEffectiveLevel(), msg=f"Logger setup: {logger!r}")

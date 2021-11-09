@@ -9,8 +9,8 @@ import flask
 import openeo_aggregator.about
 import openeo_driver.views
 from openeo_aggregator.backend import AggregatorBackendImplementation, MultiBackendConnection
-from openeo_aggregator.config import get_config, AggregatorConfig
-from openeo_driver.server import build_backend_deploy_metadata, setup_logging
+from openeo_aggregator.config import get_config, AggregatorConfig, setup_logging
+from openeo_driver.server import build_backend_deploy_metadata
 
 _log = logging.getLogger(__name__)
 
@@ -23,10 +23,7 @@ def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
     # see https://flask.palletsprojects.com/en/2.0.x/cli/#application-discovery
 
     if auto_logging_setup:
-        setup_logging(
-            loggers={"openeo_aggregator": {"level": "INFO"}},
-            show_loggers=["openeo_driver", "openeo_aggregator"]
-        )
+        setup_logging()
 
     config: AggregatorConfig = get_config(config)
     _log.info(f"Using config: {config}")
@@ -67,6 +64,5 @@ def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     app = create_app()
     app.run()

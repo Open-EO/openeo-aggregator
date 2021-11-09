@@ -25,6 +25,7 @@ setup(
         "openeo_driver>=0.14.10.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
+        "python-json-logger>=2.0.0",
     ],
     tests_require=tests_require,
     extras_require={
