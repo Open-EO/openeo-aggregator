@@ -64,7 +64,12 @@ class AggregatorConfig(dict):
 
 
 def get_config_dir() -> Path:
-    return Path.cwd() / "conf"
+    # TODO: make this robust against packaging operations (e.g. no guaranteed real __file__ path)
+    for root in [Path.cwd(), Path(__file__).parent.parent.parent]:
+        config_dir = root / "conf"
+        if config_dir.is_dir():
+            return config_dir
+    raise RuntimeError("No config dir found")
 
 
 def get_config(x: Any) -> AggregatorConfig:
