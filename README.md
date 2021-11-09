@@ -52,48 +52,36 @@ The webapp should be available at http://localhost:8080/openeo/1.0
 ## Configuration
 
 The flask/gunicorn related configuration can be set through 
-standard flask/gunicorn configuration means 
-(for example: command line options or env variables).
+standard flask/gunicorn configuration means
+like command line options or env variables, as shown above.
 
-Apart from these generic settings, here is also a bit of 
-openEO-Aggregator specific configuration, 
-which is grouped under the `AggregatorConfig` container.
+### Gunicorn config
+
+For gunicorn there are also configuration files in the `conf` folder.
+The production docker based run for examples uses
+
+    gunicorn --config=conf/gunicorn.prod.py openeo_aggregator.app:create_app()
+
+### Application/Flask config
+
+The openEO-Aggregator specific configuration, 
+is grouped by a `AggregatorConfig` container object.
 The most important config value is `aggregator_backends`, which 
 defines the backends to "aggregate".
-See `config.py`, which also defines a default configuration.
+See `config.py` for more details and other available configuration options.
 
-When using the standard flask or gunicorn workflow, a custom configuration
-can be set through the `OPENEO_AGGREGATOR_CONFIG` env variable. 
-The value of this env variable can be the path to a JSON file holding the configuration values.
-For example:
+The `conf` folder contains config files for the dev and production 
+variant of this application config:
 
-    $ cat config.json
-    {"aggregator_backends": {"b1": "https://b1.example", "b2": "https://b2.example"}}
-    $ export OPENEO_AGGREGATOR_CONFIG=config.json
-    $ gunicorn 'openeo_aggregator.app:create_app()'
-    ...
-    INFO in openeo_aggregator.app: Using config: {'aggregator_backends': {'b1': 'https://b1.example', 'b2': 'https://b2.example'}}
+- `conf/aggregator.dev.py`
+- `conf/aggregator.prod.py`
 
+Which config to pick is determined through env variables:
 
-Or it can be a JSON blob directly:
+- if set, env variable `OPENEO_AGGREGATOR_CONFIG` is the path to the desired config file
+- otherwise, if set, env variable `ENV` must be `dev` or `prod` 
+- otherwise, `dev` is used as default
 
-    $ export OPENEO_AGGREGATOR_CONFIG='{"aggregator_backends":{"b1":"https://b1.example","b2":"https://b2.example"}}'
-    $ gunicorn 'openeo_aggregator.app:create_app()'
-    ...
-    INFO in openeo_aggregator.app: Using config: {'aggregator_backends': {'b1': 'https://b1.example', 'b2': 'https://b2.example'}}
+### Logging
 
-
-In contexts where the JSON syntax could get lost easily, it is also possible to
-pass it URL-encoded (e.g. use `urllib.parse.quote`). 
-For example, in the docker run:
-
-    $ docker run --rm -p 8080:8080 \
-        -e OPENEO_AGGREGATOR_CONFIG='%7B%22aggregator_backends%22%3A%7B%22b1%22%3A%22https%3A//b1.example%22%2C%22b2%22%3A%22https%3A//b2.example%22%7D%7D' \
-        openeo-aggregator
-    ...
-    INFO in openeo_aggregator.app: Using config: {'aggregator_backends': {'b1': 'https://b1.example', 'b2': 'https://b2.example'}}
-
-
-
-
-    
+Logging is set up (by default) through `config/logging-json.conf`.
