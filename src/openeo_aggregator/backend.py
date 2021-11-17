@@ -78,9 +78,9 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             for con in self.backends:
                 try:
                     backend_collections = con.list_collections()
-                except Exception:
+                except Exception as e:
                     # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
-                    _log.warning(f"Failed to get collection metadata from {con.id}", exc_info=True)
+                    _log.warning(f"Failed to get collection metadata from {con.id}: {e!r}", exc_info=True)
                     # On failure: still cache, but with shorter TTL? (#2)
                     continue
                 for collection_metadata in backend_collections:
@@ -233,9 +233,9 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             con = self.backends.get_connection(backend_id=bid)
             try:
                 by_backend[bid] = con.describe_collection(name=collection_id)
-            except OpenEoClientException as e:
+            except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
-                _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}", exc_info=True)
+                _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}: {e!r}", exc_info=True)
                 # TODO: avoid caching of final result? (#2)
                 continue
 
@@ -309,9 +309,9 @@ class AggregatorProcessing(Processing):
         for con in self.backends:
             try:
                 processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
-            except OpenEoClientException:
+            except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
-                _log.warning(f"Failed to get processes from {con.id}", exc_info=True)
+                _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
 
         # TODO #4: combined set of processes: union, intersection or something else?
         # TODO #4: not only check process name, but also parameters and return type?
@@ -355,8 +355,8 @@ class AggregatorProcessing(Processing):
                         aggregator_job_id=arguments["id"]
                     )
                     backend_candidates = [b for b in backend_candidates if b == job_backend_id]
-        except Exception:
-            _log.error("Failed to parse process graph", exc_info=True)
+        except Exception as e:
+            _log.error(f"Failed to parse process graph: {e!r}", exc_info=True)
             raise ProcessGraphInvalidException()
 
         if collections:
@@ -393,7 +393,8 @@ class AggregatorProcessing(Processing):
                     stream=True, timeout=CONNECTION_TIMEOUT_RESULT,
                     expected_status=200,
                 )
-            except OpenEoClientException as e:
+            except Exception as e:
+                _log.error(f"Failed to process synchronously on backend {con.id}: {e!r}", exc_info=True)
                 raise OpenEOApiException(message=f"Failed to process synchronously on backend {con.id}: {e!r}")
 
         return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
@@ -434,7 +435,7 @@ class AggregatorBatchJobs(BatchJobs):
             with con.authenticated_from_request(request=flask.request):
                 try:
                     backend_jobs = con.list_jobs()
-                except OpenEoClientException as e:
+                except Exception as e:
                     # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get job listing from backend {con.id!r}: {e!r}")
                     backend_jobs = []
@@ -588,9 +589,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         for con in self._backends:
             try:
                 file_formats = con.get("/file_formats").json()
-            except Exception:
+            except Exception as e:
                 # TODO: fail instead of warn?
-                _log.warning(f"Failed to get file_formats from {con.id}", exc_info=True)
+                _log.warning(f"Failed to get file_formats from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
             merge(input_formats, file_formats.get("input", {}))
