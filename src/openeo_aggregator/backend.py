@@ -641,13 +641,12 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         overall_status_code = 200
         for con in self._backends:
             backend_status[con.id] = {}
+            start_time = self._clock()
             try:
-                start_time = self._clock()
                 # TODO: this `/health` endpoint is not standardized. Get it from `aggregator_backends` config?
                 resp = con.get("/health", check_error=False)
-                elapsed = self._clock() - start_time
                 backend_status[con.id]["status_code"] = resp.status_code
-                backend_status[con.id]["response_time"] = elapsed
+                backend_status[con.id]["response_time"] = self._clock() - start_time
                 if resp.status_code >= 400:
                     overall_status_code = max(overall_status_code, resp.status_code)
                 if resp.headers.get("Content-type") == "application/json":
@@ -656,6 +655,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                     backend_status[con.id]["text"] = resp.text
             except Exception as e:
                 backend_status[con.id]["error"] = repr(e)
+                backend_status[con.id]["error_time"] = self._clock() - start_time
                 overall_status_code = 500
 
         response = flask.jsonify({

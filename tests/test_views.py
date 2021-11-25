@@ -85,7 +85,8 @@ class TestGeneral:
                 "b2": {
                     "status_code": 200,
                     "error": "JSONDecodeError('Expecting value: line 1 column 1 (char 0)',)",
-                    "response_time": pytest.approx(0.1, abs=0.1)
+                    "response_time": pytest.approx(0.1, abs=0.1),
+                    "error_time": pytest.approx(0.1, abs=0.1),
                 },
             },
             "status_code": 500,
