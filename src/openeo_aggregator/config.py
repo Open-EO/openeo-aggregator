@@ -43,6 +43,8 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check: Union[bool, dict] = dict_item()
 
+    zookeeper_hosts = dict_item(default="127.0.0.1:2181")
+
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
         """Load config from Python file."""

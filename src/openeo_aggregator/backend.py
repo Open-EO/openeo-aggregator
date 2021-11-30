@@ -6,15 +6,18 @@ from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
 import flask
+from kazoo.client import KazooClient
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
+from openeo_aggregator import jobsplitting
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
+from openeo_aggregator.jobsplitting import PartitionedJob
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -423,10 +426,15 @@ class AggregatorProcessing(Processing):
 
 class AggregatorBatchJobs(BatchJobs):
 
-    def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing):
+    def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing, config: AggregatorConfig):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
         self.processing = processing
+
+        # TODO: inject PartitionedJobTracker as arg instead of building it here?
+        zk = KazooClient(config.zookeeper_hosts)
+        db = jobsplitting.ZooKeeperPartitionedJobDB(zk)
+        self.partitioned_job_tracker = jobsplitting.PartitionedJobTracker(db, backends=self.backends)
 
     def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
         jobs = []
@@ -460,6 +468,25 @@ class AggregatorBatchJobs(BatchJobs):
             process_graph = process["process_graph"]
         except (KeyError, TypeError) as e:
             raise ProcessGraphMissingException()
+
+        if job_options and job_options.get("multi_backend"):
+            return self._create_multi_backend_job(
+                process_graph=process_graph,
+                api_version=api_version,
+                metadata=metadata,
+                job_options=job_options,
+            )
+        else:
+            return self._create_single_backend_job(
+                process_graph=process_graph,
+                api_version=api_version,
+                metadata=metadata,
+                job_options=job_options,
+            )
+
+    def _create_single_backend_job(
+            self, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+    ) -> BatchJobMetadata:
         backend_id = self.processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
@@ -482,7 +509,23 @@ class AggregatorBatchJobs(BatchJobs):
                 raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(
             id=JobIdMapping.get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
-            status="dummy", created="dummy", process="dummy"
+            # Note: required, but unused metadata
+            status="dummy", created="dummy", process={"dummy": "dummy"}
+        )
+
+    def _create_multi_backend_job(
+            self, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+    ) -> BatchJobMetadata:
+
+        splitter = jobsplitting.JobSplitter(backends=self.backends)
+        pjob: PartitionedJob = splitter.split(process_graph=process_graph)
+
+        job_id = self.partitioned_job_tracker.submit(pjob)
+        backend_id = "agg"
+
+        return BatchJobMetadata(
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=backend_id),
+            status="dummy", created="dummy", process={"dummy": "dummy"}
         )
 
     def _get_connection_and_backend_job_id(self, aggregator_job_id: str) -> Tuple[BackendConnection, str]:
@@ -563,7 +606,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             backends=backends, catalog=catalog,
             stream_chunk_size=config.streaming_chunk_size,
         )
-        batch_jobs = AggregatorBatchJobs(backends=backends, processing=processing)
+        batch_jobs = AggregatorBatchJobs(backends=backends, processing=processing, config=config)
         super().__init__(
             catalog=catalog,
             processing=processing,
