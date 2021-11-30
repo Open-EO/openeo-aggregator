@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.egi import parse_eduperson_entitlement, Entitlement, is_early_adopter
+from openeo_aggregator.egi import parse_eduperson_entitlement, Entitlement, is_early_adopter, is_free_tier
 
 
 def test_parse_eduperson_entitlement():
@@ -57,3 +57,17 @@ def test_is_early_adopter():
 
     assert not is_early_adopter("foobar")
     assert not is_early_adopter("")
+
+
+def test_is_free_tier():
+    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu")
+    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free_tier#aai.egi.eu")
+    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free-tier#aai.egi.eu")
+    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
+
+    assert not is_free_tier("urn:mace:uho.ai:group:vo.openeo.cloud:role=free_tier#aai.egi.eu")
+    assert not is_free_tier("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=free_tier#aai.egi.eu")
+    assert not is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free_tier#ooi.egi.eu")
+
+    assert not is_free_tier("foobar")
+    assert not is_free_tier("")

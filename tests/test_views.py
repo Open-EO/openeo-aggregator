@@ -269,7 +269,7 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="The 'early adopter' role is required for using openEO Platform."
+            message="The 'early adopter' or 'free tier' role is required for using openEO Platform."
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"user_id.*john", warnings)

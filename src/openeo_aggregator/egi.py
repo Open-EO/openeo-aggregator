@@ -44,3 +44,13 @@ def is_early_adopter(entitlement: str) -> bool:
             and e.role.lower() in {"early_adopter", "early-adopter", "earlyadopter"}
             and e.authority in {"aai.egi.eu", "aai.egi-dev.eu"}
     )
+
+
+def is_free_tier(entitlement: str) -> bool:
+    e = parse_eduperson_entitlement(entitlement, strict=False)
+    return (
+            e.namespace in {"urn:mace:egi.eu", "urn:mace:egi-dev.eu"}
+            and e.vo in {"vo.openeo.cloud"}
+            # TODO: no role check yet?
+            and e.authority in {"aai.egi.eu", "aai.egi-dev.eu"}
+    )

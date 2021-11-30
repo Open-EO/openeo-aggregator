@@ -14,7 +14,7 @@ from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
-from openeo_aggregator.egi import is_early_adopter
+from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
@@ -622,17 +622,20 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                     "userinfo keys": (user.info.keys(), user.info.get('oidc_userinfo', {}).keys())
                 })
                 raise PermissionsInsufficientException(user_message)
-            if not any(is_early_adopter(e) for e in eduperson_entitlements):
-                user_message = "The 'early adopter' role is required for using openEO Platform."
+            if any(is_early_adopter(e) for e in eduperson_entitlements):
+                # TODO: list multiple roles/levels? Better "status" signaling?
+                user.info["roles"] = ["EarlyAdopter"]
+                user.info["default_plan"] = self.BILLING_PLAN_EARLY_ADOPTER
+            elif any(is_free_tier(e) for e in eduperson_entitlements):
+                user.info["roles"] = ["FreeTier"]
+                user.info["default_plan"] = self.BILLING_PLAN_FREE
+            else:
+                user_message = "The 'early adopter' or 'free tier' role is required for using openEO Platform."
                 _log.warning(f"user_access_validation failure: %r %r", user_message, {
                     "user_id": user.user_id,
                     "eduperson_entitlements": eduperson_entitlements
                 })
                 raise PermissionsInsufficientException(user_message)
-
-            # TODO: list multiple roles/levels? Better "status" signaling?
-            user.info["roles"] = ["EarlyAdopter"]
-            user.info["default_plan"] = self.BILLING_PLAN_EARLY_ADOPTER
 
         return user
 
