@@ -612,16 +612,17 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                     "issuer_whitelist": issuer_whitelist,
                 })
                 raise PermissionsInsufficientException(user_message)
+
+            enrollment_error_user_message = "Proper enrollment in openEO Platform virtual organization is required."
             try:
                 eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
             except KeyError as e:
-                user_message = "The 'early adopter' role is required for using openEO Platform."
-                _log.warning(f"user_access_validation failure: %r %r", user_message, {
+                _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "exception": repr(e),
                     # Note: just log userinfo keys to avoid leaking sensitive user data.
                     "userinfo keys": (user.info.keys(), user.info.get('oidc_userinfo', {}).keys())
                 })
-                raise PermissionsInsufficientException(user_message)
+                raise PermissionsInsufficientException(enrollment_error_user_message)
             if any(is_early_adopter(e) for e in eduperson_entitlements):
                 # TODO: list multiple roles/levels? Better "status" signaling?
                 user.info["roles"] = ["EarlyAdopter"]
@@ -630,12 +631,11 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 user.info["roles"] = ["FreeTier"]
                 user.info["default_plan"] = self.BILLING_PLAN_FREE
             else:
-                user_message = "The 'early adopter' or 'free tier' role is required for using openEO Platform."
-                _log.warning(f"user_access_validation failure: %r %r", user_message, {
+                _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "user_id": user.user_id,
                     "eduperson_entitlements": eduperson_entitlements
                 })
-                raise PermissionsInsufficientException(user_message)
+                raise PermissionsInsufficientException(enrollment_error_user_message)
 
         return user
 

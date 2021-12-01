@@ -41,7 +41,7 @@ def is_early_adopter(entitlement: str) -> bool:
     return (
             e.namespace in {"urn:mace:egi.eu", "urn:mace:egi-dev.eu"}
             and e.vo in {"vo.openeo.cloud"}
-            and e.role.lower() in {"early_adopter", "early-adopter", "earlyadopter"}
+            and e.role and e.role.lower() in {"early_adopter", "early-adopter", "earlyadopter"}
             and e.authority in {"aai.egi.eu", "aai.egi-dev.eu"}
     )
 

@@ -244,7 +244,7 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="The 'early adopter' role is required for using openEO Platform."
+            message="Proper enrollment in openEO Platform virtual organization is required."
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"KeyError.*eduperson_entitlement", warnings)
@@ -269,21 +269,32 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
             403, "PermissionsInsufficient",
-            message="The 'early adopter' or 'free tier' role is required for using openEO Platform."
+            message="Proper enrollment in openEO Platform virtual organization is required."
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"user_id.*john", warnings)
         assert re.search(r"eduperson_entitlements.*vo\.openeo\.test:role=foo", warnings)
 
-    def test_oidc_early_adopter(self, api100_with_entitlement_check, requests_mock):
+    @pytest.mark.parametrize(["eduperson_entitlement", "expected_roles", "expected_plan"], [
+        (["urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu"], ["FreeTier"], "free"),
+        (["urn:mace:egi.eu:group:vo.openeo.cloud:role=meh#aai.egi.eu"], ["FreeTier"], "free"),
+        (
+                [
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+                ],
+                ["EarlyAdopter"], "early-adopter",
+        )
+    ])
+    def test_oidc_enrolled(
+            self, api100_with_entitlement_check, requests_mock,
+            eduperson_entitlement, expected_roles, expected_plan,
+    ):
         def get_userinfo(request: requests.Request, context):
             assert request.headers["Authorization"] == "Bearer funiculifunicula"
             return {
                 "sub": "john",
-                "eduperson_entitlement": [
-                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
-                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
-                ]
+                "eduperson_entitlement": eduperson_entitlement
             }
 
         requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
@@ -295,8 +306,8 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me").assert_status_code(200)
         data = res.json
         assert data["user_id"] == "john"
-        assert data["info"]["roles"] == ["EarlyAdopter"]
-        assert data["default_plan"] == "early-adopter"
+        assert data["info"]["roles"] == expected_roles
+        assert data["default_plan"] == expected_plan
 
 
 class TestProcessing:
