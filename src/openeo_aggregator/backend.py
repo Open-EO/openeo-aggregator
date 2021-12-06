@@ -647,7 +647,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             start_time = self._clock()
             try:
                 # TODO: this `/health` endpoint is not standardized. Get it from `aggregator_backends` config?
-                resp = con.get("/health", check_error=False)
+                resp = con.get("/health", check_error=False, timeout=10)
                 backend_status[con.id]["status_code"] = resp.status_code
                 backend_status[con.id]["response_time"] = self._clock() - start_time
                 if resp.status_code >= 400:
