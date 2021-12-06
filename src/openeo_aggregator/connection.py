@@ -14,7 +14,7 @@ from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT, \
-    AggregatorConfig
+    AggregatorConfig, CONNECTION_TIMEOUT_INIT
 from openeo_aggregator.utils import TtlCache, _UNSET, EventHandler
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
@@ -49,11 +49,12 @@ class BackendConnection(Connection):
             id: str,
             url: str,
             configured_oidc_providers: List[OidcProvider],
-            default_timeout: int = CONNECTION_TIMEOUT_DEFAULT
+            default_timeout: int = CONNECTION_TIMEOUT_DEFAULT,
+            init_timeout: int = CONNECTION_TIMEOUT_INIT,
     ):
         # Temporarily unlock `_auth` for `super().__init__()`
         self._auth_locked = False
-        super(BackendConnection, self).__init__(url, default_timeout=default_timeout)
+        super(BackendConnection, self).__init__(url, default_timeout=init_timeout)
         self._auth = None
         self._auth_locked = True
 
@@ -63,6 +64,8 @@ class BackendConnection(Connection):
         )
         # Mapping of aggregator provider id to backend's provider id
         self._oidc_provider_map: Dict[str, str] = self._build_oidc_provider_map(configured_oidc_providers)
+
+        self.default_timeout = default_timeout
 
     def _get_auth(self) -> Union[None, OpenEoApiAuthBase]:
         return None if self._auth_locked else self._auth

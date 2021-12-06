@@ -152,6 +152,28 @@ class TestBackendConnection:
         with pytest.raises(InvalidatedConnection):
             con.get("/")
 
+    def test_init_vs_default_timeout(self, requests_mock):
+
+        def get_handler(expected_timeout: int):
+            def capabilities(request, context):
+                assert request.timeout == expected_timeout
+                return {"api_version": "1.0.0"}
+
+            return capabilities
+
+        # Capabilities request during init
+        m = requests_mock.get("https://foo.test/", json=get_handler(expected_timeout=5))
+        con = BackendConnection(
+            id="foo", url="https://foo.test", configured_oidc_providers=[],
+            default_timeout=20, init_timeout=5
+        )
+        assert m.call_count == 1
+
+        # Post-init capabilities request
+        requests_mock.get("https://foo.test/", json=get_handler(expected_timeout=20))
+        con.get("/")
+        assert m.call_count == 1
+
 
 class TestMultiBackendConnection:
 
