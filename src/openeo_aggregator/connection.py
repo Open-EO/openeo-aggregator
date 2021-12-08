@@ -212,7 +212,7 @@ class MultiBackendConnection:
         """Get backend connections (re-created automatically if cache ttl expired)"""
         now = self._clock()
         if now > self._connections_cache.expiry:
-            _log.info(f"Connections cache expired ({now:.2f}>{self._connections_cache.expiry:.2f})")
+            _log.debug(f"Connections cache expired ({now:.2f}>{self._connections_cache.expiry:.2f})")
             orig_bids = [c.id for c in self._connections_cache.connections]
             for con in self._connections_cache.connections:
                 con.invalidate()
@@ -221,13 +221,14 @@ class MultiBackendConnection:
                 connections=list(self._get_connections(skip_failures=True))
             )
             new_bids = [c.id for c in self._connections_cache.connections]
-            _log.info(
+            _log.debug(
                 f"Created {len(self._connections_cache.connections)} actual"
                 f" of {len(self._backend_urls)} configured connections"
                 f" (TTL {self._CONNECTIONS_CACHING_TTL}s)"
             )
             if orig_bids != new_bids:
-                _log.info(f"Connections changed {orig_bids} -> {new_bids}: calling on_connections_change callbacks")
+                # TODO: is this worth a warning?
+                _log.warning(f"Connections changed {orig_bids} -> {new_bids}: calling on_connections_change callbacks")
                 self.on_connections_change.trigger(skip_failures=True)
 
         return self._connections_cache.connections
@@ -290,13 +291,13 @@ class MultiBackendConnection:
         # Get intersection of aggregator OIDC provider ids
         agg_pids_per_backend = [set(c.oidc_provider_map.keys()) for c in self.get_connections()]
         intersection: Set[str] = functools.reduce((lambda x, y: x.intersection(y)), agg_pids_per_backend)
-        _log.info(f"OIDC provider intersection: {intersection}")
+        _log.debug(f"OIDC provider intersection: {intersection}")
         if len(intersection) == 0:
             _log.warning(f"Emtpy OIDC provider intersection. Issuers per backend: {agg_pids_per_backend}")
 
         # Take configured providers for common issuers.
         agg_providers = [p for p in self._configured_oidc_providers if p.id in intersection]
-        _log.info(f"Actual aggregator providers: {agg_providers}")
+        _log.info(f"Actual aggregator OIDC providers: {agg_providers}")
 
         return agg_providers
 
