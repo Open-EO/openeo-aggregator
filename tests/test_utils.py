@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler
@@ -84,6 +86,18 @@ class TestTtlCache:
         clock.set(200)
         with pytest.raises(StopIteration):
             cache.get_or_call("foo", callback)
+
+    def test_get_or_call_log_on_miss(self, caplog):
+        caplog.set_level(logging.DEBUG)
+        cache = TtlCache(default_ttl=10, name="Kasj")
+        callback = [1, 22, 333].pop
+        assert cache.get_or_call("foo", callback, log_on_miss=True) == 333
+        assert "Cache miss 'Kasj' key 'foo'" in caplog.text
+        assert "elapsed 0:00" in caplog.text
+        assert "calling 'list.pop'" in caplog.text
+        caplog.clear()
+        assert cache.get_or_call("foo", callback, log_on_miss=True) == 333
+        assert caplog.text == ""
 
 
 class TestMultiDictGetter:

@@ -180,7 +180,7 @@ class MultiBackendConnection:
         self._configured_oidc_providers = configured_oidc_providers
 
         # General (metadata/status) caching
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="MultiBackendConnection")
 
         # Caching of connection objects
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
@@ -266,7 +266,7 @@ class MultiBackendConnection:
 
     @property
     def api_version(self) -> ComparableVersion:
-        return self._cache.get_or_call(key="api_version", callback=self._get_api_version)
+        return self._cache.get_or_call(key="api_version", callback=self._get_api_version, log_on_miss=True)
 
     def map(self, callback: Callable[[BackendConnection], Any]) -> Iterator[Tuple[str, Any]]:
         """

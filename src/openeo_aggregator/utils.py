@@ -2,6 +2,8 @@ import logging
 import time
 from typing import Callable, Iterable, Iterator, List
 
+from openeo.util import TimingLogger
+
 # Generic "sentinel object" for unset values (where `None` is valid value)
 # https://python-patterns.guide/python/sentinel-object/)
 _UNSET = object()
@@ -16,13 +18,14 @@ _log = logging.getLogger(__name__)
 
 class TtlCache:
     """
-    Simple dict-style cache with expiry
+    Simple (in-memory) dict-style cache with expiry
     """
 
-    def __init__(self, default_ttl: int = 60, clock: Callable[[], float] = time.time):
+    def __init__(self, default_ttl: int = 60, clock: Callable[[], float] = time.time, name: str = None):
         self._cache = {}
         self.default_ttl = default_ttl
         self._clock = clock  # TODO: centralized helper for this test pattern
+        self.name = name or "TtlCache"
 
     def set(self, key, value, ttl=None):
         """Add item to cache"""
@@ -57,14 +60,21 @@ class TtlCache:
             return self._cache[key][0]
         raise CacheMissException(key)
 
-    def get_or_call(self, key, callback, ttl=None):
+    def get_or_call(self, key, callback, ttl=None, log_on_miss=False):
         """
         Helper to compactly implement the "get from cache or calculate otherwise" pattern
         """
         if self.contains(key):
             res = self[key]
         else:
-            res = callback()
+            if log_on_miss:
+                with TimingLogger(
+                        title=f"Cache miss {self.name!r} key {key!r}, calling {callback.__qualname__!r}",
+                        logger=_log.debug
+                ):
+                    res = callback()
+            else:
+                res = callback()
             self.set(key, res, ttl=ttl)
         return res
 

@@ -55,7 +55,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="CollectionCatalog")
         self.backends.on_connections_change.add(self._cache.flush_all)
 
     def get_all_metadata(self) -> List[dict]:
@@ -63,7 +63,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         return metadata
 
     def _get_all_metadata_cached(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
-        return self._cache.get_or_call(key=("all",), callback=self._get_all_metadata)
+        return self._cache.get_or_call(key=("all",), callback=self._get_all_metadata, log_on_miss=True)
 
     def _get_all_metadata(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
         """
@@ -221,6 +221,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         return self._cache.get_or_call(
             key=("collection", collection_id),
             callback=lambda: self._get_collection_metadata(collection_id),
+            log_on_miss=True,
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
@@ -292,7 +293,7 @@ class AggregatorProcessing(Processing):
     ):
         self.backends = backends
         # TODO Cache per backend results instead of output?
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="Processing")
         self.backends.on_connections_change.add(self._cache.flush_all)
         self._catalog = catalog
         self._stream_chunk_size = stream_chunk_size
@@ -302,7 +303,7 @@ class AggregatorProcessing(Processing):
             raise OpenEOApiException(
                 message=f"Requested API version {api_version} != expected {self.backends.api_version}"
             )
-        return self._cache.get_or_call(key=str(api_version), callback=self._get_process_registry)
+        return self._cache.get_or_call(key=str(api_version), callback=self._get_process_registry, log_on_miss=True)
 
     def _get_process_registry(self) -> ProcessRegistry:
         processes_per_backend = {}
@@ -562,7 +563,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             batch_jobs=batch_jobs,
             user_defined_processes=None,
         )
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT)
+        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="General")
         self._backends.on_connections_change.add(self._cache.flush_all)
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
 
@@ -570,11 +571,11 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # TODO: openeo-python-driver (HttpAuthHandler) currently does support changes in
         #       the set of oidc_providers ids (id mapping is statically established at startup time)
         return self._cache.get_or_call(
-            key="oidc_providers", callback=self._backends.get_oidc_providers
+            key="oidc_providers", callback=self._backends.get_oidc_providers, log_on_miss=True,
         )
 
     def file_formats(self) -> dict:
-        return self._cache.get_or_call(key="file_formats", callback=self._file_formats)
+        return self._cache.get_or_call(key="file_formats", callback=self._file_formats, log_on_miss=True)
 
     def _file_formats(self) -> dict:
         input_formats = {}
