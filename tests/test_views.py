@@ -708,7 +708,7 @@ class TestBatchJobs:
                 "process": {"process_graph": pg},
                 "title": "da job",
                 "plan": "free-tier",
-                "job_options": {"side": "salad"}
+                "job_options": {"side": "salad"},
             }
             context.headers["Location"] = backend1 + "/jobs/th3j0b"
             context.headers["OpenEO-Identifier"] = "th3j0b"
