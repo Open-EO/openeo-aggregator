@@ -227,8 +227,8 @@ class MultiBackendConnection:
                 f" (TTL {self._CONNECTIONS_CACHING_TTL}s)"
             )
             if orig_bids != new_bids:
-                # TODO: is this worth a warning?
-                _log.warning(f"Connections changed {orig_bids} -> {new_bids}: calling on_connections_change callbacks")
+                if len(orig_bids) > 0:
+                    _log.warning(f"Connections changed {orig_bids} -> {new_bids}: triggering on_connections_change")
                 self.on_connections_change.trigger(skip_failures=True)
 
         return self._connections_cache.connections
