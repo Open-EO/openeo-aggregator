@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fine-tune EGI Early Adopter related "entitlement" error messages ([openEOPlatform/architecture-docs#105](https://github.com/openEOPlatform/architecture-docs/issues/105))
 - Do logging in JSON format, targeting ElasticSearch based monitoring (EP-4057)
 - More aggressive and harmonized exception handling/logging ([#18](https://github.com/Open-EO/openeo-aggregator/issues/18) / EP-4049)
+- Enable `DEBUG` logging for `openeo_aggregator` logs (EP-4057)
 
 ### Fixed
 
