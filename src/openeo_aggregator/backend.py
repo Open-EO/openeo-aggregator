@@ -463,7 +463,7 @@ class AggregatorBatchJobs(BatchJobs):
                 job = con.create_job(
                     process_graph=process_graph,
                     title=metadata.get("title"), description=metadata.get("description"),
-                    plan=metadata.get("plan"), budget=metadata.get("budget")
+                    plan=metadata.get("plan"), budget=metadata.get("budget"), additional=job_options
                 )
             except OpenEoApiError as e:
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:

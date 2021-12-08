@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve "job_options" field in batch job submit
+
 
 
 ## [0.2.x]

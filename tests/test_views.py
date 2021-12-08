@@ -684,7 +684,7 @@ class TestBatchJobs:
         warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
         assert "Failed to get job listing from backend 'b2'" in warnings
 
-    def test_create_job(self, api100, requests_mock, backend1):
+    def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
 
         def post_jobs(request: requests.Request, context):
@@ -697,6 +697,34 @@ class TestBatchJobs:
         pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
+        assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
+        assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+
+    def test_create_job_options(self, api100, requests_mock, backend1):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_jobs(request: requests.Request, context):
+            assert request.json() == {
+                "process": {"process_graph": pg},
+                "title": "da job",
+                "plan": "free-tier",
+                "job_options": {"side": "salad"}
+            }
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={
+            "process": {"process_graph": pg},
+            "title": "da job",
+            "plan": "free-tier",
+            "job_options": {"side": "salad"},
+            "something else": "whatever",
+        }).assert_status_code(201)
         assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
 
