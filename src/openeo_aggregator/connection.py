@@ -236,6 +236,11 @@ class MultiBackendConnection:
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self.get_connections())
 
+    def get_disabled_connection_ids(self) -> Set[str]:
+        all_ids = set(self._backend_urls.keys())
+        active_ids = set(b.id for b in self.get_connections())
+        return all_ids.difference(active_ids)
+
     def first(self) -> BackendConnection:
         """Get first backend in the list"""
         # TODO: rename this to main_backend (if it makes sense to have a general main backend)?

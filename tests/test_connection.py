@@ -430,3 +430,22 @@ class TestMultiBackendConnection:
         with pytest.raises(InvalidatedConnection):
             con1.get("/")
         assert con2.get("/").json() == {"api_version": "1.0.0"}
+
+    def test_get_connections(self, requests_mock, backend1, backend2):
+        # Set up fake clock
+        MultiBackendConnection._clock = itertools.count(1).__next__
+
+        multi_backend_connection = MultiBackendConnection(
+            backends={"b1": backend1, "b2": backend2},
+            configured_oidc_providers=[]
+        )
+
+        assert set(b.id for b in multi_backend_connection.get_connections()) == {"b1", "b2"}
+        assert multi_backend_connection.get_disabled_connection_ids() == set()
+
+        # Wait for connections cache to expire
+        MultiBackendConnection._clock = itertools.count(1000).__next__
+        requests_mock.get(backend1 + "/", status_code=500, json={"error": "nope"})
+
+        assert set(b.id for b in multi_backend_connection.get_connections()) == {"b2"}
+        assert multi_backend_connection.get_disabled_connection_ids() == {"b1"}

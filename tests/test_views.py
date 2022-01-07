@@ -628,7 +628,6 @@ class TestBatchJobs:
             "links": [],
         }
 
-
     @pytest.mark.parametrize("b2_oidc_pid", ["egi", "aho"])
     def test_list_jobs_oidc_pid_mapping(self, config, requests_mock, backend1, backend2, b2_oidc_pid):
         # Override /credentials/oidc of backend2 before building flask app and ApiTester
@@ -691,6 +690,30 @@ class TestBatchJobs:
 
         warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
         assert "Failed to get job listing from backend 'b2'" in warnings
+
+    def test_list_jobs_offline_backend(self, api100, requests_mock, backend1, backend2, caplog):
+        requests_mock.get(backend1 + "/jobs", json={"jobs": [
+            {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+        ]})
+        requests_mock.get(backend2 + "/", status_code=500, json={"code": "nope", "message": "completely down!"})
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Wait for connections cache to expire
+        MultiBackendConnection._clock = itertools.count(MultiBackendConnection._clock() + 1000).__next__
+
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+            ],
+            "links": [],
+            "federation:missing": ["b2"],
+        }
+
+        warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
+        assert "Failed to create backend 'b2' connection" in warnings
 
     def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
