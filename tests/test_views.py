@@ -619,11 +619,15 @@ class TestBatchJobs:
         ]})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
-        assert res["jobs"] == [
-            {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-            {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
-        ]
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+            ],
+            "links": [],
+        }
+
 
     @pytest.mark.parametrize("b2_oidc_pid", ["egi", "aho"])
     def test_list_jobs_oidc_pid_mapping(self, config, requests_mock, backend1, backend2, b2_oidc_pid):
@@ -676,10 +680,14 @@ class TestBatchJobs:
         requests_mock.get(backend2 + "/jobs", status_code=status_code, json={"code": "nope", "message": "and nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
-        assert res["jobs"] == [
-            {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-        ]
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+            ],
+            "links": [],
+            "federation:missing": ["b2"],
+        }
 
         warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
         assert "Failed to get job listing from backend 'b2'" in warnings

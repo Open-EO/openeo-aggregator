@@ -430,8 +430,9 @@ class AggregatorBatchJobs(BatchJobs):
         self.backends = backends
         self.processing = processing
 
-    def get_user_jobs(self, user_id: str) -> List[BatchJobMetadata]:
+    def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
         jobs = []
+        federation_missing = []
         for con in self.backends:
             with con.authenticated_from_request(request=flask.request):
                 try:
@@ -439,11 +440,16 @@ class AggregatorBatchJobs(BatchJobs):
                 except Exception as e:
                     # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get job listing from backend {con.id!r}: {e!r}")
+                    federation_missing.append(con.id)
                     backend_jobs = []
                 for job in backend_jobs:
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_dict(job))
-        return jobs
+        return dict_no_none({
+            "jobs": jobs,
+            # TODO: experimental "federation:missing" https://github.com/openEOPlatform/architecture-docs/issues/179
+            "federation:missing": federation_missing or None
+        })
 
     def create_job(
             self, user_id: str, process: dict, api_version: str,

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expose openEO Platform billing plans ([#6](https://github.com/Open-EO/openeo-aggregator/issues/6))
 - Set `default_plan` on `/me` for early adopters ([#6](https://github.com/Open-EO/openeo-aggregator/issues/6))
 - Allow access to "free tier" users (users enrolled in openEO Platform virtual org, but without the "early adopter" role) ([openEOPlatform/architecture-docs#169](https://github.com/openEOPlatform/architecture-docs/issues/169) / EP-4092)
+- Add (experimental) "federation:missing" on partial user job listings ([#27](https://github.com/Open-EO/openeo-aggregator/issues/27))
 
 ### Changed
 
