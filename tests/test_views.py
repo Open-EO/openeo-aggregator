@@ -11,7 +11,8 @@ from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
     ProcessGraphInvalidException
-from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet
+from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
+    RegexMatcher
 from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
@@ -84,7 +85,7 @@ class TestGeneral:
                 "b1": {"status_code": 200, "json": {"health": "OK"}, "response_time": pytest.approx(0.1, abs=0.1)},
                 "b2": {
                     "status_code": 200,
-                    "error": "JSONDecodeError('Expecting value: line 1 column 1 (char 0)',)",
+                    "error": RegexMatcher(r"JSONDecodeError\('Expecting value"),
                     "response_time": pytest.approx(0.1, abs=0.1),
                     "error_time": pytest.approx(0.1, abs=0.1),
                 },
