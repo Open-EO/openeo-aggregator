@@ -46,7 +46,7 @@ config = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
-        "creo": "https://openeo.creo.vito.be/openeo/1.0/",
+        "creo": "https://openeo.kube-prod.vgt.vito.be/openeo/1.0",  # internal version of https://openeo.creo.vito.be/openeo/1.0/
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
     configured_oidc_providers=configured_oidc_providers,
