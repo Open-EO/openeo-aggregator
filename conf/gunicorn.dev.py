@@ -7,6 +7,6 @@ workers = 1
 threads = 1
 
 # Worker timeout
-timeout = 15
+timeout = 60
 
 print(f"loaded {__file__}")
