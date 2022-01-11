@@ -117,8 +117,14 @@ def _get_logging_config() -> dict:
                 "class": "logging.StreamHandler",
                 "stream": "ext://sys.stderr",
                 "level": "DEBUG",
+                "filters": ["request_correlation_id"],
                 "formatter": "json",
             },
+        },
+        "filters": {
+            "request_correlation_id": {
+                "()": "openeo_driver.util.logging.RequestCorrelationIdLogging",
+            }
         },
         "formatters": {
             "json": {
