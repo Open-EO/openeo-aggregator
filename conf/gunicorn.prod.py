@@ -8,5 +8,3 @@ threads = 1
 
 # Worker timeout
 timeout = 15 * 60
-
-logconfig = str(Path(__file__).parent / "logging-json.conf")

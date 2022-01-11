@@ -15,7 +15,7 @@ from openeo_driver.server import build_backend_deploy_metadata
 _log = logging.getLogger(__name__)
 
 
-def create_app(config: Any = None, auto_logging_setup=True) -> flask.Flask:
+def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Flask:
     """
     Flask application factory function.
     """

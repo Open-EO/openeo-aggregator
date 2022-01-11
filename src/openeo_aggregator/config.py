@@ -98,11 +98,44 @@ def get_config(x: Any) -> AggregatorConfig:
     raise ValueError(repr(x))
 
 
-def setup_logging(force=False):
+def _get_logging_config() -> dict:
     # TODO option to use standard text logging instead of JSON, for local development?
+    return {
+        "version": 1,
+        "root": {
+            "level": "INFO",
+            "handlers": ["json"],
+        },
+        "loggers": {
+            "openeo_aggregator": {
+                "level": "DEBUG",
+                "handlers": ["json"],
+                "propagate": False},
+        },
+        "handlers": {
+            "json": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+                "level": "DEBUG",
+                "formatter": "json",
+            },
+        },
+        "formatters": {
+            "json": {
+                "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                # This fake `format` string is the way to list expected fields in json records
+                "format": "%(created)s %(name)s %(filename)s %(lineno)s %(process)s %(levelname)s %(message)s",
+            }
+        },
+        # Keep existing loggers alive (e.g. werkzeug, gunicorn, ...)
+        "disable_existing_loggers": False,
+    }
+
+
+def setup_logging(force=False):
     if not logging.getLogger().handlers or force:
-        config_file = get_config_dir() / "logging-json.conf"
-        logging.config.fileConfig(config_file, disable_existing_loggers=False)
+        config = _get_logging_config()
+        logging.config.dictConfig(config)
 
     for name in [
         "openeo", "openeo_aggregator", "openeo_driver",

@@ -9,6 +9,4 @@ threads = 1
 # Worker timeout
 timeout = 15
 
-logconfig = str(Path(__file__).parent / "logging-json.conf")
-
 print(f"loaded {__file__}")
