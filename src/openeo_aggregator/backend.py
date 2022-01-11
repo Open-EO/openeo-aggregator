@@ -434,7 +434,8 @@ class AggregatorBatchJobs(BatchJobs):
         jobs = []
         federation_missing = set()
         for con in self.backends:
-            with con.authenticated_from_request(request=flask.request):
+            with con.authenticated_from_request(request=flask.request), \
+                    TimingLogger(f"get_user_jobs: {con.id}", logger=_log.debug):
                 try:
                     backend_jobs = con.list_jobs()
                 except Exception as e:
