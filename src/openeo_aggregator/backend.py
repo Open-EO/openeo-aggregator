@@ -3,16 +3,15 @@ import functools
 import logging
 import time
 from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any, Set
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
 import flask
 
 from openeo.capabilities import ComparableVersion
-from openeo.internal.process_graph_visitor import ProcessGraphVisitor
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
-    CONNECTION_TIMEOUT_RESULT
+    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
@@ -423,7 +422,6 @@ class AggregatorProcessing(Processing):
 
 
 class AggregatorBatchJobs(BatchJobs):
-    JOB_START_TIMEOUT = 5 * 60
 
     def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing):
         super(AggregatorBatchJobs, self).__init__()
@@ -467,7 +465,7 @@ class AggregatorBatchJobs(BatchJobs):
         )
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request), \
-                con.override(default_timeout=self.JOB_START_TIMEOUT):
+                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
             try:
                 job = con.create_job(
                     process_graph=process_graph,
@@ -518,7 +516,7 @@ class AggregatorBatchJobs(BatchJobs):
     def start_job(self, job_id: str, user: 'User'):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request), \
-                con.override(default_timeout=self.JOB_START_TIMEOUT), \
+                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 
