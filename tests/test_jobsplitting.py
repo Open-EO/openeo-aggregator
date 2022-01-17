@@ -1,0 +1,201 @@
+import flask
+import time
+from unittest import mock
+
+import kazoo
+import kazoo.exceptions
+import pytest
+
+from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker
+from openeo_aggregator.testing import DummyKazooClient, str_starts_with
+
+PG12 = {
+    "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
+}
+PG23 = {
+    "add": {"process_id": "add", "arguments": {"X": 2, "y": 3}, "result": True}
+}
+PG35 = {
+    "add": {"process_id": "add", "arguments": {"X": 3, "y": 5}, "result": True}
+}
+
+
+@pytest.fixture
+def pjob():
+    return PartitionedJob(
+        process_graph=PG35,
+        metadata={},
+        job_options={},
+        subjobs=[
+            SubJob(process_graph=PG12, backend_id="b1"),
+            SubJob(process_graph=PG23, backend_id="b2"),
+        ]
+    )
+
+
+@pytest.fixture
+def zk_client() -> DummyKazooClient:
+    return DummyKazooClient()
+
+
+@pytest.fixture
+def zk_db(zk_client) -> ZooKeeperPartitionedJobDB:
+    return ZooKeeperPartitionedJobDB(client=zk_client, prefix="/t")
+
+
+@pytest.fixture
+def zk_tracker(zk_db, multi_backend_connection) -> PartitionedJobTracker:
+    return PartitionedJobTracker(db=zk_db, backends=multi_backend_connection)
+
+
+def mock_generate_id_candidates(start=5):
+    def ids(prefix="", max_attemtps=5):
+        for i in range(start, start + max_attemtps):
+            prefix = prefix.format(date="20220117-174800")
+            yield f"{prefix}{i}"
+
+    return mock.patch("openeo_aggregator.jobsplitting.generate_id_candidates", new=ids)
+
+
+def now_approx(abs=10):
+    return pytest.approx(time.time(), abs=abs)
+
+
+class TestZooKeeperPartitionedJobDB:
+
+    def test_insert_basic(self, pjob, zk_client, zk_db):
+        with mock_generate_id_candidates():
+            pjob_id = zk_db.insert(pjob)
+        assert pjob_id == "pj-20220117-174800-5"
+
+        data = zk_client.get_data_deserialized(drop_empty=True)
+        assert data == {
+            "/t/pj-20220117-174800-5": {
+                "created": now_approx(),
+                "user": "TODO",
+                "process_graph": PG35,
+                "metadata": {},
+                "job_options": {},
+            },
+            "/t/pj-20220117-174800-5/status": {
+                "status": "inserted",
+            },
+            "/t/pj-20220117-174800-5/sjobs/0000": {
+                "process_graph": PG12,
+                "backend_id": "b1",
+            },
+            "/t/pj-20220117-174800-5/sjobs/0000/status": {
+                "status": "inserted"
+            },
+            "/t/pj-20220117-174800-5/sjobs/0001": {
+                "process_graph": PG23,
+                "backend_id": "b2",
+            },
+            "/t/pj-20220117-174800-5/sjobs/0001/status": {
+                "status": "inserted"
+            },
+        }
+
+    def test_get_pjob_metadata(self, pjob, zk_db):
+        with pytest.raises(kazoo.exceptions.NoNodeError):
+            zk_db.get_pjob_metadata("pj-20220117-174800-5")
+
+        with mock_generate_id_candidates():
+            zk_db.insert(pjob)
+
+        assert zk_db.get_pjob_metadata("pj-20220117-174800-5") == {
+            "created": now_approx(),
+            "user": "TODO",
+            "process_graph": PG35,
+            "metadata": {},
+            "job_options": {},
+        }
+
+    def test_list_subjobs(self, pjob, zk_db):
+        with pytest.raises(kazoo.exceptions.NoNodeError):
+            zk_db.list_subjobs("pj-20220117-174800-5")
+
+        with mock_generate_id_candidates():
+            zk_db.insert(pjob)
+
+        assert zk_db.list_subjobs("pj-20220117-174800-5") == {
+            "0000": {
+                "process_graph": PG12,
+                "backend_id": "b1",
+            },
+            "0001": {
+                "process_graph": PG23,
+                "backend_id": "b2",
+            },
+        }
+
+    def test_set_get_backend_job_id(self, pjob, zk_db):
+        with mock_generate_id_candidates():
+            pjob_id = zk_db.insert(pjob)
+
+        with pytest.raises(kazoo.exceptions.NoNodeError):
+            zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
+
+        zk_db.set_backend_job_id(pjob_id=pjob_id, sjob_id="0000", job_id="b1-job-123")
+
+        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "b1-job-123"
+
+    def test_set_get_pjob_status(self, pjob, zk_db):
+        with pytest.raises(kazoo.exceptions.NoNodeError):
+            zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+
+        with mock_generate_id_candidates():
+            zk_db.insert(pjob)
+
+        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+        assert status == {"status": "inserted"}
+
+        zk_db.set_pjob_status(pjob_id="pj-20220117-174800-5", status="running", message="goin' on")
+        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+        assert status == {"status": "running", "message": "goin' on", "timestamp": now_approx()}
+
+    def test_set_get_sjob_status(self, pjob, zk_db):
+        with pytest.raises(kazoo.exceptions.NoNodeError):
+            zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+
+        with mock_generate_id_candidates():
+            zk_db.insert(pjob)
+
+        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+        assert status == {"status": "inserted"}
+
+        zk_db.set_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000", status="running", message="goin' on")
+        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+        assert status == {"status": "running", "message": "goin' on", "timestamp": now_approx()}
+
+
+class TestPartitionedJobTracker:
+
+    def test_submit(self, pjob, zk_client, zk_db, zk_tracker):
+        pjob_id = zk_tracker.submit(pjob)
+
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {"status": "inserted"}
+        subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
+        assert set(subjobs.keys()) == {"0000", "0001"}
+        for sjob_id in subjobs:
+            assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {"status": "inserted"}
+
+    def test_sync_error_no_http(self, pjob, zk_client, zk_db, zk_tracker):
+        """Simple failure use case: no working mock requests to backends"""
+        pjob_id = zk_tracker.submit(pjob)
+        flask_request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/egi/l3tm31n"})
+        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
+            "status": "error",
+            "message": "TODO",
+            "timestamp": now_approx(),
+        }
+        subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
+        assert set(subjobs.keys()) == {"0000", "0001"}
+        for sjob_id in subjobs:
+            assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {
+                "status": "error",
+                "message": str_starts_with("Failed to create subjob: NoMockAddress"),
+                "timestamp": now_approx(),
+            }

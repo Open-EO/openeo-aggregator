@@ -100,16 +100,18 @@ class ZooKeeperPartitionedJobDB:
         # TODO: instead of blindly doing start/stop all the time,
         #       could it be more efficient to keep connection alive for longer time?
         self._client.start()
-        yield self._client
-        self._client.stop()
+        try:
+            yield self._client
+        finally:
+            self._client.stop()
 
     @staticmethod
-    def _serialize(**kwargs) -> bytes:
+    def serialize(**kwargs) -> bytes:
         """Serialize a dictionary (given as arguments) in JSON (UTF8 byte-encoded)."""
         return json.dumps(kwargs).encode("utf8")
 
     @staticmethod
-    def _deserialize(value: bytes) -> dict:
+    def deserialize(value: bytes) -> dict:
         """Deserialize bytes (assuming UTF8 encoded JSON mapping)"""
         return json.loads(value.decode("utf8"))
 
@@ -124,7 +126,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
 
             # Insert parent node, with "static" (write once) metadata as associated data
-            job_node_value = self._serialize(
+            job_node_value = self.serialize(
                 user="TODO",
                 created=now,
                 process_graph=job.process_graph,
@@ -144,7 +146,7 @@ class ZooKeeperPartitionedJobDB:
             # Updatable metadata
             self._client.create(
                 path=self._path(pjob_id, "status"),
-                value=self._serialize(status=STATUS_INSERTED)
+                value=self.serialize(status=STATUS_INSERTED)
             )
 
             # Insert subjobs
@@ -152,7 +154,7 @@ class ZooKeeperPartitionedJobDB:
                 sjob_id = f"{i:04d}"
                 self._client.create(
                     path=self._path(pjob_id, "sjobs", sjob_id),
-                    value=self._serialize(
+                    value=self.serialize(
                         process_graph=subjob.process_graph,
                         backend_id=subjob.backend_id,
                         # TODO:  dependencies/constraints between subjobs?
@@ -161,7 +163,7 @@ class ZooKeeperPartitionedJobDB:
                 )
                 self._client.create(
                     path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                    value=self._serialize(status=STATUS_INSERTED),
+                    value=self.serialize(status=STATUS_INSERTED),
                 )
 
         return pjob_id
@@ -170,7 +172,7 @@ class ZooKeeperPartitionedJobDB:
         """Get metadata of partitioned job, given by storage id."""
         with self._connect():
             value, stat = self._client.get(self._path(pjob_id))
-            return self._deserialize(value)
+            return self.deserialize(value)
 
     def list_subjobs(self, pjob_id: str) -> Dict[str, dict]:
         """
@@ -182,7 +184,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             for child in self._client.get_children(self._path(pjob_id, "sjobs")):
                 value, stat = self._client.get(self._path(pjob_id, "sjobs", child))
-                listing[child] = self._deserialize(value)
+                listing[child] = self.deserialize(value)
         return listing
 
     def set_backend_job_id(self, pjob_id: str, sjob_id: str, job_id: str):
@@ -196,14 +198,14 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.create(
                 path=self._path(pjob_id, "sjobs", sjob_id, "job_id"),
-                value=self._serialize(job_id=job_id)
+                value=self.serialize(job_id=job_id)
             )
 
     def get_backend_job_id(self, pjob_id: str, sjob_id: str) -> str:
         """Get external back-end job id of given sub job"""
         with self._connect():
             value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
-            return self._deserialize(value)["job_id"]
+            return self.deserialize(value)["job_id"]
 
     def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None):
         """
@@ -216,7 +218,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "status"),
-                value=self._serialize(status=status, message=message)
+                value=self.serialize(status=status, message=message, timestamp=time.time())
             )
 
     def get_pjob_status(self, pjob_id: str) -> dict:
@@ -230,21 +232,21 @@ class ZooKeeperPartitionedJobDB:
         """
         with self._connect():
             value, stat = self._client.get(self._path(pjob_id, "status"))
-            return self._deserialize(value)
+            return self.deserialize(value)
 
     def set_sjob_status(self, pjob_id: str, sjob_id: str, status: str, message: Optional[str] = None):
         """Store status of sub-job (with optional message)"""
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                value=self._serialize(status=status, message=message, timestamp=time.time()),
+                value=self.serialize(status=status, message=message, timestamp=time.time()),
             )
 
     def get_sjob_status(self, pjob_id: str, sjob_id: str) -> dict:
         """Get status of sub-job"""
         with self._connect():
             value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "status"))
-            return self._deserialize(value)
+            return self.deserialize(value)
 
 
 class PartitionedJobTracker:
@@ -261,7 +263,7 @@ class PartitionedJobTracker:
         Submit a partitioned job: store metadata of partitioned and related sub-jobs in the database.
 
         :param pjob:
-        :return:
+        :return: (internal) storage id of partitioned job
         """
         pjob_id = self._db.insert(pjob)
         _log.info(f"Inserted partitioned job: {pjob_id}")
@@ -272,6 +274,9 @@ class PartitionedJobTracker:
         Sync between aggregator's sub-job database and executing backends:
         - submit new (sub) jobs (if possible)
         - poll status of running jobs
+
+        :param pjob_id: storage id of the partitioned job
+        :param flask_request: flask request of owning user to use authentication from
         """
         # TODO: (timing) logging
 
@@ -349,7 +354,7 @@ class PartitionedJobTracker:
                 self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING)
             elif STATUS_ERROR in statusses:
                 # TODO: add descriptive error message (e.g. how much sjobs failed, how much didn't)
-                self._db.set_pjob_status(pjob_id, status=STATUS_ERROR)
+                self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message="TODO")
             else:
                 raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
