@@ -811,6 +811,11 @@ class TestBatchJobs:
                 "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
             }},
             "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
+            "usage": {
+                "cpu": {"value": 1000, "unit": "cpu-seconds"},
+                "memory": {"value": 2000, "unit": "mb-seconds"},
+                "duration": {"value": 3000, "unit": "seconds"},
+            },
         })
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b").assert_status_code(200)
@@ -821,6 +826,11 @@ class TestBatchJobs:
                 "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
             }},
             "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
+            "usage": {
+                "cpu": {"value": 1000, "unit": "cpu-seconds"},
+                "memory": {"value": 2000, "unit": "mb-seconds"},
+                "duration": {"value": 3000, "unit": "seconds"},
+            },
         }
 
     @pytest.mark.parametrize("job_id", ["th3j0b", "th-3j-0b", "th.3j.0b", "th~3j~0b"])

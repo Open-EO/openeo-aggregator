@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Preserve "job_options" field in batch job submit
+- Preserve "usage" batch job metadata ([#31](https://github.com/Open-EO/openeo-aggregator/issues/31))
 
 
 

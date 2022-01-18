@@ -443,7 +443,7 @@ class AggregatorBatchJobs(BatchJobs):
                     backend_jobs = []
                 for job in backend_jobs:
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
-                    jobs.append(BatchJobMetadata.from_dict(job))
+                    jobs.append(BatchJobMetadata.from_api_dict(job))
 
         federation_missing.update(self.backends.get_disabled_connection_ids())
         return dict_no_none({
@@ -511,7 +511,7 @@ class AggregatorBatchJobs(BatchJobs):
                 self._translate_job_errors(job_id=job_id):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
-        return BatchJobMetadata.from_dict(metadata)
+        return BatchJobMetadata.from_api_dict(metadata)
 
     def start_job(self, job_id: str, user: 'User'):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
