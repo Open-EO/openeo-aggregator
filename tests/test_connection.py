@@ -122,15 +122,22 @@ class TestBackendConnection:
         # auth should be reset even with exception in `authenticated_from_request` body
         assert con.auth is None
 
-    def test_override_default_timeout(self, requests_mock):
+    @pytest.mark.parametrize("fail", [False, True])
+    def test_override_default_timeout(self, requests_mock, fail):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=[])
         assert con.default_timeout == CONNECTION_TIMEOUT_DEFAULT
-        with con.override(default_timeout=67):
-            assert con.default_timeout == 67
+        try:
+            with con.override(default_timeout=67):
+                assert con.default_timeout == 67
+                if fail:
+                    raise RuntimeError
+        except RuntimeError:
+            pass
         assert con.default_timeout == CONNECTION_TIMEOUT_DEFAULT
 
-    def test_override_default_headers(self, requests_mock):
+    @pytest.mark.parametrize("fail", [False, True])
+    def test_override_default_headers(self, requests_mock, fail):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
 
         def handler(request, context):
@@ -140,8 +147,13 @@ class TestBackendConnection:
 
         con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=[])
         assert con.get("/ua").text.startswith("The UA is openeo-aggregator/")
-        with con.override(default_headers={"User-Agent": "Foobur 1.2"}):
-            assert con.get("/ua").text == "The UA is Foobur 1.2"
+        try:
+            with con.override(default_headers={"User-Agent": "Foobur 1.2"}):
+                assert con.get("/ua").text == "The UA is Foobur 1.2"
+                if fail:
+                    raise RuntimeError
+        except RuntimeError:
+            pass
         assert con.get("/ua").text.startswith("The UA is openeo-aggregator/")
 
     def test_invalidate(self, requests_mock):

@@ -133,13 +133,15 @@ class BackendConnection(Connection):
         # TODO move this to Python client
         orig_default_timeout = self.default_timeout
         orig_default_headers = self.default_headers
-        if default_timeout is not _UNSET:
-            self.default_timeout = default_timeout
-        if default_headers is not _UNSET:
-            self.default_headers = default_headers
-        yield self
-        self.default_timeout = orig_default_timeout
-        self.default_headers = orig_default_headers
+        try:
+            if default_timeout is not _UNSET:
+                self.default_timeout = default_timeout
+            if default_headers is not _UNSET:
+                self.default_headers = default_headers
+            yield self
+        finally:
+            self.default_timeout = orig_default_timeout
+            self.default_headers = orig_default_headers
 
     def invalidate(self):
         """Destroy connection to avoid accidental usage."""
