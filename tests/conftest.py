@@ -11,7 +11,7 @@ from openeo_driver.users.oidc import OidcProvider
 
 
 @pytest.fixture
-def backend1(requests_mock):
+def backend1(requests_mock) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
     requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
@@ -22,7 +22,7 @@ def backend1(requests_mock):
 
 
 @pytest.fixture
-def backend2(requests_mock):
+def backend2(requests_mock) -> str:
     domain = "https://b2.test/v1"
     requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [

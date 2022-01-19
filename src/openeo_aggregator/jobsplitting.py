@@ -313,11 +313,11 @@ class PartitionedJobTracker:
                     # TODO: detect recoverable issue and keep status INSERTED to retry with next "sync"?
                     self._db.set_sjob_status(
                         pjob_id, sjob_id, status=STATUS_ERROR,
-                        message=f"Failed to create subjob: {e!r}"
+                        message=f"Failed to create subjob: {e}"
                     )
                 else:
                     self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
-                    self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING)
+                    self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message="started")
 
             elif sjob_status == STATUS_RUNNING:
                 try:
@@ -327,8 +327,8 @@ class PartitionedJobTracker:
                     _log.info(f"New status for pjob {pjob_id} sjob {sjob_id}: {status}")
                     # TODO: handle job "progress" level?
                 except Exception as e:
-                    _log.error(f"Error while polling job status {pjob_id} {sjob_id}", exc_info=True)
-                    # Skip failure for now
+                    _log.error(f"Unexpected error while polling job status {pjob_id} {sjob_id}", exc_info=True)
+                    # Skip unexpected failure for now (could be temporary)
                     # TODO: inspect error and flag as failed, skip temporary glitches, ....
                 else:
                     if status == "finished":
@@ -336,25 +336,28 @@ class PartitionedJobTracker:
                         # TODO: collect results
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=status)
                     else:
-                        self._db.set_sjob_status(
-                            pjob_id, sjob_id, status=STATUS_ERROR, message=status
-                        )
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
+            elif sjob_status == STATUS_ERROR:
+                # TODO: is this a final state? https://github.com/Open-EO/openeo-api/issues/436
+                pass
+            elif sjob_status == STATUS_FINISHED:
+                pass
 
             status_counts = collections.Counter(
                 self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
             )
+            status_message = f"subjob stats: {dict(status_counts)}"
             _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
             statusses = set(status_counts)
             if statusses == {STATUS_FINISHED}:
-                self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED)
+                self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message)
                 # TODO: also collect all asset urls
             elif STATUS_RUNNING in statusses:
-                self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING)
+                self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
             elif STATUS_ERROR in statusses:
-                # TODO: add descriptive error message (e.g. how much sjobs failed, how much didn't)
-                self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message="TODO")
+                self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message)
             else:
                 raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
