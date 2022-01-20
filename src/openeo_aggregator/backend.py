@@ -17,7 +17,7 @@ from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.jobsplitting import PartitionedJob
+from openeo_aggregator.jobsplitting import PartitionedJob, PartitionedJobConnection
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -271,15 +271,18 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 class JobIdMapping:
     """Mapping between aggregator job ids and backend job ids"""
 
+    # Job-id prefix for jobs managed by aggregator (not simple proxied jobs)
+    AGG = "agg"
+
     @staticmethod
     def get_aggregator_job_id(backend_job_id: str, backend_id: str) -> str:
         """Construct aggregator job id from given backend job id and backend id"""
         return f"{backend_id}-{backend_job_id}"
 
-    @staticmethod
-    def parse_aggregator_job_id(backends: MultiBackendConnection, aggregator_job_id: str) -> Tuple[str, str]:
+    @classmethod
+    def parse_aggregator_job_id(cls, backends: MultiBackendConnection, aggregator_job_id: str) -> Tuple[str, str]:
         """Given aggregator job id: extract backend job id and backend id"""
-        for prefix in [f"{con.id}-" for con in backends]:
+        for prefix in [f"{con.id}-" for con in backends] + [cls.AGG + "-"]:
             if aggregator_job_id.startswith(prefix):
                 backend_id, backend_job_id = aggregator_job_id.split("-", maxsplit=1)
                 return backend_job_id, backend_id
@@ -432,7 +435,7 @@ class AggregatorBatchJobs(BatchJobs):
         self.processing = processing
 
         # TODO: inject PartitionedJobTracker as arg instead of building it here?
-        zk = KazooClient(config.zookeeper_hosts)
+        zk = config.zookeeper_client or KazooClient(config.zookeeper_hosts)
         db = jobsplitting.ZooKeeperPartitionedJobDB(zk)
         self.partitioned_job_tracker = jobsplitting.PartitionedJobTracker(db, backends=self.backends)
 
@@ -464,29 +467,29 @@ class AggregatorBatchJobs(BatchJobs):
             self, user_id: str, process: dict, api_version: str,
             metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
-        try:
-            process_graph = process["process_graph"]
-        except (KeyError, TypeError) as e:
+        if "process_graph" not in process:
             raise ProcessGraphMissingException()
 
-        if job_options and job_options.get("multi_backend"):
-            return self._create_multi_backend_job(
-                process_graph=process_graph,
+        # TODO: better, more generic/specific job_option(s)?
+        if job_options and job_options.get("_jobsplitting"):
+            return self._create_partitioned_job(
+                process=process,
                 api_version=api_version,
                 metadata=metadata,
                 job_options=job_options,
             )
         else:
-            return self._create_single_backend_job(
-                process_graph=process_graph,
+            return self._create_job_standard(
+                process_graph=process["process_graph"],
                 api_version=api_version,
                 metadata=metadata,
                 job_options=job_options,
             )
 
-    def _create_single_backend_job(
+    def _create_job_standard(
             self, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
+        """Standard batch job creation: just proxy to a single batch job on single back-end."""
         backend_id = self.processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
@@ -513,26 +516,38 @@ class AggregatorBatchJobs(BatchJobs):
             status="dummy", created="dummy", process={"dummy": "dummy"}
         )
 
-    def _create_multi_backend_job(
-            self, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+    def _create_partitioned_job(
+            self, process: dict, api_version: str, metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
+        """
+        Advanced/handled batch job creation:
+        split original job in (possibly) multiple sub-jobs,
+        distribute across (possibly) multiple back-ends
+        and keep track of them.
+        """
 
         splitter = jobsplitting.JobSplitter(backends=self.backends)
-        pjob: PartitionedJob = splitter.split(process_graph=process_graph)
+        pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
         job_id = self.partitioned_job_tracker.submit(pjob)
-        backend_id = "agg"
 
         return BatchJobMetadata(
-            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=backend_id),
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=JobIdMapping.AGG),
             status="dummy", created="dummy", process={"dummy": "dummy"}
         )
 
-    def _get_connection_and_backend_job_id(self, aggregator_job_id: str) -> Tuple[BackendConnection, str]:
+    def _get_connection_and_backend_job_id(
+            self,
+            aggregator_job_id: str
+    ) -> Tuple[Union[BackendConnection, PartitionedJobConnection], str]:
         backend_job_id, backend_id = JobIdMapping.parse_aggregator_job_id(
             backends=self.backends,
             aggregator_job_id=aggregator_job_id
         )
+
+        if backend_id == JobIdMapping.AGG:
+            return PartitionedJobConnection(self.partitioned_job_tracker), backend_job_id
+
         con = self.backends.get_connection(backend_id)
         return con, backend_job_id
 

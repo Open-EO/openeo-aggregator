@@ -13,6 +13,7 @@ from typing import NamedTuple, List, Dict, Optional, Iterator
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
+from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.users.auth import HttpAuthHandler
 
 # TODO: not only support batch jobs but also sync jobs?
@@ -32,7 +33,7 @@ class SubJob(NamedTuple):
 class PartitionedJob(NamedTuple):
     """A large or multi-back-end job that is split in several sub jobs"""
     # Original process graph
-    process_graph: dict
+    process: dict
     metadata: dict
     job_options: dict
     # List of sub-jobs
@@ -48,15 +49,15 @@ class JobSplitter:
     def __init__(self, backends: MultiBackendConnection):
         self._backends = backends
 
-    def split(self, process_graph: dict, metadata: dict = None, jon_options: dict = None) -> PartitionedJob:
+    def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         # TODO: how to express dependencies? give SubJobs an id for referencing?
         # TODO: how to express combination/aggregation of multiple subjob results as a final result?
         return PartitionedJob(
-            process_graph=process_graph,
-            metadata=metadata, job_options=jon_options,
+            process=process,
+            metadata=metadata, job_options=job_options,
             subjobs=[
                 # TODO: real splitting
-                SubJob(process_graph=process_graph, backend_id=self._backends.first().id),
+                SubJob(process_graph=process["process_graph"], backend_id=self._backends.first().id),
             ]
         )
 
@@ -81,6 +82,9 @@ class ZooKeeperPartitionedJobDB:
 
     # TODO: support for canceling?
     # TODO: extract abstract PartitionedJobDB for other storage backends?
+
+    # Simplify mocking time for unit tests.
+    _clock = time.time  # TODO: centralized helper for this test pattern
 
     def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/jobsplitting/v1'):
         self._client = client
@@ -122,14 +126,14 @@ class ZooKeeperPartitionedJobDB:
         :return: storage id of the partitioned job
         """
 
-        now = time.time()
         with self._connect():
 
             # Insert parent node, with "static" (write once) metadata as associated data
             job_node_value = self.serialize(
                 user="TODO",
-                created=now,
-                process_graph=job.process_graph,
+                # TODO: more BatchJobMetdata fields
+                created=self._clock(),
+                process=job.process,
                 metadata=job.metadata,
                 job_options=job.job_options,
             )
@@ -218,7 +222,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=time.time())
+                value=self.serialize(status=status, message=message, timestamp=self._clock())
             )
 
     def get_pjob_status(self, pjob_id: str) -> dict:
@@ -239,7 +243,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=time.time()),
+                value=self.serialize(status=status, message=message, timestamp=self._clock()),
             )
 
     def get_sjob_status(self, pjob_id: str, sjob_id: str) -> dict:
@@ -361,9 +365,61 @@ class PartitionedJobTracker:
             else:
                 raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
+    def describe_job(self, pjob_id: str) -> dict:
+        """RESTJob.describe_job() interface"""
+        # TODO: automatically sync
+        # self.sync(pjob_id=pjob_id, flask_request=None)
+        metadata = self._db.get_pjob_metadata(pjob_id=pjob_id)
+        status = self._db.get_pjob_status(pjob_id=pjob_id)["status"]
+        status = {STATUS_INSERTED: "created"}.get(status, status)
+        return BatchJobMetadata(
+            id="TODO?", status=status,
+            created=datetime.datetime.utcfromtimestamp(metadata["created"]),
+            title=metadata["metadata"].get("title"),
+            description=metadata["metadata"].get("description"),
+            process=metadata["process"],
+            # TODO more fields?
+        ).to_api_dict(full=True)
+
     def get_status(self, pjob_id: str):
         # TODO
         return self._db.get_pjob_status(pjob_id)
+
+
+class PartitionedJobConnection:
+    """
+    Connection-like interface for managing partitioned jobs.
+
+    This fake connection acts as adapter between:
+    - the `backend.py` logic that expects `BackendConnection` objects
+      to send openEO REST HTTP requests
+    - the `PartitionedJobTracker` logic
+    """
+
+    class Job:
+        """RestJob-like interface"""
+
+        def __init__(self, pjob_id: str, connection: 'PartitionedJobConnection'):
+            self.pjob_id = pjob_id
+            self.connection = connection
+
+        def describe_job(self) -> dict:
+            return self.connection.partitioned_job_tracker.describe_job(pjob_id=self.pjob_id)
+
+    def __init__(self, partitioned_job_tracker: PartitionedJobTracker):
+        self.partitioned_job_tracker = partitioned_job_tracker
+
+    @contextlib.contextmanager
+    def authenticated_from_request(self, request: flask.Request):
+        # TODO
+        try:
+            yield self
+        finally:
+            ...
+
+    def job(self, job_id: str):
+        """Connection.job() interface"""
+        return self.Job(pjob_id=job_id, connection=self)
 
 
 def main():

@@ -1,14 +1,18 @@
-import flask
-import requests
-import time
 from unittest import mock
 
+import datetime
+import itertools
+import time
+
+import flask
+import requests
 import kazoo
 import kazoo.exceptions
 import pytest
 
 from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker
 from openeo_aggregator.testing import DummyKazooClient, str_starts_with
+from openeo_driver.testing import TEST_USER_BEARER_TOKEN
 
 PG12 = {
     "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
@@ -19,12 +23,13 @@ PG23 = {
 PG35 = {
     "add": {"process_id": "add", "arguments": {"X": 3, "y": 5}, "result": True}
 }
+P35 = {"process_graph": PG35}
 
 
 @pytest.fixture
 def pjob():
     return PartitionedJob(
-        process_graph=PG35,
+        process=P35,
         metadata={},
         job_options={},
         subjobs=[
@@ -32,11 +37,6 @@ def pjob():
             SubJob(process_graph=PG23, backend_id="b2"),
         ]
     )
-
-
-@pytest.fixture
-def zk_client() -> DummyKazooClient:
-    return DummyKazooClient()
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ class TestZooKeeperPartitionedJobDB:
             "/t/pj-20220117-174800-5": {
                 "created": now_approx(),
                 "user": "TODO",
-                "process_graph": PG35,
+                "process": P35,
                 "metadata": {},
                 "job_options": {},
             },
@@ -108,7 +108,7 @@ class TestZooKeeperPartitionedJobDB:
         assert zk_db.get_pjob_metadata("pj-20220117-174800-5") == {
             "created": now_approx(),
             "user": "TODO",
-            "process_graph": PG35,
+            "process": P35,
             "metadata": {},
             "job_options": {},
         }
@@ -370,4 +370,36 @@ class TestPartitionedJobTracker:
             "status": "error",
             "message": "error",
             "timestamp": now_approx(),
+        }
+
+
+class TestBatchJobSplitting:
+
+    def test_create_job_basic(self, api100, backend1):
+        # TODO: put this in helper, fixture, or setup procedure?
+        ZooKeeperPartitionedJobDB._clock = itertools.count(
+            datetime.datetime(2022, 1, 19, tzinfo=datetime.timezone.utc).timestamp()).__next__
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        with mock_generate_id_candidates():
+            res = api100.post("/jobs", json={
+                "title": "3+5",
+                "description": "Addition of 3 and 5",
+                "process": P35,
+                "plan": "free",
+                "job_options": {"_jobsplitting": True}
+            }).assert_status_code(201)
+
+        expected_job_id = "agg-pj-20220117-174800-5"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "title": "3+5",
+            "description": "Addition of 3 and 5",
+            "process": P35,
+            "status": "created",
+            "created": "2022-01-19T00:00:00Z",
         }
