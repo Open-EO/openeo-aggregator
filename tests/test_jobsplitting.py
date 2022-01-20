@@ -11,7 +11,7 @@ import kazoo.exceptions
 import pytest
 
 from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker
-from openeo_aggregator.testing import DummyKazooClient, str_starts_with
+from openeo_aggregator.testing import str_starts_with, clock_mock
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN
 
 PG12 = {
@@ -50,6 +50,7 @@ def zk_tracker(zk_db, multi_backend_connection) -> PartitionedJobTracker:
 
 
 def mock_generate_id_candidates(start=5):
+    # TODO can this mock be avoided (mock os.random, or make sure to seed RNG)?
     def ids(prefix="", max_attemtps=5):
         for i in range(start, start + max_attemtps):
             prefix = prefix.format(date="20220117-174800")
@@ -375,11 +376,8 @@ class TestPartitionedJobTracker:
 
 class TestBatchJobSplitting:
 
-    def test_create_job_basic(self, api100, backend1):
-        # TODO: put this in helper, fixture, or setup procedure?
-        ZooKeeperPartitionedJobDB._clock = itertools.count(
-            datetime.datetime(2022, 1, 19, tzinfo=datetime.timezone.utc).timestamp()).__next__
-
+    @clock_mock("2022-01-19T12:34:56Z")
+    def test_create_job_basic(self, api100, backend1, zk_client):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         with mock_generate_id_candidates():
             res = api100.post("/jobs", json={
@@ -401,5 +399,14 @@ class TestBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "status": "created",
-            "created": "2022-01-19T00:00:00Z",
+            "created": "2022-01-19T12:34:56Z",
+        }
+
+        zk_data = zk_client.get_data_deserialized(drop_empty=True)
+        assert zk_data["/openeo-aggregator/jobsplitting/v1/pj-20220117-174800-5"] == {
+            "user": "TODO",
+            "created": datetime.datetime(2022, 1, 19, 12, 34, 56, tzinfo=datetime.timezone.utc).timestamp(),
+            "process": P35,
+            "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
+            "job_options": {"_jobsplitting": True},
         }

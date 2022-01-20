@@ -13,6 +13,7 @@ from typing import NamedTuple, List, Dict, Optional, Iterator
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
+from openeo_aggregator.utils import Clock
 from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.users.auth import HttpAuthHandler
 
@@ -72,7 +73,7 @@ STATUS_ERROR = "error"
 def generate_id_candidates(prefix: str = "", max_attempts=5) -> Iterator[str]:
     """Generator for storage id candidates."""
     if "{date}" in prefix:
-        prefix = prefix.format(date=datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S"))
+        prefix = prefix.format(date=Clock.utcnow().strftime("%Y%m%d-%H%M%S"))
     for _ in range(max_attempts):
         yield prefix + "%08x" % (int.from_bytes(os.urandom(4), "big"))
 
@@ -82,9 +83,6 @@ class ZooKeeperPartitionedJobDB:
 
     # TODO: support for canceling?
     # TODO: extract abstract PartitionedJobDB for other storage backends?
-
-    # Simplify mocking time for unit tests.
-    _clock = time.time  # TODO: centralized helper for this test pattern
 
     def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/jobsplitting/v1'):
         self._client = client
@@ -132,7 +130,7 @@ class ZooKeeperPartitionedJobDB:
             job_node_value = self.serialize(
                 user="TODO",
                 # TODO: more BatchJobMetdata fields
-                created=self._clock(),
+                created=Clock.time(),
                 process=job.process,
                 metadata=job.metadata,
                 job_options=job.job_options,
@@ -222,7 +220,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=self._clock())
+                value=self.serialize(status=status, message=message, timestamp=Clock.time())
             )
 
     def get_pjob_status(self, pjob_id: str) -> dict:
@@ -243,7 +241,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=self._clock()),
+                value=self.serialize(status=status, message=message, timestamp=Clock.time()),
             )
 
     def get_sjob_status(self, pjob_id: str, sjob_id: str) -> dict:

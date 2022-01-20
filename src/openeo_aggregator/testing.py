@@ -1,9 +1,16 @@
-import json
+from unittest import mock
 
+import datetime
+import itertools
+import json
 import pathlib
+from typing import Union
 
 import kazoo
 import kazoo.exceptions
+
+from openeo.util import rfc3339
+from openeo_aggregator.utils import Clock
 
 
 class DummyKazooClient:
@@ -80,3 +87,16 @@ def str_starts_with(prefix) -> _StrStartsWith:
     """pytest helper to check if a string starts with a prefix"""
     # TODO: move to openeo_driver
     return _StrStartsWith(prefix=prefix)
+
+
+def clock_mock(start: Union[int, float, str, datetime.datetime] = 1500000000, step: float = 0):
+    """Mock the `time()` calls in `Clock` with a given start date/time and increment."""
+    if isinstance(start, str):
+        start = rfc3339.parse_date_or_datetime(start)
+    if isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
+        start = datetime.datetime.combine(start, datetime.time())
+    if isinstance(start, datetime.datetime):
+        start = start.replace(tzinfo=datetime.timezone.utc).timestamp()
+    assert isinstance(start, (int, float))
+
+    return mock.patch.object(Clock, "_time", new=itertools.count(start, step=step).__next__)

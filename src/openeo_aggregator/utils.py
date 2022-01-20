@@ -1,3 +1,4 @@
+import datetime
 import logging
 import time
 from typing import Callable, Iterable, Iterator, List
@@ -159,3 +160,28 @@ class EventHandler:
                 _log.error(f"Failure calling event {self._name!r} callback {callback!r}: {e}")
                 if not skip_failures:
                     raise
+
+
+class Clock:
+    """
+    Time/date helper, allowing overrides of "current" time/date for test purposes.
+    """
+
+    # TODO: start using a dedicated time mocking tool like freezegun (https://github.com/spulec/freezegun)
+    #       or time-machine (https://github.com/adamchainz/time-machine)?
+
+    _time = time.time
+
+    @classmethod
+    def time(cls) -> float:
+        """
+        Like `time.time()`: current time as Unix Epoch timestamp.
+        """
+        return cls._time()
+
+    @classmethod
+    def utcnow(cls) -> datetime.datetime:
+        """
+        Like `datetime.datetime.utcnow()`: Current UTC datetime (naive).
+        """
+        return datetime.datetime.utcfromtimestamp(cls.time())
