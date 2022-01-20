@@ -2,9 +2,8 @@ import datetime
 
 import pytest
 
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import clock_mock, approx_now
 from openeo_aggregator.utils import Clock
-from test_jobsplitting import now_approx
 
 
 @pytest.mark.parametrize("fail", [True, False])
@@ -29,11 +28,11 @@ def test_mock_clock_basic(fail):
     ("2021-02-21T12:34:56Z", 1613910896, datetime.datetime(2021, 2, 21, 12, 34, 56)),
 ])
 def test_mock_clock_start(start, expected_time, expected_date):
-    assert Clock.time() == now_approx()
+    assert Clock.time() == approx_now()
     with clock_mock(start=start):
         assert Clock.time() == expected_time
         assert Clock.utcnow() == expected_date
-    assert Clock.time() == now_approx()
+    assert Clock.time() == approx_now()
 
 
 @pytest.mark.parametrize("step", [1, 2, .1])

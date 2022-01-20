@@ -13,7 +13,7 @@ from typing import NamedTuple, List, Dict, Optional, Iterator
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
-from openeo_aggregator.utils import Clock
+from openeo_aggregator.utils import Clock, _UNSET
 from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.users.auth import HttpAuthHandler
 
@@ -64,7 +64,8 @@ class JobSplitter:
 
 
 # Statuses of partitioned jobs and subjobs
-STATUS_INSERTED = "inserted"
+STATUS_INSERTED = "inserted"  # Just inserted in internal storage (zookeeper), not yet created on a remote back-end
+STATUS_CREATED = "created"  # Created on remote back-end
 STATUS_RUNNING = "running"  # Covers openEO batch job statuses "created", "queued", "running"
 STATUS_FINISHED = "finished"
 STATUS_ERROR = "error"
@@ -123,9 +124,7 @@ class ZooKeeperPartitionedJobDB:
 
         :return: storage id of the partitioned job
         """
-
         with self._connect():
-
             # Insert parent node, with "static" (write once) metadata as associated data
             job_node_value = self.serialize(
                 user="TODO",
@@ -159,6 +158,7 @@ class ZooKeeperPartitionedJobDB:
                     value=self.serialize(
                         process_graph=subjob.process_graph,
                         backend_id=subjob.backend_id,
+                        title=f"Partitioned job {pjob_id} part {sjob_id} ({i + 1}/{len(job.subjobs)})",
                         # TODO:  dependencies/constraints between subjobs?
                     ),
                     makepath=True,
@@ -260,7 +260,7 @@ class PartitionedJobTracker:
         self._db = db
         self._backends = backends
 
-    def submit(self, pjob: PartitionedJob) -> str:
+    def create(self, pjob: PartitionedJob, flask_request: flask.Request) -> str:
         """
         Submit a partitioned job: store metadata of partitioned and related sub-jobs in the database.
 
@@ -269,7 +269,100 @@ class PartitionedJobTracker:
         """
         pjob_id = self._db.insert(pjob)
         _log.info(f"Inserted partitioned job: {pjob_id}")
+        self.create_sjobs(pjob_id, flask_request=flask_request)
         return pjob_id
+
+    def create_sjobs(self, pjob_id: str, flask_request: flask.Request):
+        """Create all sub-jobs on remote back-end for given partitioned job"""
+        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
+        sjobs = self._db.list_subjobs(pjob_id)
+        _log.info(f"Creating partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
+        create_stats = collections.Counter()
+        for sjob_id, sjob_metadata in sjobs.items():
+            # TODO: check job's user against request's user
+            sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+            _log.info(f"To create: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
+            if sjob_status == STATUS_INSERTED:
+                new_status = self._create_sjob(
+                    pjob_id=pjob_id, sjob_id=sjob_id,
+                    pjob_metadata=pjob_metadata, sjob_metadata=sjob_metadata,
+                    flask_request=flask_request,
+                )
+                create_stats[new_status] += 1
+            else:
+                _log.warning(f"Not creating {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
+
+        pjob_status = STATUS_CREATED if create_stats[STATUS_CREATED] > 0 else STATUS_ERROR
+        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(create_stats))
+
+    def _create_sjob(
+            self, pjob_id: str, sjob_id: str,
+            pjob_metadata: dict, sjob_metadata: dict,
+            flask_request: flask.Request,
+    ) -> str:
+        try:
+            con = self._backends.get_connection(sjob_metadata["backend_id"])
+            # TODO: different way to authenticate request?
+            with con.authenticated_from_request(request=flask_request), \
+                    con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
+                with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info):
+                    job = con.create_job(
+                        process_graph=sjob_metadata["process_graph"],
+                        title=sjob_metadata.get("title"),
+                        # TODO: fo plan/budget need conversion?
+                        plan=pjob_metadata.get("plan"),
+                        budget=pjob_metadata.get("budget"),
+                        additional=pjob_metadata.get("job_options"),
+                    )
+            _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
+            self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message="created")
+            return STATUS_CREATED
+        except Exception as e:
+            # TODO: detect recoverable issue and allow for retry?
+            _log.error(f"Creation of {pjob_id}:{sjob_id} failed", exc_info=True)
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=f"Create failed: {e}")
+            return STATUS_ERROR
+
+    def start_sjobs(self, pjob_id: str, flask_request: flask.Request):
+        """Start all sub-jobs on remote back-end for given partitioned job"""
+        sjobs = self._db.list_subjobs(pjob_id)
+        _log.info(f"Starting partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
+        start_stats = collections.Counter()
+        for sjob_id, sjob_metadata in sjobs.items():
+            # TODO: check job's user against request's user
+            sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+            _log.info(f"To Start: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
+            if sjob_status == STATUS_CREATED:
+                new_status = self._start_sjob(
+                    pjob_id=pjob_id, sjob_id=sjob_id,
+                    sjob_metadata=sjob_metadata,
+                    flask_request=flask_request,
+                )
+                start_stats[new_status] += 1
+            else:
+                _log.warning(f"Not starting {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
+
+        pjob_status = STATUS_RUNNING if start_stats[STATUS_RUNNING] > 0 else STATUS_ERROR
+        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(start_stats))
+
+    def _start_sjob(self, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request) -> str:
+        try:
+            job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+            con = self._backends.get_connection(sjob_metadata["backend_id"])
+            # TODO: different way to authenticate request?
+            with con.authenticated_from_request(request=flask_request), \
+                    con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
+                with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info):
+                    job = con.job(job_id)
+                    job.start_job()
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message="started")
+            return STATUS_RUNNING
+        except Exception as e:
+            # TODO: detect recoverable issue and allow for retry?
+            _log.error(f"Start of {pjob_id}:{sjob_id} failed", exc_info=True)
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=f"Failed to start: {e}")
+            return STATUS_ERROR
 
     def sync(self, pjob_id, flask_request: flask.Request):
         """
@@ -281,10 +374,7 @@ class PartitionedJobTracker:
         :param flask_request: flask request of owning user to use authentication from
         """
         # TODO: (timing) logging
-
-        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
-        if self._db.get_pjob_status(pjob_id) == STATUS_INSERTED:
-            self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING)
+        # TODO: limit number of remote back-end requests per sync?
 
         sjobs = self._db.list_subjobs(pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
@@ -295,32 +385,10 @@ class PartitionedJobTracker:
             sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
             _log.info(f"pjob {pjob_id!r} sjob {sjob_id!r} status {sjob_status}")
             if sjob_status == STATUS_INSERTED:
-                try:
-                    # TODO: different way to authenticate request?
-                    with con.authenticated_from_request(request=flask_request), \
-                            con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
-                        with TimingLogger(title=f"Create subjob {sjob_id} on backend {con.id}", logger=_log.info):
-                            job = con.create_job(
-                                process_graph=sjob_metadata["process_graph"],
-                                title=f"Partitioned job {pjob_id} part {sjob_id}",
-                                description=f"Partitioned job {pjob_id!r} ({len(sjobs)} parts): part {sjob_id!r} ",
-                                plan=pjob_metadata.get("plan"), budget=pjob_metadata.get("budget"),
-                                additional=pjob_metadata.get("job_options"),
-                            )
-                        _log.info(f"Created batch job {job.job_id} on backend {con.id} for {pjob_id}/{sjob_id}")
-                        with TimingLogger(title=f"Start subjob {sjob_id}", logger=_log.info):
-                            # TODO: conditionally start?
-                            job.start_job()
-                except Exception as e:
-                    # TODO: detect recoverable issue and keep status INSERTED to retry with next "sync"?
-                    self._db.set_sjob_status(
-                        pjob_id, sjob_id, status=STATUS_ERROR,
-                        message=f"Failed to create subjob: {e}"
-                    )
-                else:
-                    self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
-                    self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message="started")
-
+                _log.warning(f"pjob {pjob_id!r} sjob {sjob_id!r} not yet created on remote back-end")
+            elif sjob_status == STATUS_CREATED:
+                # TODO: dynamically start subjobs instead of starting all subjobs when partitioned job is started?
+                pass
             elif sjob_status == STATUS_RUNNING:
                 try:
                     with con.authenticated_from_request(request=flask_request):
@@ -347,21 +415,21 @@ class PartitionedJobTracker:
             elif sjob_status == STATUS_FINISHED:
                 pass
 
-            status_counts = collections.Counter(
-                self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
-            )
-            status_message = f"subjob stats: {dict(status_counts)}"
-            _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
-            statusses = set(status_counts)
-            if statusses == {STATUS_FINISHED}:
-                self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message)
-                # TODO: also collect all asset urls
-            elif STATUS_RUNNING in statusses:
-                self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
-            elif STATUS_ERROR in statusses:
-                self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message)
-            else:
-                raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
+        status_counts = collections.Counter(
+            self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
+        )
+        status_message = f"subjob stats: {dict(status_counts)}"
+        _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
+        statusses = set(status_counts)
+        if statusses == {STATUS_FINISHED}:
+            self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message)
+            # TODO: also collect all asset urls
+        elif STATUS_RUNNING in statusses:
+            self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
+        elif STATUS_ERROR in statusses:
+            self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message)
+        else:
+            raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
     def describe_job(self, pjob_id: str) -> dict:
         """RESTJob.describe_job() interface"""
@@ -379,10 +447,6 @@ class PartitionedJobTracker:
             # TODO more fields?
         ).to_api_dict(full=True)
 
-    def get_status(self, pjob_id: str):
-        # TODO
-        return self._db.get_pjob_status(pjob_id)
-
 
 class PartitionedJobConnection:
     """
@@ -395,7 +459,7 @@ class PartitionedJobConnection:
     """
 
     class Job:
-        """RestJob-like interface"""
+        """Interface `RestJob`"""
 
         def __init__(self, pjob_id: str, connection: 'PartitionedJobConnection'):
             self.pjob_id = pjob_id
@@ -404,49 +468,32 @@ class PartitionedJobConnection:
         def describe_job(self) -> dict:
             return self.connection.partitioned_job_tracker.describe_job(pjob_id=self.pjob_id)
 
+        def start_job(self):
+            return self.connection.partitioned_job_tracker.start_sjobs(
+                pjob_id=self.pjob_id,
+                flask_request=flask.request
+            )
+
     def __init__(self, partitioned_job_tracker: PartitionedJobTracker):
         self.partitioned_job_tracker = partitioned_job_tracker
 
     @contextlib.contextmanager
     def authenticated_from_request(self, request: flask.Request):
+        """Interface `BackendConnection.authenticated_from_request()`"""
         # TODO
         try:
             yield self
         finally:
-            ...
+            pass
+
+    @contextlib.contextmanager
+    def override(self, default_timeout: int = _UNSET, default_headers: dict = _UNSET):
+        """Interface `BackendConnection.override()`"""
+        try:
+            yield self
+        finally:
+            pass
 
     def job(self, job_id: str):
-        """Connection.job() interface"""
+        """Interface `Connection.job()`"""
         return self.Job(pjob_id=job_id, connection=self)
-
-
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger("kazoo").setLevel(logging.WARNING)
-    zk = KazooClient()
-
-    process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-    splitter = JobSplitter()
-    pjob = splitter.split(process_graph=process_graph)
-
-    db = ZooKeeperPartitionedJobDB(zk)
-
-    backends = MultiBackendConnection({"vito": "https://openeo.vito.be/openeo/1.0"}, configured_oidc_providers=[])
-
-    tracker = PartitionedJobTracker(db, backends=backends)
-    pjob_id = tracker.submit(pjob)
-    print(pjob_id)
-    flask_request = flask.Request(
-        {"HTTP_AUTHORIZATION": "Bearer basic//" + HttpAuthHandler.build_basic_access_token(user_id="stefaan")})
-    tracker.sync(pjob_id, flask_request=flask_request)
-
-    print(db.list_subjobs(pjob_id))
-
-    while True:
-        tracker.sync(pjob_id, flask_request=flask_request)
-        print(tracker.get_status(pjob_id))
-        time.sleep(5)
-
-
-if __name__ == "__main__":
-    main()

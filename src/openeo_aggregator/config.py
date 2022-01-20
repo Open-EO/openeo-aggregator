@@ -45,6 +45,7 @@ class AggregatorConfig(dict):
 
     zookeeper_client = dict_item(default=None)
     zookeeper_hosts = dict_item(default="127.0.0.1:2181")
+    zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':

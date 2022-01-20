@@ -436,7 +436,7 @@ class AggregatorBatchJobs(BatchJobs):
 
         # TODO: inject PartitionedJobTracker as arg instead of building it here?
         zk = config.zookeeper_client or KazooClient(config.zookeeper_hosts)
-        db = jobsplitting.ZooKeeperPartitionedJobDB(zk)
+        db = jobsplitting.ZooKeeperPartitionedJobDB(zk, prefix=config.zookeeper_prefix.rstrip("/") + "/pj/")
         self.partitioned_job_tracker = jobsplitting.PartitionedJobTracker(db, backends=self.backends)
 
     def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
@@ -529,7 +529,7 @@ class AggregatorBatchJobs(BatchJobs):
         splitter = jobsplitting.JobSplitter(backends=self.backends)
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
-        job_id = self.partitioned_job_tracker.submit(pjob)
+        job_id = self.partitioned_job_tracker.create(pjob, flask_request=flask.request)
 
         return BatchJobMetadata(
             id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=JobIdMapping.AGG),

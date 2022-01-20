@@ -58,6 +58,7 @@ def base_config(configured_oidc_providers, zk_client) -> AggregatorConfig:
     conf.auth_entitlement_check = False
 
     conf.zookeeper_client = zk_client
+    conf.zookeeper_prefix = "/t/"
     return conf
 
 

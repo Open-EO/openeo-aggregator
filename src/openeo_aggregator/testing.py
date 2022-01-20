@@ -1,10 +1,12 @@
-from unittest import mock
 
 import datetime
 import itertools
 import json
 import pathlib
+import pytest
+import time
 from typing import Union
+from unittest import mock
 
 import kazoo
 import kazoo.exceptions
@@ -70,6 +72,11 @@ class DummyKazooClient:
             for (k, v) in self.data.items()
             if v or not drop_empty
         }
+
+
+def approx_now(abs=10):
+    """Pytest checker for whether timestamp is approximately 'now' (within some tolerance)."""
+    return pytest.approx(time.time(), abs=abs)
 
 
 class _StrStartsWith:
