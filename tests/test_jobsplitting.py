@@ -8,7 +8,8 @@ import kazoo.exceptions
 import pytest
 
 from openeo.util import rfc3339
-from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker
+from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker, \
+    PartitionedJobConnection
 from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet
 
@@ -572,3 +573,24 @@ class TestBatchJobSplitting:
         assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
             "status": "finished",
         })
+
+
+class TestPartitionedJobConnection:
+
+    def test_authenticated_from_request(self, zk_tracker):
+        con = PartitionedJobConnection(partitioned_job_tracker=zk_tracker)
+        assert con._flask_request is None
+        with con.authenticated_from_request(request=flask.Request(environ={"PATH_INFO": "foo"})):
+            assert con._flask_request.path == "/foo"
+        assert con._flask_request is None
+
+    def test_double_auth(self, zk_tracker):
+        con = PartitionedJobConnection(partitioned_job_tracker=zk_tracker)
+        assert con._flask_request is None
+        with con.authenticated_from_request(request=flask.Request(environ={"PATH_INFO": "foo"})):
+            assert con._flask_request.path == "/foo"
+            with pytest.raises(RuntimeError, match="Reentering authenticated_from_request"):
+                with con.authenticated_from_request(request=flask.Request(environ={"PATH_INFO": "bar"})):
+                    pass
+            assert con._flask_request.path == "/foo"
+        assert con._flask_request is None

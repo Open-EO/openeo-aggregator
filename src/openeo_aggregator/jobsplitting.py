@@ -5,7 +5,7 @@ import flask
 import json
 import logging
 import os
-import time
+import threading
 from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from typing import NamedTuple, List, Dict, Optional, Iterator
@@ -15,7 +15,6 @@ from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.utils import Clock, _UNSET
 from openeo_driver.backend import BatchJobMetadata
-from openeo_driver.users.auth import HttpAuthHandler
 
 # TODO: not only support batch jobs but also sync jobs?
 
@@ -83,7 +82,7 @@ class ZooKeeperPartitionedJobDB:
     """ZooKeeper based Partitioned job database"""
 
     # TODO: support for canceling?
-    # TODO: extract abstract PartitionedJobDB for other storage backends?
+    # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
 
     def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/jobsplitting/v1'):
         self._client = client
@@ -310,7 +309,7 @@ class PartitionedJobTracker:
                     job = con.create_job(
                         process_graph=sjob_metadata["process_graph"],
                         title=sjob_metadata.get("title"),
-                        # TODO: fo plan/budget need conversion?
+                        # TODO: do plan/budget need conversion?
                         plan=pjob_metadata.get("plan"),
                         budget=pjob_metadata.get("budget"),
                         additional=pjob_metadata.get("job_options"),
@@ -440,14 +439,14 @@ class PartitionedJobTracker:
         else:
             raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
-    def describe_job(self, pjob_id: str) -> dict:
+    def describe_job(self, pjob_id: str, flask_request: flask.Request) -> dict:
         """RESTJob.describe_job() interface"""
-        self.sync(pjob_id=pjob_id, flask_request=flask.request)
+        self.sync(pjob_id=pjob_id, flask_request=flask_request)
         metadata = self._db.get_pjob_metadata(pjob_id=pjob_id)
         status = self._db.get_pjob_status(pjob_id=pjob_id)["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
         return BatchJobMetadata(
-            id="TODO?", status=status,
+            id=pjob_id, status=status,
             created=datetime.datetime.utcfromtimestamp(metadata["created"]),
             title=metadata["metadata"].get("title"),
             description=metadata["metadata"].get("description"),
@@ -463,7 +462,7 @@ class PartitionedJobConnection:
     This fake connection acts as adapter between:
     - the `backend.py` logic that expects `BackendConnection` objects
       to send openEO REST HTTP requests
-    - the `PartitionedJobTracker` logic
+    - the `PartitionedJobTracker` logic that interacts with internal database
     """
 
     class Job:
@@ -474,25 +473,33 @@ class PartitionedJobConnection:
             self.connection = connection
 
         def describe_job(self) -> dict:
-            return self.connection.partitioned_job_tracker.describe_job(pjob_id=self.pjob_id)
+            return self.connection.partitioned_job_tracker.describe_job(
+                pjob_id=self.pjob_id,
+                flask_request=self.connection._flask_request
+            )
 
         def start_job(self):
             return self.connection.partitioned_job_tracker.start_sjobs(
                 pjob_id=self.pjob_id,
-                flask_request=flask.request
+                flask_request=self.connection._flask_request
             )
 
     def __init__(self, partitioned_job_tracker: PartitionedJobTracker):
         self.partitioned_job_tracker = partitioned_job_tracker
+        self._flask_request_lock = threading.Lock()
+        self._flask_request = None
 
     @contextlib.contextmanager
     def authenticated_from_request(self, request: flask.Request):
         """Interface `BackendConnection.authenticated_from_request()`"""
-        # TODO
+        if not self._flask_request_lock.acquire(blocking=False):
+            raise RuntimeError("Reentering authenticated_from_request")
+        self._flask_request = request
         try:
             yield self
         finally:
-            pass
+            self._flask_request = None
+            self._flask_request_lock.release()
 
     @contextlib.contextmanager
     def override(self, default_timeout: int = _UNSET, default_headers: dict = _UNSET):
