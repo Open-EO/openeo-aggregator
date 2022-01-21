@@ -10,14 +10,15 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from typing import NamedTuple, List, Dict, Optional, Iterator
 
+from openeo.rest.job import ResultAsset
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.utils import Clock, _UNSET
 from openeo_driver.backend import BatchJobMetadata
+from openeo_driver.errors import JobNotFinishedException
 
 # TODO: not only support batch jobs but also sync jobs?
-
 
 _log = logging.getLogger(__name__)
 
@@ -376,7 +377,6 @@ class PartitionedJobTracker:
         """
         # TODO: (timing) logging
         # TODO: limit number of remote back-end requests per sync?
-
         sjobs = self._db.list_subjobs(pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
         for sjob_id, sjob_metadata in sjobs.items():
@@ -454,6 +454,27 @@ class PartitionedJobTracker:
             # TODO more fields?
         ).to_api_dict(full=True)
 
+    def get_assets(self, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
+        # TODO: check job's user against request's user
+        sjobs = self._db.list_subjobs(pjob_id)
+        assets = []
+        for sjob_id, sjob_metadata in sjobs.items():
+            sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+            if sjob_status in {STATUS_INSERTED, STATUS_CREATED, STATUS_RUNNING}:
+                raise JobNotFinishedException
+            if sjob_status != STATUS_FINISHED:
+                # TODO Partial result https://github.com/Open-EO/openeo-api/pull/433
+                raise JobNotFinishedException
+            # Get assets from remote back-end
+            job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+            con = self._backends.get_connection(sjob_metadata["backend_id"])
+            with con.authenticated_from_request(request=flask_request):
+                # TODO: when some sjob assets fail, still continue with partial results
+                sjob_assets = con.job(job_id).get_results().get_assets()
+            # TODO: rename assets to avoid collision across sjobs
+            assets.extend(sjob_assets)
+        return assets
+
 
 class PartitionedJobConnection:
     """
@@ -465,21 +486,36 @@ class PartitionedJobConnection:
     - the `PartitionedJobTracker` logic that interacts with internal database
     """
 
-    class Job:
-        """Interface `RestJob`"""
+    class JobAdapter:
+        """
+        Adapter for interfaces: `openeo.rest.RestJob`, `openeo.rest.JobResult`
+        """
 
         def __init__(self, pjob_id: str, connection: 'PartitionedJobConnection'):
             self.pjob_id = pjob_id
             self.connection = connection
 
         def describe_job(self) -> dict:
+            """Interface `RESTJob.describe_job`"""
             return self.connection.partitioned_job_tracker.describe_job(
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
             )
 
         def start_job(self):
+            """Interface `RESTJob.start_job`"""
             return self.connection.partitioned_job_tracker.start_sjobs(
+                pjob_id=self.pjob_id,
+                flask_request=self.connection._flask_request
+            )
+
+        def get_results(self):
+            """Interface `RESTJob.get_results`"""
+            return self
+
+        def get_assets(self):
+            """Interface `openeo.rest.JobResult.get_asserts`"""
+            return self.connection.partitioned_job_tracker.get_assets(
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
             )
@@ -511,4 +547,4 @@ class PartitionedJobConnection:
 
     def job(self, job_id: str):
         """Interface `Connection.job()`"""
-        return self.Job(pjob_id=job_id, connection=self)
+        return self.JobAdapter(pjob_id=job_id, connection=self)

@@ -574,6 +574,51 @@ class TestBatchJobSplitting:
             "status": "finished",
         })
 
+    @clock_mock(now_rfc3339)
+    def test_job_results(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        with mock_generate_id_candidates():
+            res = api100.post("/jobs", json={
+                "process": P35,
+                "job_options": {"_jobsplitting": True}
+            }).assert_status_code(201)
+
+        expected_job_id = "agg-pj-20220117-174800-5"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        # Start job
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+
+        # Status check: finished
+        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
+
+        # Get results
+        requests_mock.get(backend1 + "/jobs/1j0b/results", json={
+            "assets": {
+                "preview.png": {"href": backend1 + "/jobs/1j0b/results/preview.png"},
+                "res001.tif": {"href": backend1 + "/jobs/1j0b/results/res001.tiff"},
+                "res002.tif": {"href": backend1 + "/jobs/1j0b/results/res002.tiff"},
+            }
+        })
+
+        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        assert res.json == DictSubSet({
+            "id": expected_job_id,
+            "assets": {
+                "preview.png": DictSubSet({"href": backend1 + "/jobs/1j0b/results/preview.png"}),
+                "res001.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res001.tiff"}),
+                "res002.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res002.tiff"}),
+            }
+        })
+
 
 class TestPartitionedJobConnection:
 
