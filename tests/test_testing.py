@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-from openeo_aggregator.testing import clock_mock, approx_now
+from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains, approx_str_suffix
 from openeo_aggregator.utils import Clock
 
 
@@ -41,3 +41,30 @@ def test_clock_mock_step(step):
         assert Clock.time() == 1000
         assert Clock.time() == 1000 + step
         assert Clock.time() == 1000 + 2 * step
+
+
+def test_approx_str_prefix():
+    assert "foobar" == approx_str_prefix("foo")
+    assert "foobar" != approx_str_prefix("bar")
+    assert not ("foobar" == approx_str_prefix("bar"))
+
+
+def test_approx_str_suffix():
+    assert "foobar" == approx_str_suffix("bar")
+    assert "foobar" != approx_str_suffix("foo")
+    assert not ("foobar" == approx_str_suffix("foo"))
+
+
+def test_approx_str_contains():
+    assert "foobar" == approx_str_contains("foo")
+    assert "foobar" == approx_str_contains("bar")
+    assert "foobar" == approx_str_contains("oba")
+    assert "foobar" != approx_str_contains("meh")
+    assert not ("foobar" == approx_str_contains("meh"))
+
+
+def test_approx_str_nesting():
+    actual = {"id": 123, "msg": "error: lookup failure #845 (confirmed)"}
+    assert actual == {"id": 123, "msg": approx_str_prefix("error:")}
+    assert actual == {"id": 123, "msg": approx_str_contains("lookup failure")}
+    assert actual == {"id": 123, "msg": approx_str_suffix("(confirmed)")}

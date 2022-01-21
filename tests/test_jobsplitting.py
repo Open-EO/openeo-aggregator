@@ -1,8 +1,5 @@
-from unittest import mock
-
 import datetime
-import itertools
-import time
+from unittest import mock
 
 import flask
 import requests
@@ -10,8 +7,9 @@ import kazoo
 import kazoo.exceptions
 import pytest
 
+from openeo.util import rfc3339
 from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker
-from openeo_aggregator.testing import str_starts_with, clock_mock, approx_now
+from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet
 
 PG12 = {
@@ -196,7 +194,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "created",
-            "message": "Counter({'created': 2})"
+            "message": approx_str_contains("{'created': 2}"),
         })
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -212,7 +210,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "error",
-            "message": "Counter({'error': 2})",
+            "message": approx_str_contains("{'error': 2}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -220,7 +218,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {
                 "status": "error",
-                "message": str_starts_with("Create failed: No mock address:"),
+                "message": approx_str_prefix("Create failed: No mock address:"),
                 "timestamp": approx_now(),
             }
 
@@ -231,7 +229,7 @@ class TestPartitionedJobTracker:
         pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "created",
-            "message": "Counter({'created': 2})"
+            "message": approx_str_contains("{'created': 2}"),
         })
 
         # Start
@@ -241,7 +239,7 @@ class TestPartitionedJobTracker:
         zk_tracker.start_sjobs(pjob_id=pjob_id, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "running",
-            "message": "Counter({'running': 2})"
+            "message": approx_str_contains("{'running': 2}"),
         })
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -271,7 +269,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
-            "message": "subjob stats: {'running': 2}",
+            "message": approx_str_contains("{'running': 2}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -290,7 +288,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
-            "message": "subjob stats: {'running': 1, 'finished': 1}",
+            "message": approx_str_contains("{'running': 1, 'finished': 1}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -302,7 +300,7 @@ class TestPartitionedJobTracker:
         }
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0001") == {
             "status": "finished",
-            "message": None,
+            "message": "finished",
             "timestamp": approx_now(),
         }
 
@@ -313,7 +311,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "finished",
-            "message": "subjob stats: {'finished': 2}",
+            "message": approx_str_contains("{'finished': 2}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -321,7 +319,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {
                 "status": "finished",
-                "message": None,
+                "message": "finished",
                 "timestamp": approx_now(),
             }
 
@@ -348,7 +346,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
-            "message": "subjob stats: {'running': 1, 'error': 1}",
+            "message": approx_str_contains("{'running': 1, 'error': 1}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -371,7 +369,7 @@ class TestPartitionedJobTracker:
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "error",
-            "message": "subjob stats: {'error': 2}",
+            "message": approx_str_contains("{'error': 2}"),
             "timestamp": approx_now(),
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
@@ -389,8 +387,10 @@ class TestPartitionedJobTracker:
 
 
 class TestBatchJobSplitting:
+    now_rfc3339: str = "2022-01-19T12:34:56Z"
+    now_epoch: float = rfc3339.parse_datetime(now_rfc3339).replace(tzinfo=datetime.timezone.utc).timestamp()
 
-    @clock_mock("2022-01-19T12:34:56Z")
+    @clock_mock(now_rfc3339)
     def test_create_job_basic(self, api100, backend1, zk_client, requests_mock):
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -415,22 +415,21 @@ class TestBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "status": "created",
-            "created": "2022-01-19T12:34:56Z",
+            "created": self.now_rfc3339,
         }
 
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        created = datetime.datetime(2022, 1, 19, 12, 34, 56, tzinfo=datetime.timezone.utc).timestamp()
         assert zk_data["/t/pj/pj-20220117-174800-5"] == {
             "user": "TODO",
-            "created": created,
+            "created": self.now_epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
             "job_options": {"_jobsplitting": True},
         }
         assert zk_data["/t/pj/pj-20220117-174800-5/status"] == {
             "status": "created",
-            "message": "Counter({'created': 1})",
-            "timestamp": pytest.approx(created, abs=5)
+            "message": approx_str_contains("{'created': 1}"),
+            "timestamp": pytest.approx(self.now_epoch, abs=5)
         }
         assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000"] == {
             "backend_id": "b1",
@@ -443,10 +442,10 @@ class TestBatchJobSplitting:
         assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == {
             "status": "created",
             "message": "created",
-            "timestamp": pytest.approx(created, abs=5)
+            "timestamp": pytest.approx(self.now_epoch, abs=5)
         }
 
-    @clock_mock("2022-01-19T12:34:56Z")
+    @clock_mock(now_rfc3339)
     def test_create_job_failed_backend(self, api100, backend1, zk_client, requests_mock):
         requests_mock.post(backend1 + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -461,7 +460,6 @@ class TestBatchJobSplitting:
             }).assert_status_code(201)
 
         expected_job_id = "agg-pj-20220117-174800-5"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -471,7 +469,7 @@ class TestBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "status": "error",
-            "created": "2022-01-19T12:34:56Z",
+            "created": self.now_rfc3339,
         }
 
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
@@ -483,12 +481,13 @@ class TestBatchJobSplitting:
             "message": "Create failed: [500] Internal: nope",
         })
 
-    @clock_mock("2022-01-19T12:34:56Z")
+    @clock_mock(now_rfc3339)
     def test_start_job(self, api100, backend1, zk_client, requests_mock):
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
+        # Submit job
         with mock_generate_id_candidates():
             res = api100.post("/jobs", json={
                 "process": P35,
@@ -496,29 +495,25 @@ class TestBatchJobSplitting:
             }).assert_status_code(201)
 
         expected_job_id = "agg-pj-20220117-174800-5"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        # Submit job
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == {
-            "id": expected_job_id,
-            "process": P35,
-            "status": "created",
-            "created": "2022-01-19T12:34:56Z",
-        }
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
 
         # Start job
         api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
 
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
         assert zk_data["/t/pj/pj-20220117-174800-5"] == DictSubSet({
-            "created": datetime.datetime(2022, 1, 19, 12, 34, 56, tzinfo=datetime.timezone.utc).timestamp(),
+            "created": self.now_epoch,
             "process": P35,
         })
         assert zk_data["/t/pj/pj-20220117-174800-5/status"] == DictSubSet({
             "status": "running",
-            "message": "Counter({'running': 1})"
+            "message": approx_str_contains("{'running': 1}"),
         })
         assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/job_id"] == DictSubSet({
             "job_id": "1j0b",
@@ -526,4 +521,54 @@ class TestBatchJobSplitting:
         assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
             "status": "running",
             "message": "started",
+        })
+
+    @clock_mock(now_rfc3339)
+    def test_sync_job(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        with mock_generate_id_candidates():
+            res = api100.post("/jobs", json={
+                "process": P35,
+                "job_options": {"_jobsplitting": True}
+            }).assert_status_code(201)
+
+        expected_job_id = "agg-pj-20220117-174800-5"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
+
+        # Start job
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+
+        # Status check: still running
+        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "running"})
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+
+        # Status check: finished
+        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
+
+        zk_data = zk_client.get_data_deserialized(drop_empty=True)
+        assert zk_data["/t/pj/pj-20220117-174800-5"] == DictSubSet({
+            "created": self.now_epoch,
+            "process": P35,
+        })
+        assert zk_data["/t/pj/pj-20220117-174800-5/status"] == DictSubSet({
+            "status": "finished",
+            "message": approx_str_contains("{'finished': 1}"),
+        })
+        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/job_id"] == DictSubSet({
+            "job_id": "1j0b",
+        })
+        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
+            "status": "finished",
         })

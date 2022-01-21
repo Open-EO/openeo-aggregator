@@ -111,6 +111,7 @@ class ZooKeeperPartitionedJobDB:
     @staticmethod
     def serialize(**kwargs) -> bytes:
         """Serialize a dictionary (given as arguments) in JSON (UTF8 byte-encoded)."""
+        # TODO: also do compression (e.g. gzip)?
         return json.dumps(kwargs).encode("utf8")
 
     @staticmethod
@@ -326,6 +327,7 @@ class PartitionedJobTracker:
 
     def start_sjobs(self, pjob_id: str, flask_request: flask.Request):
         """Start all sub-jobs on remote back-end for given partitioned job"""
+        # TODO: only start a subset of sub-jobs
         sjobs = self._db.list_subjobs(pjob_id)
         _log.info(f"Starting partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
         start_stats = collections.Counter()
@@ -392,22 +394,27 @@ class PartitionedJobTracker:
             elif sjob_status == STATUS_RUNNING:
                 try:
                     with con.authenticated_from_request(request=flask_request):
-                        metadata = con.job(job_id=self._db.get_backend_job_id(pjob_id, sjob_id)).describe_job()
+                        job_id = self._db.get_backend_job_id(pjob_id, sjob_id)
+                        metadata = con.job(job_id).describe_job()
                     status = metadata["status"]
-                    _log.info(f"New status for pjob {pjob_id} sjob {sjob_id}: {status}")
+                    _log.info(f"New status for {pjob_id}:{sjob_id} ({job_id}): {status}")
                     # TODO: handle job "progress" level?
                 except Exception as e:
-                    _log.error(f"Unexpected error while polling job status {pjob_id} {sjob_id}", exc_info=True)
+                    _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}", exc_info=True)
                     # Skip unexpected failure for now (could be temporary)
                     # TODO: inspect error and flag as failed, skip temporary glitches, ....
                 else:
                     if status == "finished":
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=status)
                         # TODO: collect results
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
                         self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=status)
+                    elif status in {"error", "canceled"}:
+                        # TODO: handle "canceled" state properly?
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
                     else:
+                        _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
                         self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
             elif sjob_status == STATUS_ERROR:
                 # TODO: is this a final state? https://github.com/Open-EO/openeo-api/issues/436
@@ -418,7 +425,7 @@ class PartitionedJobTracker:
         status_counts = collections.Counter(
             self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
         )
-        status_message = f"subjob stats: {dict(status_counts)}"
+        status_message = repr(status_counts)
         _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
         statusses = set(status_counts)
         if statusses == {STATUS_FINISHED}:
@@ -426,6 +433,8 @@ class PartitionedJobTracker:
             # TODO: also collect all asset urls
         elif STATUS_RUNNING in statusses:
             self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
+        elif STATUS_CREATED in statusses or STATUS_INSERTED in statusses:
+            pass
         elif STATUS_ERROR in statusses:
             self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message)
         else:
@@ -433,8 +442,7 @@ class PartitionedJobTracker:
 
     def describe_job(self, pjob_id: str) -> dict:
         """RESTJob.describe_job() interface"""
-        # TODO: automatically sync
-        # self.sync(pjob_id=pjob_id, flask_request=None)
+        self.sync(pjob_id=pjob_id, flask_request=flask.request)
         metadata = self._db.get_pjob_metadata(pjob_id=pjob_id)
         status = self._db.get_pjob_status(pjob_id=pjob_id)["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)

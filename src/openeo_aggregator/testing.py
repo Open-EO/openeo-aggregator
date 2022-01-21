@@ -1,11 +1,10 @@
-
 import datetime
 import itertools
 import json
 import pathlib
 import pytest
 import time
-from typing import Union
+from typing import Union, Optional
 from unittest import mock
 
 import kazoo
@@ -79,21 +78,40 @@ def approx_now(abs=10):
     return pytest.approx(time.time(), abs=abs)
 
 
-class _StrStartsWith:
-    def __init__(self, prefix: str):
+class ApproxStr:
+    """Pytest helper in style of `pytest.approx`, but for string checking, based on prefix, body and or suffix"""
+
+    def __init__(
+            self,
+            prefix: Optional[str] = None,
+            body: Optional[str] = None,
+            suffix: Optional[str] = None,
+    ):
+        # TODO: option to do case-insensitive comparison?
         self.prefix = prefix
+        self.body = body
+        self.suffix = suffix
 
     def __eq__(self, other):
-        return isinstance(other, str) and other.startswith(self.prefix)
+        return isinstance(other, str) and \
+               (self.prefix is None or other.startswith(self.prefix)) and \
+               (self.body is None or self.body in other) and \
+               (self.suffix is None or other.endswith(self.suffix))
 
     def __repr__(self):
-        return self.prefix
+        return "...".join([self.prefix or ""] + ([self.body] if self.body else []) + [self.suffix or ""])
 
 
-def str_starts_with(prefix) -> _StrStartsWith:
-    """pytest helper to check if a string starts with a prefix"""
-    # TODO: move to openeo_driver
-    return _StrStartsWith(prefix=prefix)
+def approx_str_prefix(prefix: str) -> ApproxStr:
+    return ApproxStr(prefix=prefix)
+
+
+def approx_str_contains(body: str) -> ApproxStr:
+    return ApproxStr(body=body)
+
+
+def approx_str_suffix(suffix: str) -> ApproxStr:
+    return ApproxStr(suffix=suffix)
 
 
 def clock_mock(start: Union[int, float, str, datetime.datetime] = 1500000000, step: float = 0):
