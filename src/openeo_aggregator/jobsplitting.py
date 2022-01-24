@@ -71,26 +71,21 @@ STATUS_FINISHED = "finished"
 STATUS_ERROR = "error"
 
 
-def generate_id_candidates(prefix: str = "", max_attempts=5) -> Iterator[str]:
-    """Generator for storage id candidates."""
-    if "{date}" in prefix:
-        prefix = prefix.format(date=Clock.utcnow().strftime("%Y%m%d-%H%M%S"))
-    for _ in range(max_attempts):
-        yield prefix + "%08x" % (int.from_bytes(os.urandom(4), "big"))
-
-
 class ZooKeeperPartitionedJobDB:
     """ZooKeeper based Partitioned job database"""
 
     # TODO: support for canceling?
     # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
 
-    def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/jobsplitting/v1'):
+    def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/pj/v1'):
         self._client = client
         self._prefix = prefix
 
-    def _path(self, *path: str) -> str:
+    def _path(self, pjob_id: str, *path: str) -> str:
         """Helper to build a zookeeper path"""
+        assert pjob_id.startswith("pj-")
+        month = pjob_id[3:9]
+        path = (month, pjob_id) + path
         return "{r}/{p}".format(
             r=self._prefix.rstrip("/"),
             p="/".join(path).lstrip("/")
@@ -135,12 +130,15 @@ class ZooKeeperPartitionedJobDB:
                 metadata=job.metadata,
                 job_options=job.job_options,
             )
-            for pjob_id in generate_id_candidates(prefix="pj-{date}-"):
+            # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
+            base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
+            for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, 3)]:
                 try:
                     self._client.create(path=self._path(pjob_id), value=job_node_value, makepath=True)
                     break
                 except NodeExistsError:
                     # TODO: check that NodeExistsError is thrown on existing job_ids
+                    # TODO: add a sleep() to back off a bit?
                     continue
             else:
                 raise RuntimeError("Too much attempts to create new pjob_id")

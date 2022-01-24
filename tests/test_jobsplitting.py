@@ -48,61 +48,61 @@ def zk_tracker(zk_db, multi_backend_connection) -> PartitionedJobTracker:
     return PartitionedJobTracker(db=zk_db, backends=multi_backend_connection)
 
 
-def mock_generate_id_candidates(start=5):
-    # TODO can this mock be avoided (mock os.random, or make sure to seed RNG)?
-    def ids(prefix="", max_attemtps=5):
-        for i in range(start, start + max_attemtps):
-            prefix = prefix.format(date="20220117-174800")
-            yield f"{prefix}{i}"
-
-    return mock.patch("openeo_aggregator.jobsplitting.generate_id_candidates", new=ids)
-
-
+@clock_mock("2022-01-17T17:48:00Z")
 class TestZooKeeperPartitionedJobDB:
 
     def test_insert_basic(self, pjob, zk_client, zk_db):
-        with mock_generate_id_candidates():
-            pjob_id = zk_db.insert(pjob)
-        assert pjob_id == "pj-20220117-174800-5"
+        pjob_id = zk_db.insert(pjob)
+        assert pjob_id == "pj-20220117-174800"
 
         data = zk_client.get_data_deserialized(drop_empty=True)
         assert data == {
-            "/t/pj-20220117-174800-5": {
+            "/t/202201/pj-20220117-174800": {
                 "created": approx_now(),
                 "user": "TODO",
                 "process": P35,
                 "metadata": {},
                 "job_options": {},
             },
-            "/t/pj-20220117-174800-5/status": {
+            "/t/202201/pj-20220117-174800/status": {
                 "status": "inserted",
             },
-            "/t/pj-20220117-174800-5/sjobs/0000": {
+            "/t/202201/pj-20220117-174800/sjobs/0000": {
                 "process_graph": PG12,
                 "backend_id": "b1",
-                "title": "Partitioned job pj-20220117-174800-5 part 0000 (1/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)"
             },
-            "/t/pj-20220117-174800-5/sjobs/0000/status": {
+            "/t/202201/pj-20220117-174800/sjobs/0000/status": {
                 "status": "inserted"
             },
-            "/t/pj-20220117-174800-5/sjobs/0001": {
+            "/t/202201/pj-20220117-174800/sjobs/0001": {
                 "process_graph": PG23,
                 "backend_id": "b2",
-                "title": "Partitioned job pj-20220117-174800-5 part 0001 (2/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)"
             },
-            "/t/pj-20220117-174800-5/sjobs/0001/status": {
+            "/t/202201/pj-20220117-174800/sjobs/0001/status": {
                 "status": "inserted"
             },
         }
 
+    def test_insert_pjob_id_collision(self, pjob, zk_client, zk_db):
+        with clock_mock("2022-01-17T17:48:00Z"):
+            pjob_id = zk_db.insert(pjob)
+        assert pjob_id == "pj-20220117-174800"
+        with clock_mock("2022-01-17T17:48:00Z"):
+            pjob_id = zk_db.insert(pjob)
+        assert pjob_id == "pj-20220117-174800-1"
+        with clock_mock("2022-01-17T17:48:00Z"):
+            pjob_id = zk_db.insert(pjob)
+        assert pjob_id == "pj-20220117-174800-2"
+
     def test_get_pjob_metadata(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):
-            zk_db.get_pjob_metadata("pj-20220117-174800-5")
+            zk_db.get_pjob_metadata("pj-20220117-174800")
 
-        with mock_generate_id_candidates():
-            zk_db.insert(pjob)
+        zk_db.insert(pjob)
 
-        assert zk_db.get_pjob_metadata("pj-20220117-174800-5") == {
+        assert zk_db.get_pjob_metadata("pj-20220117-174800") == {
             "created": approx_now(),
             "user": "TODO",
             "process": P35,
@@ -112,27 +112,25 @@ class TestZooKeeperPartitionedJobDB:
 
     def test_list_subjobs(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):
-            zk_db.list_subjobs("pj-20220117-174800-5")
+            zk_db.list_subjobs("pj-20220117-174800")
 
-        with mock_generate_id_candidates():
-            zk_db.insert(pjob)
+        zk_db.insert(pjob)
 
-        assert zk_db.list_subjobs("pj-20220117-174800-5") == {
+        assert zk_db.list_subjobs("pj-20220117-174800") == {
             "0000": {
                 "process_graph": PG12,
                 "backend_id": "b1",
-                "title": "Partitioned job pj-20220117-174800-5 part 0000 (1/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)"
             },
             "0001": {
                 "process_graph": PG23,
                 "backend_id": "b2",
-                "title": "Partitioned job pj-20220117-174800-5 part 0001 (2/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)"
             },
         }
 
     def test_set_get_backend_job_id(self, pjob, zk_db):
-        with mock_generate_id_candidates():
-            pjob_id = zk_db.insert(pjob)
+        pjob_id = zk_db.insert(pjob)
 
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
@@ -143,30 +141,28 @@ class TestZooKeeperPartitionedJobDB:
 
     def test_set_get_pjob_status(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):
-            zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+            zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
 
-        with mock_generate_id_candidates():
-            zk_db.insert(pjob)
+        zk_db.insert(pjob)
 
-        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
         assert status == {"status": "inserted"}
 
-        zk_db.set_pjob_status(pjob_id="pj-20220117-174800-5", status="running", message="goin' on")
-        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800-5")
+        zk_db.set_pjob_status(pjob_id="pj-20220117-174800", status="running", message="goin' on")
+        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
         assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now()}
 
     def test_set_get_sjob_status(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):
-            zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+            zk_db.get_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000")
 
-        with mock_generate_id_candidates():
-            zk_db.insert(pjob)
+        zk_db.insert(pjob)
 
-        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000")
         assert status == {"status": "inserted"}
 
-        zk_db.set_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000", status="running", message="goin' on")
-        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800-5", sjob_id="0000")
+        zk_db.set_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000", status="running", message="goin' on")
+        status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000")
         assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now()}
 
 
@@ -396,16 +392,15 @@ class TestBatchJobSplitting:
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        with mock_generate_id_candidates():
-            res = api100.post("/jobs", json={
-                "title": "3+5",
-                "description": "Addition of 3 and 5",
-                "process": P35,
-                "plan": "free",
-                "job_options": {"_jobsplitting": True}
-            }).assert_status_code(201)
+        res = api100.post("/jobs", json={
+            "title": "3+5",
+            "description": "Addition of 3 and 5",
+            "process": P35,
+            "plan": "free",
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220117-174800-5"
+        expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
@@ -419,28 +414,30 @@ class TestBatchJobSplitting:
             "created": self.now_rfc3339,
         }
 
+        # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        assert zk_data["/t/pj/pj-20220117-174800-5"] == {
+        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        assert zk_data[zk_prefix] == {
             "user": "TODO",
             "created": self.now_epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
             "job_options": {"_jobsplitting": True},
         }
-        assert zk_data["/t/pj/pj-20220117-174800-5/status"] == {
+        assert zk_data[zk_prefix + "/status"] == {
             "status": "created",
             "message": approx_str_contains("{'created': 1}"),
             "timestamp": pytest.approx(self.now_epoch, abs=5)
         }
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000"] == {
+        assert zk_data[zk_prefix + "/sjobs/0000"] == {
             "backend_id": "b1",
             "process_graph": PG35,
-            "title": "Partitioned job pj-20220117-174800-5 part 0000 (1/1)"
+            "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)"
         }
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/job_id"] == {
+        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == {
             "job_id": "1j0b",
         }
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == {
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == {
             "status": "created",
             "message": "created",
             "timestamp": pytest.approx(self.now_epoch, abs=5)
@@ -451,16 +448,15 @@ class TestBatchJobSplitting:
         requests_mock.post(backend1 + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        with mock_generate_id_candidates():
-            res = api100.post("/jobs", json={
-                "title": "3+5",
-                "description": "Addition of 3 and 5",
-                "process": P35,
-                "plan": "free",
-                "job_options": {"_jobsplitting": True}
-            }).assert_status_code(201)
+        res = api100.post("/jobs", json={
+            "title": "3+5",
+            "description": "Addition of 3 and 5",
+            "process": P35,
+            "plan": "free",
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220117-174800-5"
+        expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -473,11 +469,13 @@ class TestBatchJobSplitting:
             "created": self.now_rfc3339,
         }
 
+        # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        assert zk_data["/t/pj/pj-20220117-174800-5/status"] == DictSubSet({
+        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        assert zk_data[zk_prefix + "/status"] == DictSubSet({
             "status": "error",
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
             "status": "error",
             "message": "Create failed: [500] Internal: nope",
         })
@@ -489,13 +487,12 @@ class TestBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        with mock_generate_id_candidates():
-            res = api100.post("/jobs", json={
-                "process": P35,
-                "job_options": {"_jobsplitting": True}
-            }).assert_status_code(201)
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220117-174800-5"
+        expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -507,19 +504,21 @@ class TestBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
 
+        # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        assert zk_data["/t/pj/pj-20220117-174800-5"] == DictSubSet({
+        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        assert zk_data[zk_prefix] == DictSubSet({
             "created": self.now_epoch,
             "process": P35,
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/status"] == DictSubSet({
+        assert zk_data[zk_prefix + "/status"] == DictSubSet({
             "status": "running",
             "message": approx_str_contains("{'running': 1}"),
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/job_id"] == DictSubSet({
+        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({
             "job_id": "1j0b",
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
             "status": "running",
             "message": "started",
         })
@@ -531,13 +530,12 @@ class TestBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        with mock_generate_id_candidates():
-            res = api100.post("/jobs", json={
-                "process": P35,
-                "job_options": {"_jobsplitting": True}
-            }).assert_status_code(201)
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220117-174800-5"
+        expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -558,19 +556,21 @@ class TestBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
 
+        # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        assert zk_data["/t/pj/pj-20220117-174800-5"] == DictSubSet({
+        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        assert zk_data[zk_prefix] == DictSubSet({
             "created": self.now_epoch,
             "process": P35,
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/status"] == DictSubSet({
+        assert zk_data[zk_prefix + "/status"] == DictSubSet({
             "status": "finished",
             "message": approx_str_contains("{'finished': 1}"),
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/job_id"] == DictSubSet({
+        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({
             "job_id": "1j0b",
         })
-        assert zk_data["/t/pj/pj-20220117-174800-5/sjobs/0000/status"] == DictSubSet({
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
             "status": "finished",
         })
 
@@ -581,13 +581,12 @@ class TestBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        with mock_generate_id_candidates():
-            res = api100.post("/jobs", json={
-                "process": P35,
-                "job_options": {"_jobsplitting": True}
-            }).assert_status_code(201)
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220117-174800-5"
+        expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         # Start job

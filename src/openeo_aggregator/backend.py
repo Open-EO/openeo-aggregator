@@ -436,7 +436,7 @@ class AggregatorBatchJobs(BatchJobs):
 
         # TODO: inject PartitionedJobTracker as arg instead of building it here?
         zk = config.zookeeper_client or KazooClient(config.zookeeper_hosts)
-        db = jobsplitting.ZooKeeperPartitionedJobDB(zk, prefix=config.zookeeper_prefix.rstrip("/") + "/pj/")
+        db = jobsplitting.ZooKeeperPartitionedJobDB(zk, prefix=config.zookeeper_prefix.rstrip("/") + "/pj/v1/")
         self.partitioned_job_tracker = jobsplitting.PartitionedJobTracker(db, backends=self.backends)
 
     def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:

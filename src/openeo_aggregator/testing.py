@@ -32,7 +32,8 @@ class DummyKazooClient:
         self.state = "closed"
 
     def create(self, path: str, value, makepath: bool = False):
-        assert path not in self.data
+        if path in self.data:
+            raise kazoo.exceptions.NodeExistsError()
         parent = str(pathlib.Path(path).parent)
         if parent not in self.data and parent != path:
             if makepath:
@@ -75,7 +76,7 @@ class DummyKazooClient:
 
 def approx_now(abs=10):
     """Pytest checker for whether timestamp is approximately 'now' (within some tolerance)."""
-    return pytest.approx(time.time(), abs=abs)
+    return pytest.approx(Clock.time(), abs=abs)
 
 
 class ApproxStr:
