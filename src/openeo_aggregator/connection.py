@@ -4,7 +4,7 @@ import functools
 import logging
 import re
 import time
-from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union
+from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union, Optional
 
 import flask
 import requests
@@ -19,6 +19,7 @@ from openeo_aggregator.utils import TtlCache, _UNSET, EventHandler
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
     AuthenticationSchemeInvalidException, InternalException
+from openeo_driver.users import User
 
 _log = logging.getLogger(__name__)
 
@@ -113,12 +114,13 @@ class BackendConnection(Connection):
             raise AuthenticationSchemeInvalidException
 
     @contextlib.contextmanager
-    def authenticated_from_request(self, request: flask.Request):
+    def authenticated_from_request(self, request: flask.Request, user: Optional[User] = None):
         """
         Context manager to temporarily authenticate connection based on current flask request.
         """
         self._auth_locked = False
         self.auth = BearerAuth(bearer=self._get_bearer(request=request))
+        # TODO store and use `user` object?
         try:
             yield self
         finally:

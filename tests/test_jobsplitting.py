@@ -11,7 +11,9 @@ from openeo.util import rfc3339
 from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker, \
     PartitionedJobConnection
 from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains
-from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet
+from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
+from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
+from openeo_driver.users.auth import HttpAuthHandler
 
 PG12 = {
     "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
@@ -23,6 +25,9 @@ PG35 = {
     "add": {"process_id": "add", "arguments": {"X": 3, "y": 5}, "result": True}
 }
 P35 = {"process_graph": PG35}
+
+OTHER_TEST_USER = "Someb0dyEl53"
+OTHER_TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=OTHER_TEST_USER)
 
 
 @pytest.fixture
@@ -52,14 +57,14 @@ def zk_tracker(zk_db, multi_backend_connection) -> PartitionedJobTracker:
 class TestZooKeeperPartitionedJobDB:
 
     def test_insert_basic(self, pjob, zk_client, zk_db):
-        pjob_id = zk_db.insert(pjob)
+        pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
         assert pjob_id == "pj-20220117-174800"
 
         data = zk_client.get_data_deserialized(drop_empty=True)
         assert data == {
             "/t/202201/pj-20220117-174800": {
                 "created": approx_now(),
-                "user": "TODO",
+                "user_id": TEST_USER,
                 "process": P35,
                 "metadata": {},
                 "job_options": {},
@@ -87,24 +92,24 @@ class TestZooKeeperPartitionedJobDB:
 
     def test_insert_pjob_id_collision(self, pjob, zk_client, zk_db):
         with clock_mock("2022-01-17T17:48:00Z"):
-            pjob_id = zk_db.insert(pjob)
+            pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
         assert pjob_id == "pj-20220117-174800"
         with clock_mock("2022-01-17T17:48:00Z"):
-            pjob_id = zk_db.insert(pjob)
+            pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
         assert pjob_id == "pj-20220117-174800-1"
         with clock_mock("2022-01-17T17:48:00Z"):
-            pjob_id = zk_db.insert(pjob)
+            pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
         assert pjob_id == "pj-20220117-174800-2"
 
     def test_get_pjob_metadata(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.get_pjob_metadata("pj-20220117-174800")
 
-        zk_db.insert(pjob)
+        zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
         assert zk_db.get_pjob_metadata("pj-20220117-174800") == {
             "created": approx_now(),
-            "user": "TODO",
+            "user_id": TEST_USER,
             "process": P35,
             "metadata": {},
             "job_options": {},
@@ -114,7 +119,7 @@ class TestZooKeeperPartitionedJobDB:
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.list_subjobs("pj-20220117-174800")
 
-        zk_db.insert(pjob)
+        zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
         assert zk_db.list_subjobs("pj-20220117-174800") == {
             "0000": {
@@ -130,7 +135,7 @@ class TestZooKeeperPartitionedJobDB:
         }
 
     def test_set_get_backend_job_id(self, pjob, zk_db):
-        pjob_id = zk_db.insert(pjob)
+        pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
@@ -143,7 +148,7 @@ class TestZooKeeperPartitionedJobDB:
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
 
-        zk_db.insert(pjob)
+        zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
         status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
         assert status == {"status": "inserted"}
@@ -156,7 +161,7 @@ class TestZooKeeperPartitionedJobDB:
         with pytest.raises(kazoo.exceptions.NoNodeError):
             zk_db.get_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000")
 
-        zk_db.insert(pjob)
+        zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
         status = zk_db.get_sjob_status(pjob_id="pj-20220117-174800", sjob_id="0000")
         assert status == {"status": "inserted"}
@@ -187,7 +192,7 @@ class TestPartitionedJobTracker:
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
 
-        pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "created",
@@ -203,7 +208,7 @@ class TestPartitionedJobTracker:
 
     def test_create_error_no_http(self, pjob, zk_client, zk_db, zk_tracker, flask_request):
         """Simple failure use case: no working mock requests to backends"""
-        pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "error",
@@ -223,7 +228,7 @@ class TestPartitionedJobTracker:
         # Create
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
-        pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "created",
             "message": approx_str_contains("{'created': 2}"),
@@ -233,7 +238,7 @@ class TestPartitionedJobTracker:
         requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
         requests_mock.post(backend2 + "/jobs/2jo8/results", status_code=202)
 
-        zk_tracker.start_sjobs(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "running",
             "message": approx_str_contains("{'running': 2}"),
@@ -246,23 +251,38 @@ class TestPartitionedJobTracker:
                 "message": "started",
             })
 
+    def test_start_wrong_user(
+            self, pjob, zk_client, zk_db, zk_tracker, flask_request, requests_mock, backend1, backend2
+    ):
+        # Create
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
+            "status": "created",
+            "message": approx_str_contains("{'created': 2}"),
+        })
+
+        with pytest.raises(JobNotFoundException):
+            zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=OTHER_TEST_USER, flask_request=flask_request)
+
     def test_sync_basic(self, pjob, zk_client, zk_db, zk_tracker, flask_request, requests_mock, backend1, backend2):
         # Create
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
-        pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "created"})
 
         # Start
         requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
         requests_mock.post(backend2 + "/jobs/2jo8/results", status_code=202)
-        zk_tracker.start_sjobs(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "running"})
 
         # Sync (both still running)
         requests_mock.get(backend1 + "/jobs/1j0b", json={"id": "1j0b", "status": "running"})
         requests_mock.get(backend2 + "/jobs/2jo8", json={"id": "2j08", "status": "running"})
-        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.sync(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
@@ -281,7 +301,7 @@ class TestPartitionedJobTracker:
         # Sync (one finished)
         requests_mock.get(backend1 + "/jobs/1j0b", json={"id": "1j0b", "status": "running"})
         requests_mock.get(backend2 + "/jobs/2jo8", json={"id": "2j08", "status": "finished"})
-        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.sync(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
@@ -304,7 +324,7 @@ class TestPartitionedJobTracker:
         # Sync (both finished)
         requests_mock.get(backend1 + "/jobs/1j0b", json={"id": "1j0b", "status": "finished"})
         requests_mock.get(backend2 + "/jobs/2jo8", json={"id": "2j08", "status": "finished"})
-        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.sync(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "finished",
@@ -327,19 +347,19 @@ class TestPartitionedJobTracker:
         # Create
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
         requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
-        pjob_id = zk_tracker.create(pjob, flask_request=flask_request)
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "created"})
 
         # Start
         requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
         requests_mock.post(backend2 + "/jobs/2jo8/results", status_code=202)
-        zk_tracker.start_sjobs(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "running"})
 
         # Sync (with error)
         requests_mock.get(backend1 + "/jobs/1j0b", json={"id": "1j0b", "status": "running"})
         requests_mock.get(backend2 + "/jobs/2jo8", json={"id": "2j08", "status": "error"})
-        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.sync(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "running",
@@ -362,7 +382,7 @@ class TestPartitionedJobTracker:
         # Sync (another error, and note invalid status too)
         requests_mock.get(backend1 + "/jobs/1j0b", json={"id": "1j0b", "status": "3rr0r"})
         requests_mock.get(backend2 + "/jobs/2jo8", json={"id": "2j08", "status": "error"})
-        zk_tracker.sync(pjob_id=pjob_id, flask_request=flask_request)
+        zk_tracker.sync(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
 
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "error",
@@ -381,6 +401,25 @@ class TestPartitionedJobTracker:
             "message": "error",
             "timestamp": approx_now(),
         }
+
+    def test_sync_wrong_user(
+            self, pjob, zk_client, zk_db, zk_tracker, flask_request, requests_mock, backend1, backend2
+    ):
+        # Create
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend2 + "/jobs", text=_post_jobs_handler(backend2, "2jo8"))
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=TEST_USER, flask_request=flask_request)
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "created"})
+
+        # Start
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        requests_mock.post(backend2 + "/jobs/2jo8/results", status_code=202)
+        zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=TEST_USER, flask_request=flask_request)
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({"status": "running"})
+
+        # Sync (both still running)
+        with pytest.raises(JobNotFoundException):
+            zk_tracker.sync(pjob_id=pjob_id, user_id=OTHER_TEST_USER, flask_request=flask_request)
 
 
 class TestBatchJobSplitting:
@@ -418,7 +457,7 @@ class TestBatchJobSplitting:
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
         zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
         assert zk_data[zk_prefix] == {
-            "user": "TODO",
+            "user_id": TEST_USER,
             "created": self.now_epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
@@ -442,6 +481,26 @@ class TestBatchJobSplitting:
             "message": "created",
             "timestamp": pytest.approx(self.now_epoch, abs=5)
         }
+
+    def test_describe_wrong_user(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        res = api100.post("/jobs", json={
+            "title": "3+5",
+            "description": "Addition of 3 and 5",
+            "process": P35,
+            "plan": "free",
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        job_id = res.headers["OpenEO-Identifier"]
+
+        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": job_id, "status": "created"})
+
+        # Wrong user
+        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @clock_mock(now_rfc3339)
     def test_create_job_failed_backend(self, api100, backend1, zk_client, requests_mock):
@@ -523,6 +582,25 @@ class TestBatchJobSplitting:
             "message": "started",
         })
 
+    def test_start_job_wrong_user(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        job_id = res.headers["OpenEO-Identifier"]
+
+        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": job_id, "status": "created"})
+
+        # Start job as wrong user
+        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api100.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
+
     @clock_mock(now_rfc3339)
     def test_sync_job(self, api100, backend1, zk_client, requests_mock):
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
@@ -574,6 +652,31 @@ class TestBatchJobSplitting:
             "status": "finished",
         })
 
+    def test_sync_job_wrong_user(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        job_id = res.headers["OpenEO-Identifier"]
+
+        # Start job
+        api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
+        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+
+        # Status check: still running
+        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "running"})
+        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": job_id, "status": "running"})
+
+        # Status check as wrong user
+        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
+
     @clock_mock(now_rfc3339)
     def test_job_results(self, api100, backend1, zk_client, requests_mock):
         requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
@@ -617,6 +720,30 @@ class TestBatchJobSplitting:
                 "0000-res002.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res002.tiff"}),
             }
         })
+
+    def test_job_results_wrong_user(self, api100, backend1, zk_client, requests_mock):
+        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        job_id = res.headers["OpenEO-Identifier"]
+
+        # Start job
+        api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
+
+        # Status check: finished
+        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": job_id, "status": "finished"})
+
+        # Get results as wrong user
+        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
 
 class TestPartitionedJobConnection:

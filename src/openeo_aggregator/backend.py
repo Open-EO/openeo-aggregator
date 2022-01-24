@@ -443,7 +443,7 @@ class AggregatorBatchJobs(BatchJobs):
         jobs = []
         federation_missing = set()
         for con in self.backends:
-            with con.authenticated_from_request(request=flask.request), \
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                     TimingLogger(f"get_user_jobs: {con.id}", logger=_log.debug):
                 try:
                     backend_jobs = con.list_jobs()
@@ -473,6 +473,7 @@ class AggregatorBatchJobs(BatchJobs):
         # TODO: better, more generic/specific job_option(s)?
         if job_options and job_options.get("_jobsplitting"):
             return self._create_partitioned_job(
+                user_id=user_id,
                 process=process,
                 api_version=api_version,
                 metadata=metadata,
@@ -480,6 +481,7 @@ class AggregatorBatchJobs(BatchJobs):
             )
         else:
             return self._create_job_standard(
+                user_id=user_id,
                 process_graph=process["process_graph"],
                 api_version=api_version,
                 metadata=metadata,
@@ -487,14 +489,14 @@ class AggregatorBatchJobs(BatchJobs):
             )
 
     def _create_job_standard(
-            self, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+            self, user_id: str, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
         """Standard batch job creation: just proxy to a single batch job on single back-end."""
         backend_id = self.processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), \
                 con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
             try:
                 job = con.create_job(
@@ -517,7 +519,7 @@ class AggregatorBatchJobs(BatchJobs):
         )
 
     def _create_partitioned_job(
-            self, process: dict, api_version: str, metadata: dict, job_options: dict = None
+            self, user_id: str, process: dict, api_version: str, metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
         """
         Advanced/handled batch job creation:
@@ -529,7 +531,7 @@ class AggregatorBatchJobs(BatchJobs):
         splitter = jobsplitting.JobSplitter(backends=self.backends)
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
-        job_id = self.partitioned_job_tracker.create(pjob, flask_request=flask.request)
+        job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
 
         return BatchJobMetadata(
             id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=JobIdMapping.AGG),
@@ -565,34 +567,34 @@ class AggregatorBatchJobs(BatchJobs):
 
     def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=user), \
                 self._translate_job_errors(job_id=job_id):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
         return BatchJobMetadata.from_api_dict(metadata)
 
-    def start_job(self, job_id: str, user: 'User'):
+    def start_job(self, job_id: str, user: User):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=user), \
                 con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 
     def cancel_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).stop_job()
 
     def delete_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).delete_job()
 
     def get_results(self, job_id: str, user_id: str) -> Dict[str, dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
@@ -600,7 +602,7 @@ class AggregatorBatchJobs(BatchJobs):
 
     def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             params = dict_no_none(offset=offset)
             res = con.get(f"/jobs/{backend_job_id}/logs", params=params, expected_status=200).json()
