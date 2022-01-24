@@ -612,9 +612,9 @@ class TestBatchJobSplitting:
         assert res.json == DictSubSet({
             "id": expected_job_id,
             "assets": {
-                "preview.png": DictSubSet({"href": backend1 + "/jobs/1j0b/results/preview.png"}),
-                "res001.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res001.tiff"}),
-                "res002.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res002.tiff"}),
+                "0000-preview.png": DictSubSet({"href": backend1 + "/jobs/1j0b/results/preview.png"}),
+                "0000-res001.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res001.tiff"}),
+                "0000-res002.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res002.tiff"}),
             }
         })
 

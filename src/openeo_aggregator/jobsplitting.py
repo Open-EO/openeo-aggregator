@@ -403,7 +403,7 @@ class PartitionedJobTracker:
                 else:
                     if status == "finished":
                         self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=status)
-                        # TODO: collect results
+                        # TODO: collect result/asset URLS here already?
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
                         self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=status)
@@ -414,7 +414,7 @@ class PartitionedJobTracker:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
                         self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
             elif sjob_status == STATUS_ERROR:
-                # TODO: is this a final state? https://github.com/Open-EO/openeo-api/issues/436
+                # TODO: status "error" is not necessarily final see https://github.com/Open-EO/openeo-api/issues/436
                 pass
             elif sjob_status == STATUS_FINISHED:
                 pass
@@ -427,7 +427,6 @@ class PartitionedJobTracker:
         statusses = set(status_counts)
         if statusses == {STATUS_FINISHED}:
             self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message)
-            # TODO: also collect all asset urls
         elif STATUS_RUNNING in statusses:
             self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
         elif STATUS_CREATED in statusses or STATUS_INSERTED in statusses:
@@ -470,7 +469,10 @@ class PartitionedJobTracker:
                 # TODO: when some sjob assets fail, still continue with partial results
                 sjob_assets = con.job(job_id).get_results().get_assets()
             # TODO: rename assets to avoid collision across sjobs
-            assets.extend(sjob_assets)
+            assets.extend(
+                ResultAsset(job=None, name=f"{sjob_id}-{a.name}", href=a.href, metadata=a.metadata)
+                for a in sjob_assets
+            )
         return assets
 
 
