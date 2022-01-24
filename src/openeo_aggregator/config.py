@@ -43,8 +43,7 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check: Union[bool, dict] = dict_item()
 
-    zookeeper_client = dict_item(default=None)
-    zookeeper_hosts = dict_item(default="127.0.0.1:2181")
+    partitioned_job_tracking = dict_item(default=None)
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
     @staticmethod

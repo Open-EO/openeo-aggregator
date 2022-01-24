@@ -57,8 +57,10 @@ def base_config(configured_oidc_providers, zk_client) -> AggregatorConfig:
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False
 
-    conf.zookeeper_client = zk_client
-    conf.zookeeper_prefix = "/t/"
+    conf.zookeeper_prefix = "/o-a/"
+    conf.partitioned_job_tracking = {
+        "zk_client": zk_client,
+    }
     return conf
 
 

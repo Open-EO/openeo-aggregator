@@ -45,7 +45,7 @@ def pjob():
 
 @pytest.fixture
 def zk_db(zk_client) -> ZooKeeperPartitionedJobDB:
-    return ZooKeeperPartitionedJobDB(client=zk_client, prefix="/t")
+    return ZooKeeperPartitionedJobDB(client=zk_client, prefix="/o-a/")
 
 
 @pytest.fixture
@@ -62,30 +62,30 @@ class TestZooKeeperPartitionedJobDB:
 
         data = zk_client.get_data_deserialized(drop_empty=True)
         assert data == {
-            "/t/202201/pj-20220117-174800": {
+            "/o-a/202201/pj-20220117-174800": {
                 "created": approx_now(),
                 "user_id": TEST_USER,
                 "process": P35,
                 "metadata": {},
                 "job_options": {},
             },
-            "/t/202201/pj-20220117-174800/status": {
+            "/o-a/202201/pj-20220117-174800/status": {
                 "status": "inserted",
             },
-            "/t/202201/pj-20220117-174800/sjobs/0000": {
+            "/o-a/202201/pj-20220117-174800/sjobs/0000": {
                 "process_graph": PG12,
                 "backend_id": "b1",
                 "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)"
             },
-            "/t/202201/pj-20220117-174800/sjobs/0000/status": {
+            "/o-a/202201/pj-20220117-174800/sjobs/0000/status": {
                 "status": "inserted"
             },
-            "/t/202201/pj-20220117-174800/sjobs/0001": {
+            "/o-a/202201/pj-20220117-174800/sjobs/0001": {
                 "process_graph": PG23,
                 "backend_id": "b2",
                 "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)"
             },
-            "/t/202201/pj-20220117-174800/sjobs/0001/status": {
+            "/o-a/202201/pj-20220117-174800/sjobs/0001/status": {
                 "status": "inserted"
             },
         }
@@ -455,7 +455,7 @@ class TestBatchJobSplitting:
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
         assert zk_data[zk_prefix] == {
             "user_id": TEST_USER,
             "created": self.now_epoch,
@@ -530,7 +530,7 @@ class TestBatchJobSplitting:
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
         assert zk_data[zk_prefix + "/status"] == DictSubSet({
             "status": "error",
         })
@@ -565,7 +565,7 @@ class TestBatchJobSplitting:
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
         assert zk_data[zk_prefix] == DictSubSet({
             "created": self.now_epoch,
             "process": P35,
@@ -636,7 +636,7 @@ class TestBatchJobSplitting:
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/t/pj/v1/202201/pj-20220119-123456"
+        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
         assert zk_data[zk_prefix] == DictSubSet({
             "created": self.now_epoch,
             "process": P35,
