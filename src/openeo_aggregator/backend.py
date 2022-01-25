@@ -6,15 +6,18 @@ from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
 import flask
+from kazoo.client import KazooClient
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
+from openeo_aggregator import jobsplitting
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
-    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
+    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START, ConfigException
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
+from openeo_aggregator.jobsplitting import PartitionedJob, PartitionedJobConnection
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -268,15 +271,18 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 class JobIdMapping:
     """Mapping between aggregator job ids and backend job ids"""
 
+    # Job-id prefix for jobs managed by aggregator (not simple proxied jobs)
+    AGG = "agg"
+
     @staticmethod
     def get_aggregator_job_id(backend_job_id: str, backend_id: str) -> str:
         """Construct aggregator job id from given backend job id and backend id"""
         return f"{backend_id}-{backend_job_id}"
 
-    @staticmethod
-    def parse_aggregator_job_id(backends: MultiBackendConnection, aggregator_job_id: str) -> Tuple[str, str]:
+    @classmethod
+    def parse_aggregator_job_id(cls, backends: MultiBackendConnection, aggregator_job_id: str) -> Tuple[str, str]:
         """Given aggregator job id: extract backend job id and backend id"""
-        for prefix in [f"{con.id}-" for con in backends]:
+        for prefix in [f"{con.id}-" for con in backends] + [cls.AGG + "-"]:
             if aggregator_job_id.startswith(prefix):
                 backend_id, backend_job_id = aggregator_job_id.split("-", maxsplit=1)
                 return backend_job_id, backend_id
@@ -423,16 +429,22 @@ class AggregatorProcessing(Processing):
 
 class AggregatorBatchJobs(BatchJobs):
 
-    def __init__(self, backends: MultiBackendConnection, processing: AggregatorProcessing):
+    def __init__(
+            self,
+            backends: MultiBackendConnection,
+            processing: AggregatorProcessing,
+            partitioned_job_tracker: Optional[jobsplitting.PartitionedJobTracker] = None,
+    ):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
         self.processing = processing
+        self.partitioned_job_tracker = partitioned_job_tracker
 
     def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
         jobs = []
         federation_missing = set()
         for con in self.backends:
-            with con.authenticated_from_request(request=flask.request), \
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                     TimingLogger(f"get_user_jobs: {con.id}", logger=_log.debug):
                 try:
                     backend_jobs = con.list_jobs()
@@ -456,15 +468,36 @@ class AggregatorBatchJobs(BatchJobs):
             self, user_id: str, process: dict, api_version: str,
             metadata: dict, job_options: dict = None
     ) -> BatchJobMetadata:
-        try:
-            process_graph = process["process_graph"]
-        except (KeyError, TypeError) as e:
+        if "process_graph" not in process:
             raise ProcessGraphMissingException()
+
+        # TODO: better, more generic/specific job_option(s)?
+        if job_options and job_options.get("_jobsplitting"):
+            return self._create_partitioned_job(
+                user_id=user_id,
+                process=process,
+                api_version=api_version,
+                metadata=metadata,
+                job_options=job_options,
+            )
+        else:
+            return self._create_job_standard(
+                user_id=user_id,
+                process_graph=process["process_graph"],
+                api_version=api_version,
+                metadata=metadata,
+                job_options=job_options,
+            )
+
+    def _create_job_standard(
+            self, user_id: str, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+    ) -> BatchJobMetadata:
+        """Standard batch job creation: just proxy to a single batch job on single back-end."""
         backend_id = self.processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), \
                 con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
             try:
                 job = con.create_job(
@@ -482,14 +515,44 @@ class AggregatorBatchJobs(BatchJobs):
                 raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(
             id=JobIdMapping.get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
-            status="dummy", created="dummy", process="dummy"
+            # Note: required, but unused metadata
+            status="dummy", created="dummy", process={"dummy": "dummy"}
         )
 
-    def _get_connection_and_backend_job_id(self, aggregator_job_id: str) -> Tuple[BackendConnection, str]:
+    def _create_partitioned_job(
+            self, user_id: str, process: dict, api_version: str, metadata: dict, job_options: dict = None
+    ) -> BatchJobMetadata:
+        """
+        Advanced/handled batch job creation:
+        split original job in (possibly) multiple sub-jobs,
+        distribute across (possibly) multiple back-ends
+        and keep track of them.
+        """
+        if not self.partitioned_job_tracker:
+            raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
+
+        splitter = jobsplitting.JobSplitter(backends=self.backends)
+        pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
+
+        job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
+
+        return BatchJobMetadata(
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=JobIdMapping.AGG),
+            status="dummy", created="dummy", process={"dummy": "dummy"}
+        )
+
+    def _get_connection_and_backend_job_id(
+            self,
+            aggregator_job_id: str
+    ) -> Tuple[Union[BackendConnection, PartitionedJobConnection], str]:
         backend_job_id, backend_id = JobIdMapping.parse_aggregator_job_id(
             backends=self.backends,
             aggregator_job_id=aggregator_job_id
         )
+
+        if backend_id == JobIdMapping.AGG and self.partitioned_job_tracker:
+            return PartitionedJobConnection(self.partitioned_job_tracker), backend_job_id
+
         con = self.backends.get_connection(backend_id)
         return con, backend_job_id
 
@@ -507,34 +570,34 @@ class AggregatorBatchJobs(BatchJobs):
 
     def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=user), \
                 self._translate_job_errors(job_id=job_id):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
         return BatchJobMetadata.from_api_dict(metadata)
 
-    def start_job(self, job_id: str, user: 'User'):
+    def start_job(self, job_id: str, user: User):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=user), \
                 con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 
     def cancel_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).stop_job()
 
     def delete_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).delete_job()
 
     def get_results(self, job_id: str, user_id: str) -> Dict[str, dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
@@ -542,7 +605,7 @@ class AggregatorBatchJobs(BatchJobs):
 
     def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request), \
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             params = dict_no_none(offset=offset)
             res = con.get(f"/jobs/{backend_job_id}/logs", params=params, expected_status=200).json()
@@ -563,7 +626,26 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             backends=backends, catalog=catalog,
             stream_chunk_size=config.streaming_chunk_size,
         )
-        batch_jobs = AggregatorBatchJobs(backends=backends, processing=processing)
+
+        if config.partitioned_job_tracking:
+            if config.partitioned_job_tracking.get("zk_client"):
+                zk_client = config.partitioned_job_tracking["zk_client"]
+            elif config.partitioned_job_tracking.get("zk_hosts"):
+                zk_client = KazooClient(config.partitioned_job_tracking.get("zk_hosts"))
+            else:
+                raise ConfigException("Failed to construct zk_client")
+            zk_prefix = config.zookeeper_prefix
+            assert len(zk_prefix.replace("/", "")) >= 3
+            zk_db = jobsplitting.ZooKeeperPartitionedJobDB(zk_client, prefix=zk_prefix.rstrip("/") + "/pj/v1/")
+            partitioned_job_tracker = jobsplitting.PartitionedJobTracker(zk_db, backends=self._backends)
+        else:
+            partitioned_job_tracker = None
+
+        batch_jobs = AggregatorBatchJobs(
+            backends=backends,
+            processing=processing,
+            partitioned_job_tracker=partitioned_job_tracker
+        )
         super().__init__(
             catalog=catalog,
             processing=processing,
@@ -717,4 +799,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             }
             for bid, status in self._backends.get_status().items()
         }
+        # TODO: standardize this field?
+        capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities

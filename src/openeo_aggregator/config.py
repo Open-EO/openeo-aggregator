@@ -43,6 +43,9 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check: Union[bool, dict] = dict_item()
 
+    partitioned_job_tracking = dict_item(default=None)
+    zookeeper_prefix = dict_item(default="/openeo-aggregator/")
+
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
         """Load config from Python file."""

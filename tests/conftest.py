@@ -6,12 +6,13 @@ import pytest
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import MultiBackendConnection
 from openeo_aggregator.config import AggregatorConfig
+from openeo_aggregator.testing import DummyKazooClient
 from openeo_driver.testing import ApiTester
 from openeo_driver.users.oidc import OidcProvider
 
 
 @pytest.fixture
-def backend1(requests_mock):
+def backend1(requests_mock) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
     requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
@@ -22,7 +23,7 @@ def backend1(requests_mock):
 
 
 @pytest.fixture
-def backend2(requests_mock):
+def backend2(requests_mock) -> str:
     domain = "https://b2.test/v1"
     requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [
@@ -42,7 +43,12 @@ def configured_oidc_providers() -> List[OidcProvider]:
 
 
 @pytest.fixture
-def base_config(configured_oidc_providers) -> AggregatorConfig:
+def zk_client() -> DummyKazooClient:
+    return DummyKazooClient()
+
+
+@pytest.fixture
+def base_config(configured_oidc_providers, zk_client) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
@@ -50,6 +56,11 @@ def base_config(configured_oidc_providers) -> AggregatorConfig:
     conf.configured_oidc_providers = configured_oidc_providers
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False
+
+    conf.zookeeper_prefix = "/o-a/"
+    conf.partitioned_job_tracking = {
+        "zk_client": zk_client,
+    }
     return conf
 
 

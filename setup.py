@@ -26,6 +26,7 @@ setup(
         "flask~=2.0",
         "gunicorn~=20.0",
         "python-json-logger>=2.0.0",
+        "kazoo~=2.8.0",
     ],
     tests_require=tests_require,
     extras_require={
