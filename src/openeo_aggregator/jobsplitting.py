@@ -467,7 +467,7 @@ class PartitionedJobTracker:
         self._check_user_access(user_id=user_id, pjob_id=pjob_id)
         sjobs = self._db.list_subjobs(pjob_id)
         assets = []
-        with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} subjobs", logger=_log):
+        with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
             for sjob_id, sjob_metadata in sjobs.items():
                 sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
                 if sjob_status in {STATUS_INSERTED, STATUS_CREATED, STATUS_RUNNING}:
