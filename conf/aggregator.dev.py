@@ -50,4 +50,8 @@ config = AggregatorConfig(
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
     configured_oidc_providers=configured_oidc_providers,
+    partitioned_job_tracking={
+        "zk_hosts": "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181",
+    },
+    zookeeper_prefix="/openeo/aggregator-dev/",
 )
