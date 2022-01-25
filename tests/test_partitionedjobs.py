@@ -1,18 +1,17 @@
 import datetime
-from unittest import mock
-
 import flask
-import requests
 import kazoo
 import kazoo.exceptions
 import pytest
+import requests
 
 from openeo.util import rfc3339
-from openeo_aggregator.jobsplitting import PartitionedJob, SubJob, ZooKeeperPartitionedJobDB, PartitionedJobTracker, \
-    PartitionedJobConnection
+from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
+from openeo_aggregator.partitionedjobs.tracking import PartitionedJobTracker, PartitionedJobConnection
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains
+from openeo_driver.errors import JobNotFoundException
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
-from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
 from openeo_driver.users.auth import HttpAuthHandler
 
 PG12 = {

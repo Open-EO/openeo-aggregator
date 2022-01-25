@@ -2,252 +2,26 @@ import collections
 import contextlib
 import datetime
 import flask
-import json
 import logging
 import threading
-from kazoo.client import KazooClient
-from kazoo.exceptions import NodeExistsError
-from typing import NamedTuple, List, Dict, Optional
+from typing import List, Optional
 
 from openeo.rest.job import ResultAsset
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
-from openeo_aggregator.utils import Clock, _UNSET
+from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
+    STATUS_RUNNING, STATUS_FINISHED
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
+from openeo_aggregator.utils import _UNSET
 from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
 from openeo_driver.users import User
 
 # TODO: not only support batch jobs but also sync jobs?
 
+
 _log = logging.getLogger(__name__)
-
-
-class SubJob(NamedTuple):
-    """A part of a partitioned job, target at a particular, single back-end."""
-    # Process graph of the subjob (derived in some way from original parent process graph)
-    process_graph: dict
-    # Id of target backend
-    backend_id: str
-
-
-class PartitionedJob(NamedTuple):
-    """A large or multi-back-end job that is split in several sub jobs"""
-    # Original process graph
-    process: dict
-    metadata: dict
-    job_options: dict
-    # List of sub-jobs
-    subjobs: List[SubJob]
-
-
-class JobSplitter:
-    """
-    Split a given "large" batch job in "sub" batch jobs according to a certain strategy,
-    for example: split in spatial sub-extents, split temporally, split per input collection, ...
-    """
-
-    def __init__(self, backends: MultiBackendConnection):
-        self._backends = backends
-
-    def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
-        # TODO: how to express dependencies? give SubJobs an id for referencing?
-        # TODO: how to express combination/aggregation of multiple subjob results as a final result?
-        return PartitionedJob(
-            process=process,
-            metadata=metadata, job_options=job_options,
-            subjobs=[
-                # TODO: real splitting
-                SubJob(process_graph=process["process_graph"], backend_id=self._backends.first().id),
-            ]
-        )
-
-
-# Statuses of partitioned jobs and subjobs
-STATUS_INSERTED = "inserted"  # Just inserted in internal storage (zookeeper), not yet created on a remote back-end
-STATUS_CREATED = "created"  # Created on remote back-end
-STATUS_RUNNING = "running"  # Covers openEO batch job statuses "created", "queued", "running"
-STATUS_FINISHED = "finished"
-STATUS_ERROR = "error"
-
-
-class ZooKeeperPartitionedJobDB:
-    """ZooKeeper based Partitioned job database"""
-
-    # TODO: support for canceling?
-    # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
-
-    def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/pj/v1'):
-        self._client = client
-        self._prefix = prefix
-
-    def _path(self, pjob_id: str, *path: str) -> str:
-        """Helper to build a zookeeper path"""
-        assert pjob_id.startswith("pj-")
-        month = pjob_id[3:9]
-        path = (month, pjob_id) + path
-        return "{r}/{p}".format(
-            r=self._prefix.rstrip("/"),
-            p="/".join(path).lstrip("/")
-        )
-
-    @contextlib.contextmanager
-    def _connect(self):
-        """Context manager to automatically start and stop zookeeper connection."""
-        # TODO: handle nesting of this context manager smartly?
-        # TODO: instead of blindly doing start/stop all the time,
-        #       could it be more efficient to keep connection alive for longer time?
-        self._client.start()
-        try:
-            yield self._client
-        finally:
-            self._client.stop()
-
-    @staticmethod
-    def serialize(**kwargs) -> bytes:
-        """Serialize a dictionary (given as arguments) in JSON (UTF8 byte-encoded)."""
-        # TODO: also do compression (e.g. gzip)?
-        return json.dumps(kwargs).encode("utf8")
-
-    @staticmethod
-    def deserialize(value: bytes) -> dict:
-        """Deserialize bytes (assuming UTF8 encoded JSON mapping)"""
-        return json.loads(value.decode("utf8"))
-
-    def insert(self, user_id: str, pjob: PartitionedJob) -> str:
-        """
-        Insert a new partitioned job.
-
-        :return: storage id of the partitioned job
-        """
-        with self._connect():
-            # Insert parent node, with "static" (write once) metadata as associated data
-            job_node_value = self.serialize(
-                user_id=user_id,
-                # TODO: more BatchJobMetdata fields
-                created=Clock.time(),
-                process=pjob.process,
-                metadata=pjob.metadata,
-                job_options=pjob.job_options,
-            )
-            # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
-            base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
-            for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, 3)]:
-                try:
-                    self._client.create(path=self._path(pjob_id), value=job_node_value, makepath=True)
-                    break
-                except NodeExistsError:
-                    # TODO: check that NodeExistsError is thrown on existing job_ids
-                    # TODO: add a sleep() to back off a bit?
-                    continue
-            else:
-                raise RuntimeError("Too much attempts to create new pjob_id")
-
-            # Updatable metadata
-            self._client.create(
-                path=self._path(pjob_id, "status"),
-                value=self.serialize(status=STATUS_INSERTED)
-            )
-
-            # Insert subjobs
-            for i, subjob in enumerate(pjob.subjobs):
-                sjob_id = f"{i:04d}"
-                self._client.create(
-                    path=self._path(pjob_id, "sjobs", sjob_id),
-                    value=self.serialize(
-                        process_graph=subjob.process_graph,
-                        backend_id=subjob.backend_id,
-                        title=f"Partitioned job {pjob_id} part {sjob_id} ({i + 1}/{len(pjob.subjobs)})",
-                        # TODO:  dependencies/constraints between subjobs?
-                    ),
-                    makepath=True,
-                )
-                self._client.create(
-                    path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                    value=self.serialize(status=STATUS_INSERTED),
-                )
-
-        return pjob_id
-
-    def get_pjob_metadata(self, pjob_id: str) -> dict:
-        """Get metadata of partitioned job, given by storage id."""
-        with self._connect():
-            value, stat = self._client.get(self._path(pjob_id))
-            return self.deserialize(value)
-
-    def list_subjobs(self, pjob_id: str) -> Dict[str, dict]:
-        """
-        List subjobs (and their metadata) of given partitioned job.
-
-        :return: dictionary mapping sub-job storage id to the sub-job's metadata.
-        """
-        listing = {}
-        with self._connect():
-            for child in self._client.get_children(self._path(pjob_id, "sjobs")):
-                value, stat = self._client.get(self._path(pjob_id, "sjobs", child))
-                listing[child] = self.deserialize(value)
-        return listing
-
-    def set_backend_job_id(self, pjob_id: str, sjob_id: str, job_id: str):
-        """
-        Store external backend's job id for given sub job
-
-        :param pjob_id: (internal) storage id of partitioned job
-        :param sjob_id: (internal) storage id of sub-job
-        :param job_id: (external) id of corresponding openEO job on remote back-end.
-        """
-        with self._connect():
-            self._client.create(
-                path=self._path(pjob_id, "sjobs", sjob_id, "job_id"),
-                value=self.serialize(job_id=job_id)
-            )
-
-    def get_backend_job_id(self, pjob_id: str, sjob_id: str) -> str:
-        """Get external back-end job id of given sub job"""
-        with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
-            return self.deserialize(value)["job_id"]
-
-    def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None):
-        """
-        Store status of partitioned job (with optional message).
-
-        :param pjob_id: (storage) id of partitioned job
-        :param status: global status of partitioned job
-        :param message: optional message, e.g. describing error
-        """
-        with self._connect():
-            self._client.set(
-                path=self._path(pjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=Clock.time())
-            )
-
-    def get_pjob_status(self, pjob_id: str) -> dict:
-        """
-        Get status of partitioned job.
-
-        :param pjob_id: (storage) id if partitioned job
-        :return: dictionary with "status" and "message"
-
-        TODO return predefined struct instead of dict with fields "status" and "message"?
-        """
-        with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "status"))
-            return self.deserialize(value)
-
-    def set_sjob_status(self, pjob_id: str, sjob_id: str, status: str, message: Optional[str] = None):
-        """Store status of sub-job (with optional message)"""
-        with self._connect():
-            self._client.set(
-                path=self._path(pjob_id, "sjobs", sjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=Clock.time()),
-            )
-
-    def get_sjob_status(self, pjob_id: str, sjob_id: str) -> dict:
-        """Get status of sub-job"""
-        with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "status"))
-            return self.deserialize(value)
 
 
 class PartitionedJobTracker:
