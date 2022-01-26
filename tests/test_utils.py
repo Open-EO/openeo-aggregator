@@ -1,8 +1,10 @@
 import logging
 
 import pytest
+import shapely.geometry
 
-from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler
+from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler, \
+    BoundingBox
 
 
 class FakeClock:
@@ -154,6 +156,8 @@ def test_subdict():
     assert subdict(d, keys=["foo"]) == {"foo": "bar"}
     assert subdict(d, keys=["foo", "meh"]) == {"foo": "bar", "meh": 3}
     assert subdict(d, keys=["foo", "bar"]) == {"foo": "bar", "bar": None}
+    assert subdict(d, keys=("foo", "bar")) == {"foo": "bar", "bar": None}
+    assert subdict(d, keys={"foo": 0, "bar": 0}.keys()) == {"foo": "bar", "bar": None}
     assert subdict(d, "foo", keys=["meh", "bar"]) == {"foo": "bar", "meh": 3, "bar": None}
 
 
@@ -195,3 +199,42 @@ class TestEventHandler:
         assert data == ["foo"]
         handler.trigger(skip_failures=True)
         assert data == ["foo", "foo", "bar"]
+
+
+class TestBoundingBox:
+
+    def test_basic(self):
+        bbox = BoundingBox(1, 2, 3, 4)
+        assert bbox.west == 1
+        assert bbox.south == 2
+        assert bbox.east == 3
+        assert bbox.north == 4
+        assert bbox.crs == "EPSG:4326"
+
+    def test_from_dict(self):
+        bbox = BoundingBox.from_dict({"west": 1, "south": 2, "east": 3, "north": 4, "crs": "EPSG:4326"})
+        assert (bbox.west, bbox.south, bbox.east, bbox.north) == (1, 2, 3, 4)
+        assert bbox.crs == "EPSG:4326"
+
+    def test_from_dict_underspecified(self):
+        bbox = BoundingBox.from_dict({"color": "red"})
+
+    def test_dict_access(self):
+        bbox = BoundingBox(1, 2, 3, 4)
+        assert bbox["west"] == 1
+        assert bbox["south"] == 2
+        assert bbox["east"] == 3
+        assert bbox["north"] == 4
+        assert bbox["crs"] == "EPSG:4326"
+        with pytest.raises(KeyError):
+            _ = bbox["meh"]
+
+    def test_as_dict(self):
+        bbox = BoundingBox(1, 2, 3, 4)
+        assert bbox.as_dict() == {"west": 1, "south": 2, "east": 3, "north": 4, "crs": "EPSG:4326"}
+
+    def test_as_polygon(self):
+        bbox = BoundingBox(1, 2, 3, 4)
+        polygon = bbox.as_polygon()
+        assert isinstance(polygon, shapely.geometry.Polygon)
+        assert set(polygon.exterior.coords) == {(1, 2), (3, 2), (3, 4), (1, 4)}

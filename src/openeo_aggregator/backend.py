@@ -17,7 +17,7 @@ from openeo_aggregator.connection import MultiBackendConnection, BackendConnecti
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
-from openeo_aggregator.partitionedjobs.splitting import NoSplitter
+from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
@@ -533,7 +533,7 @@ class AggregatorBatchJobs(BatchJobs):
         if not self.partitioned_job_tracker:
             raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
 
-        splitter = NoSplitter(processing=self.processing)
+        splitter = FlimsySplitter(processing=self.processing)
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
         job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
