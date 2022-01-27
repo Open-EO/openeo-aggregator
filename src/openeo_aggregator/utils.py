@@ -200,19 +200,9 @@ class BoundingBox(NamedTuple):
     # TODO: automatically normalize CRS (e.g. lower case)
     crs: str = "EPSG:4326"
 
-    def __getitem__(self, item: Union[int, str]):
-        # Add dictionary-like access
-        if isinstance(item, str):
-            try:
-                return getattr(self, item)
-            except AttributeError:
-                raise KeyError(item)
-        # Note: using super() fails with NamedTuple subclasses.
-        return NamedTuple.__getitem__(self, item)
-
     @classmethod
     def from_dict(cls, d: dict) -> "BoundingBox":
-        return cls(**subdict(d, keys=cls._fields))
+        return cls(**{k: d[k] for k in cls._fields})
 
     def as_dict(self) -> dict:
         return self._asdict()
