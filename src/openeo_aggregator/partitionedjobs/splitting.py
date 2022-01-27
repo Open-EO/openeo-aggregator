@@ -1,6 +1,6 @@
 import abc
 import copy
-import itertools
+import math
 import re
 import typing
 
@@ -85,8 +85,8 @@ class TileGrid(typing.NamedTuple):
             reproject_bounding_box(bbox.as_dict(), from_crs=bbox.crs, to_crs=tiling_crs)
         )
         # Get ranges of tile indices
-        xmin, xmax = [int((x - x_offset) / tile_size) for x in [to_cover.west, to_cover.east]]
-        ymin, ymax = [int(y / tile_size) for y in [to_cover.south, to_cover.north]]
+        xmin, xmax = [int(math.floor((x - x_offset) / tile_size)) for x in [to_cover.west, to_cover.east]]
+        ymin, ymax = [int(math.floor(y / tile_size)) for y in [to_cover.south, to_cover.north]]
 
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):

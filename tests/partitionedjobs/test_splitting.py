@@ -34,22 +34,49 @@ class TestTileGridSplitter:
 
         return AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-    @pytest.mark.parametrize(["tile_grid", "expected_extent"], [
+    @pytest.mark.parametrize(["west", "south", "tile_grid", "expected_extent"], [
         # >>> from pyproj import Transformer
         # >>> Transformer.from_crs("epsg:4326", "epsg:32631", always_xy=True).transform(5, 51)
         # (640333.2963383198, 5651728.68267166)
-        ("utm-100km", {"west": 600_000, "south": 5_600_000, "east": 700_000, "north": 5_700_000, "crs": "epsg:32631"}),
-        ("utm-20km", {"west": 640_000, "south": 5_640_000, "east": 660_000, "north": 5_660_000, "crs": "epsg:32631"}),
-        ("utm-10km", {"west": 640_000, "south": 5_650_000, "east": 650_000, "north": 5_660_000, "crs": "epsg:32631"}),
-        ("wgs84-1degree", {"west": 5, "south": 51, "east": 6, "north": 52, "crs": "epsg:4326"}),
+        (
+                5, 51, "utm-100km",
+                {"west": 600_000, "south": 5_600_000, "east": 700_000, "north": 5_700_000, "crs": "epsg:32631"}
+        ),
+        (
+                5, 51, "utm-20km",
+                {"west": 640_000, "south": 5_640_000, "east": 660_000, "north": 5_660_000, "crs": "epsg:32631"}
+        ),
+        (
+                5, 51, "utm-10km",
+                {"west": 640_000, "south": 5_650_000, "east": 650_000, "north": 5_660_000, "crs": "epsg:32631"}
+        ),
+        (
+                5, 51, "wgs84-1degree",
+                {"west": 5, "south": 51, "east": 6, "north": 52, "crs": "epsg:4326"}
+        ),
+        # >>> Transformer.from_crs("epsg:4326", "epsg:32633", always_xy=True).transform(12.3, 45.6)
+        # (289432.90485397115, 5053152.380961399)
+        (
+                12.3, 45.6, "utm-20km",
+                {"west": 280_000, "south": 5_040_000, "east": 300_000, "north": 5_060_000, "crs": "epsg:32633"}
+        ),
+        # >>> Transformer.from_crs("epsg:4326", "epsg:32724", always_xy=True).transform(-42, -5)
+        # (167286.20126155682, 9446576.013116669)
+        (
+                -42, -5, "utm-10km",
+                {"west": 160_000, "south": 9_440_000, "east": 170_000, "north": 9_450_000, "crs": "epsg:32724"}
+        ),
     ])
-    def test_simple(self, backend_implementation, tile_grid, expected_extent):
-        """load_collection with very spatial extent that should only cover one tile"""
+    def test_simple_small_coverage(self, backend_implementation,  tile_grid, west, south, expected_extent):
+        """load_collection with very small spatial extent that should only cover one tile"""
         splitter = TileGridSplitter(backend_implementation=backend_implementation)
         process = {"process_graph": {
             "lc": {
                 "process_id": "load_collection",
-                "arguments": {"id": "S2", "spatial_extent": {"west": 5, "south": 51, "east": 5.01, "north": 51.01}},
+                "arguments": {"id": "S2", "spatial_extent": {
+                    "west": west, "south": south,
+                    "east": west + 0.001, "north": south + 0.001
+                }},
             },
             "sr": {
                 "process_id": "save_result",
