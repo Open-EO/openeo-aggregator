@@ -10,7 +10,7 @@ from openeo_aggregator.utils import BoundingBox
 from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
 from openeo_driver.backend import OpenEoBackendImplementation
 from openeo_driver.dry_run import DryRunDataTracer
-from openeo_driver.errors import FeatureUnsupportedException, OpenEOApiException
+from openeo_driver.errors import OpenEOApiException
 from openeo_driver.util.utm import auto_utm_epsg_for_geometry
 from openeo_driver.utils import EvalEnv, spatial_extent_union, reproject_bounding_box
 
@@ -20,6 +20,11 @@ if typing.TYPE_CHECKING:
 
 class JobSplittingFailure(OpenEOApiException):
     code = "JobSplitFailure"
+
+
+# Default maximum number of tiles to split in
+# TODO: higher default maximum of tiles
+MAX_TILES = 16
 
 
 class AbstractJobSplitter(metaclass=abc.ABCMeta):
@@ -65,7 +70,7 @@ class TileGrid(typing.NamedTuple):
             raise JobSplittingFailure(f"Failed to parse tile_grid {tile_grid!r}")
         return cls(crs_type=m.group("crs"), size=int(m.group("size")), unit=m.group("unit"))
 
-    def get_tiles(self, bbox: BoundingBox) -> typing.Iterator[BoundingBox]:
+    def get_tiles(self, bbox: BoundingBox, max_tiles=MAX_TILES) -> typing.Iterator[BoundingBox]:
         """Calculate tiles to cover given bounding box"""
         if self.crs_type == "utm":
             # TODO: properly handle bbox that covers multiple UTM zones
@@ -87,6 +92,10 @@ class TileGrid(typing.NamedTuple):
         # Get ranges of tile indices
         xmin, xmax = [int(math.floor((x - x_offset) / tile_size)) for x in [to_cover.west, to_cover.east]]
         ymin, ymax = [int(math.floor(y / tile_size)) for y in [to_cover.south, to_cover.north]]
+
+        tile_count = (xmax - xmin + 1) * (ymax - ymin + 1)
+        if tile_count > max_tiles:
+            raise JobSplittingFailure(f"Tile count {tile_count} exceeds limit {max_tiles}")
 
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):
@@ -122,7 +131,7 @@ class TileGridSplitter(AbstractJobSplitter):
         global_spatial_extent = self._extract_global_spatial_extent(process)
 
         tile_grid = TileGrid.from_string(job_options["tile_grid"])
-        tiles = tile_grid.get_tiles(bbox=global_spatial_extent)
+        tiles = tile_grid.get_tiles(bbox=global_spatial_extent, max_tiles=job_options.get("max_tiles", MAX_TILES))
         inject = self._filter_bbox_injector(process_graph=process["process_graph"])
 
         backend_id = self.backend_implementation.processing.get_backend_for_process_graph(

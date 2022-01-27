@@ -202,7 +202,11 @@ class BoundingBox(NamedTuple):
 
     @classmethod
     def from_dict(cls, d: dict) -> "BoundingBox":
-        return cls(**{k: d[k] for k in cls._fields})
+        return cls(**{
+            k: d[k]
+            for k in cls._fields
+            if k not in cls._field_defaults or k in d
+        })
 
     def as_dict(self) -> dict:
         return self._asdict()
@@ -210,3 +214,7 @@ class BoundingBox(NamedTuple):
     def as_polygon(self) -> shapely.geometry.Polygon:
         """Get bounding box as a shapely Polygon"""
         return shapely.geometry.box(minx=self.west, miny=self.south, maxx=self.east, maxy=self.north)
+
+    def contains(self, x: float, y: float) -> bool:
+        """Check if given point is inside the bounding box"""
+        return (self.west <= x <= self.east) and (self.south <= y <= self.north)

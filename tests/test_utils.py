@@ -212,13 +212,18 @@ class TestBoundingBox:
         assert bbox.crs == "EPSG:4326"
 
     def test_from_dict(self):
-        bbox = BoundingBox.from_dict({"west": 1, "south": 2, "east": 3, "north": 4, "crs": "EPSG:4326"})
+        bbox = BoundingBox.from_dict({"west": 1, "south": 2, "east": 3, "north": 4, "crs": "epsg:32633"})
+        assert (bbox.west, bbox.south, bbox.east, bbox.north) == (1, 2, 3, 4)
+        assert bbox.crs == "epsg:32633"
+
+    def test_from_dict_defaults(self):
+        bbox = BoundingBox.from_dict({"west": 1, "south": 2, "east": 3, "north": 4})
         assert (bbox.west, bbox.south, bbox.east, bbox.north) == (1, 2, 3, 4)
         assert bbox.crs == "EPSG:4326"
 
     def test_from_dict_underspecified(self):
         with pytest.raises(KeyError):
-            _ = BoundingBox.from_dict({"color": "red"})
+            _ = BoundingBox.from_dict({"west": 1, "south": 2, "color": "red"})
 
     def test_from_dict_overspecified(self):
         bbox = BoundingBox.from_dict({"west": 1, "south": 2, "east": 3, "north": 4, "crs": "EPSG:4326", "color": "red"})
@@ -234,3 +239,14 @@ class TestBoundingBox:
         polygon = bbox.as_polygon()
         assert isinstance(polygon, shapely.geometry.Polygon)
         assert set(polygon.exterior.coords) == {(1, 2), (3, 2), (3, 4), (1, 4)}
+
+    def test_contains(self):
+        bbox = BoundingBox(1, 2, 3, 4)
+        assert bbox.contains(1, 2)
+        assert bbox.contains(2, 3)
+        assert bbox.contains(3, 4)
+        assert bbox.contains(1.4, 2.9)
+        assert not bbox.contains(-1, 3)
+        assert not bbox.contains(10, 3)
+        assert not bbox.contains(2, 1)
+        assert not bbox.contains(2, 10)
