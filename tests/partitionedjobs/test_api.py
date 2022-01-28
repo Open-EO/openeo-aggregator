@@ -5,11 +5,13 @@ from openeo.util import rfc3339
 from openeo_aggregator.testing import clock_mock, approx_str_contains
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
 from .conftest import PG35, P35, OTHER_TEST_USER_BEARER_TOKEN
-from .test_tracking import _post_jobs_handler
+from .test_tracking import DummyBackend
 
 
 class _Now:
     """Helper to mock "now" to given datetime"""
+
+    # TODO: move to testing utilities and reuse  more?
 
     def __init__(self, date: str):
         self.rfc3339 = rfc3339.normalize(date)
@@ -18,12 +20,19 @@ class _Now:
         self.mock = clock_mock(self.rfc3339)
 
 
+@pytest.fixture
+def dummy1(backend1, requests_mock) -> DummyBackend:
+    dummy = DummyBackend(backend_url=backend1, job_id_template="1-jb-{i}")
+    dummy.setup_requests_mock(requests_mock)
+    dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
+    return dummy
+
+
 class TestFlimsyBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")
 
     @now.mock
-    def test_create_job_basic(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+    def test_create_job_basic(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -69,7 +78,7 @@ class TestFlimsyBatchJobSplitting:
             "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)"
         }
         assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == {
-            "job_id": "1j0b",
+            "job_id": "1-jb-0",
         }
         assert zk_data[zk_prefix + "/sjobs/0000/status"] == {
             "status": "created",
@@ -77,8 +86,7 @@ class TestFlimsyBatchJobSplitting:
             "timestamp": pytest.approx(self.now.epoch, abs=5)
         }
 
-    def test_describe_wrong_user(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
+    def test_describe_wrong_user(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -98,7 +106,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_create_job_failed_backend(self, api100, backend1, zk_client, requests_mock):
+    def test_create_job_failed_backend(self, api100, backend1, zk_client, requests_mock, dummy1):
         requests_mock.post(backend1 + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -135,9 +143,7 @@ class TestFlimsyBatchJobSplitting:
         })
 
     @now.mock
-    def test_start_job(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_start_job(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -169,17 +175,10 @@ class TestFlimsyBatchJobSplitting:
             "status": "running",
             "message": approx_str_contains("{'running': 1}"),
         })
-        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({
-            "job_id": "1j0b",
-        })
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
-            "status": "running",
-            "message": "started",
-        })
+        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "running"})
 
-    def test_start_job_wrong_user(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_start_job_wrong_user(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -197,9 +196,7 @@ class TestFlimsyBatchJobSplitting:
         api100.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_sync_job(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_sync_job(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -220,12 +217,12 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
 
         # Status check: still running
-        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "running"})
+        dummy1.set_job_status(TEST_USER, '1-jb-0', "running")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
 
         # Status check: finished
-        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        dummy1.set_job_status(TEST_USER, '1-jb-0', "finished")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
 
@@ -240,16 +237,10 @@ class TestFlimsyBatchJobSplitting:
             "status": "finished",
             "message": approx_str_contains("{'finished': 1}"),
         })
-        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({
-            "job_id": "1j0b",
-        })
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
-            "status": "finished",
-        })
+        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
+        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "finished"})
 
-    def test_sync_job_wrong_user(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_sync_job_wrong_user(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -261,10 +252,10 @@ class TestFlimsyBatchJobSplitting:
 
         # Start job
         api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
-        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        api100.get(f"/jobs/{job_id}").assert_status_code(200)
 
         # Status check: still running
-        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "running"})
+        dummy1.set_job_status(TEST_USER, "1-jb-0", "running")
         res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "running"})
 
@@ -273,9 +264,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_job_results(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_job_results(self, api100, backend1, zk_client, requests_mock, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -293,12 +282,13 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
 
         # Status check: finished
-        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
 
         # Get results
-        requests_mock.get(backend1 + "/jobs/1j0b/results", json={
+        # TODO: move this mock to DummyBackend
+        requests_mock.get(backend1 + "/jobs/1-jb-0/results", json={
             "assets": {
                 "preview.png": {"href": backend1 + "/jobs/1j0b/results/preview.png"},
                 "res001.tif": {"href": backend1 + "/jobs/1j0b/results/res001.tiff"},
@@ -316,9 +306,7 @@ class TestFlimsyBatchJobSplitting:
             }
         })
 
-    def test_job_results_wrong_user(self, api100, backend1, zk_client, requests_mock):
-        requests_mock.post(backend1 + "/jobs", text=_post_jobs_handler(backend1, "1j0b"))
-        requests_mock.post(backend1 + "/jobs/1j0b/results", status_code=202)
+    def test_job_results_wrong_user(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -332,7 +320,7 @@ class TestFlimsyBatchJobSplitting:
         api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
 
         # Status check: finished
-        requests_mock.get(backend1 + "/jobs/1j0b", json={"status": "finished"})
+        dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
         res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "finished"})
 
