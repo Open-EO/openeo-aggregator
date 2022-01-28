@@ -73,6 +73,10 @@ class DummyBackend:
         return self.jobs[user_id, job_id]
 
     def setup_requests_mock(self, requests_mock):
+        # Basic collections
+        requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(self.backend_url + "/collections/S2", json={})
+        # Batch job handling
         requests_mock.post(self.backend_url + "/jobs", text=self._handle_post_jobs)
         requests_mock.post(
             re.compile(re.escape(self.backend_url) + "/jobs/(?P<job_id>[a-z0-9-]+)/results$"),
@@ -87,6 +91,9 @@ class DummyBackend:
         job_data = self.get_job_data(user_id, job_id)
         if status != job_data.history[-1]:
             job_data.history.append(status)
+
+    def get_job_status(self, user_id: str, job_id: str):
+        return self.get_job_data(user_id, job_id).history[-1]
 
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""

@@ -17,7 +17,7 @@ from openeo_aggregator.connection import MultiBackendConnection, BackendConnecti
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
-from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter
+from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
@@ -474,7 +474,7 @@ class AggregatorBatchJobs(BatchJobs):
             raise ProcessGraphMissingException()
 
         # TODO: better, more generic/specific job_option(s)?
-        if job_options and job_options.get("_jobsplitting"):
+        if job_options and (job_options.get("_jobsplitting") or job_options.get("tile_grid")):
             return self._create_partitioned_job(
                 user_id=user_id,
                 process=process,
@@ -533,7 +533,10 @@ class AggregatorBatchJobs(BatchJobs):
         if not self.partitioned_job_tracker:
             raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
 
-        splitter = FlimsySplitter(processing=self.processing)
+        if "tile_grid" in job_options:
+            splitter = TileGridSplitter(processing=self.processing)
+        else:
+            splitter = FlimsySplitter(processing=self.processing)
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
         job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)

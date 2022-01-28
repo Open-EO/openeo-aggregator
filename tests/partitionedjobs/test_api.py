@@ -2,10 +2,20 @@ import datetime
 import pytest
 
 from openeo.util import rfc3339
+from openeo_aggregator.backend import AggregatorBackendImplementation, AggregatorBatchJobs
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.testing import clock_mock, approx_str_contains
+from openeo_aggregator.utils import BoundingBox
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
 from .conftest import PG35, P35, OTHER_TEST_USER_BEARER_TOKEN
+from .test_splitting import check_tiling_coordinate_histograms
 from .test_tracking import DummyBackend
+
+
+@pytest.fixture()
+def zk_db(backend_implementation: AggregatorBackendImplementation) -> ZooKeeperPartitionedJobDB:
+    batch_jobs: AggregatorBatchJobs = backend_implementation.batch_jobs
+    return batch_jobs.partitioned_job_tracker._db
 
 
 class _Now:
@@ -327,3 +337,80 @@ class TestFlimsyBatchJobSplitting:
         # Get results as wrong user
         api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
         api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
+
+
+class TestTileGridBatchJobSplitting:
+    now = _Now("2022-01-19T12:34:56Z")
+
+    PG_MOL = {
+        "lc": {
+            "process_id": "load_collection",
+            "arguments": {
+                "id": "S2",
+                # covers 9 (3x3) utm-10km tiles
+                "spatial_extent": {"west": 4.9, "south": 51.1, "east": 5.2, "north": 51.3},
+            }
+        },
+        "sr": {
+            "process_id": "save_result",
+            "arguments": {"data": {"from_node": "lc"}, "format": "GTiff"},
+            "result": True,
+        }
+    }
+
+    @now.mock
+    def test_create_job_basic(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        res = api100.post("/jobs", json={
+            "title": "Mol",
+            "process": {"process_graph": self.PG_MOL},
+            "plan": "free",
+            "job_options": {"tile_grid": "utm-10km"}
+        }).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "title": "Mol",
+            "process": {"process_graph": self.PG_MOL},
+            "status": "created",
+            "created": self.now.rfc3339,
+        }
+
+        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
+            "user_id": TEST_USER,
+            "created": self.now.epoch,
+            "process": {"process_graph": self.PG_MOL},
+            "metadata": {"title": "Mol", "plan": "free"},
+            "job_options": {"tile_grid": "utm-10km"},
+        })
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
+            "status": "created",
+            "message": approx_str_contains("{'created': 9}"),
+            "timestamp": pytest.approx(self.now.epoch, abs=5)
+        }
+        subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
+        assert len(subjobs) == 9
+        dummy_jobs = []
+        tiles = []
+        for sjob_id, subjob_metadata in subjobs.items():
+            assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({"status": "created"})
+            job_id = zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+            dummy_jobs.append(job_id)
+            assert dummy1.get_job_status(TEST_USER, job_id) == "created"
+            pg = dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
+            new_node = next(v for k, v in pg.items() if k.startswith("_agg"))
+            extent = new_node["arguments"]["extent"]
+            assert extent["crs"] == "epsg:32631"
+            tiles.append(BoundingBox.from_dict(extent))
+        assert sorted(dummy_jobs) == [f"1-jb-{i}" for i in range(9)]
+        # Rudimentary coordinate checks
+        check_tiling_coordinate_histograms(tiles)
+
+    # TODO: more/full TileGridSplitter batch job tests

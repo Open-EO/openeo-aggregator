@@ -3,8 +3,9 @@ import pyproj
 import pytest
 import shapely
 import shapely.ops
+from typing import List
 
-from openeo_aggregator.backend import AggregatorBackendImplementation, AggregatorProcessing, AggregatorCollectionCatalog
+from openeo_aggregator.backend import AggregatorProcessing, AggregatorCollectionCatalog
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter, TileGrid, FlimsySplitter
 from openeo_aggregator.utils import BoundingBox
 
@@ -29,15 +30,12 @@ def test_flimsy_splitter(multi_backend_connection):
 
 class TestTileGridSplitter:
 
-    @staticmethod
     @pytest.fixture
-    def backend_implementation(
-            multi_backend_connection, config, requests_mock, backend1
-    ) -> AggregatorBackendImplementation:
+    def aggregator_processing(self, multi_backend_connection, requests_mock, backend1) -> AggregatorProcessing:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={})
-
-        return AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        return AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
 
     @pytest.mark.parametrize(["west", "south", "tile_grid", "expected_extent"], [
         # >>> from pyproj import Transformer
@@ -72,9 +70,9 @@ class TestTileGridSplitter:
                 {"west": 160_000, "south": 9_440_000, "east": 170_000, "north": 9_450_000, "crs": "epsg:32724"}
         ),
     ])
-    def test_simple_small_coverage(self, backend_implementation, tile_grid, west, south, expected_extent):
+    def test_simple_small_coverage(self, aggregator_processing, tile_grid, west, south, expected_extent):
         """load_collection with very small spatial extent that should only cover one tile"""
-        splitter = TileGridSplitter(backend_implementation=backend_implementation)
+        splitter = TileGridSplitter(processing=aggregator_processing)
         process = {"process_graph": {
             "lc": {
                 "process_id": "load_collection",
@@ -113,8 +111,8 @@ class TestTileGridSplitter:
         (dict(west=-55, south=-33, east=-50, north=-31), "utm-100km", 15, "epsg:32722"),
         (dict(west=-82, south=31, east=-81, north=32), "utm-20km", 42, "epsg:32617"),
     ])
-    def test_basic(self, backend_implementation, spatial_extent, tile_grid, expected_tile_count, expected_utm_crs):
-        splitter = TileGridSplitter(backend_implementation=backend_implementation)
+    def test_basic(self, aggregator_processing, spatial_extent, tile_grid, expected_tile_count, expected_utm_crs):
+        splitter = TileGridSplitter(processing=aggregator_processing)
         process = {"process_graph": {
             "lc": {
                 "process_id": "load_collection",
@@ -158,13 +156,23 @@ class TestTileGridSplitter:
 
         # Simple check for contiguous tiling: check histogram of x (or y) coordinates of all corners:
         # lowest and highest coordinate have same frequency, coordinates in between have twice that frequency
-        def check_histogram(hist: dict):
-            first = hist.pop(min(hist))
-            last = hist.pop(max(hist))
-            assert first == last
-            assert all(v == 2 * first for v in hist.values())
+        check_tiling_coordinate_histograms(filter_bbox_extents)
 
-        x_histogram = collections.Counter([x for e in filter_bbox_extents for x in [e.west, e.east]])
-        y_histogram = collections.Counter([y for e in filter_bbox_extents for y in [e.south, e.north]])
-        check_histogram(x_histogram)
-        check_histogram(y_histogram)
+
+def check_tiling_coordinate_histograms(tiles: List[BoundingBox]):
+    """
+    Simple check for contiguous tiling: check histogram of x (or y) coordinates of all corners:
+    lowest and highest coordinate have same frequency, coordinates in between (if any) have twice that frequency
+    """
+
+    def check_histogram(hist: dict):
+        c_min = min(hist.keys())
+        c_max = max(hist.keys())
+        f_min = hist[c_min]
+        expected = {c: f_min if c in {c_min, c_max} else 2 * f_min for c in hist.keys()}
+        assert hist == expected
+
+    x_histogram = collections.Counter([x for t in tiles for x in [t.west, t.east]])
+    y_histogram = collections.Counter([y for t in tiles for y in [t.south, t.north]])
+    check_histogram(x_histogram)
+    check_histogram(y_histogram)

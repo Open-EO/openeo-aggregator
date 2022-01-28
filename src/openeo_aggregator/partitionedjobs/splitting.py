@@ -8,7 +8,7 @@ from openeo.internal.process_graph_visitor import ProcessGraphVisitor
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.utils import BoundingBox
 from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
-from openeo_driver.backend import OpenEoBackendImplementation
+from openeo_driver.backend import OpenEoBackendImplementation, CollectionCatalog, AbstractCollectionCatalog
 from openeo_driver.dry_run import DryRunDataTracer
 from openeo_driver.errors import OpenEOApiException
 from openeo_driver.util.utm import auto_utm_epsg_for_geometry
@@ -122,8 +122,11 @@ def find_new_id(prefix: str, is_new: typing.Callable[[str], bool], limit=100) ->
 class TileGridSplitter(AbstractJobSplitter):
     """Split spatial extent in UTM/LonLat tiles."""
 
-    def __init__(self, backend_implementation: "AggregatorBackendImplementation"):
-        self.backend_implementation = backend_implementation
+    def __init__(self, processing: "AggregatorProcessing"):
+        self.backend_implementation = OpenEoBackendImplementation(
+            catalog=processing._catalog,
+            processing=processing
+        )
 
     def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         # TODO: pass tile_grid from job_options or from save_result format options?
