@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from openeo.rest.job import ResultAsset
 from openeo.util import TimingLogger
-from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
+from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
     STATUS_RUNNING, STATUS_FINISHED
@@ -32,6 +32,10 @@ class PartitionedJobTracker:
     def __init__(self, db: ZooKeeperPartitionedJobDB, backends: MultiBackendConnection):
         self._db = db
         self._backends = backends
+
+    @classmethod
+    def from_config(cls, config: AggregatorConfig, backends: MultiBackendConnection) -> "PartitionedJobTracker":
+        return cls(db=ZooKeeperPartitionedJobDB.from_config(config), backends=backends)
 
     def _check_user_access(self, user_id: str, pjob_id: str, pjob_metadata: Optional[dict] = None):
         pjob_metadata = pjob_metadata or self._db.get_pjob_metadata(pjob_id)

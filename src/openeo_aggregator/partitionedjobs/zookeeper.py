@@ -5,8 +5,9 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from typing import Dict, Optional
 
+from openeo_aggregator.config import AggregatorConfig, ConfigException
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED
-from openeo_aggregator.utils import Clock
+from openeo_aggregator.utils import Clock, strip_join
 
 _log = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ _log = logging.getLogger(__name__)
 class ZooKeeperPartitionedJobDB:
     """ZooKeeper based Partitioned job database"""
 
+    # TODO: "database" is a bit of a misnomer, this class is more about a thin abstraction layer above that
     # TODO: support for canceling?
     # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
 
@@ -21,15 +23,28 @@ class ZooKeeperPartitionedJobDB:
         self._client = client
         self._prefix = prefix
 
+    @classmethod
+    def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
+        # Get ZooKeeper client
+        if config.partitioned_job_tracking.get("zk_client"):
+            zk_client = config.partitioned_job_tracking["zk_client"]
+        elif config.partitioned_job_tracking.get("zk_hosts"):
+            zk_client = KazooClient(config.partitioned_job_tracking.get("zk_hosts"))
+        else:
+            raise ConfigException("Failed to construct zk_client")
+        # Determine ZooKeeper prefix
+        base_prefix = config.zookeeper_prefix
+        assert len(base_prefix.replace("/", "")) >= 3
+        partitioned_jobs_prefix = config.partitioned_job_tracking.get("zookeeper_prefix", "pj/v1/")
+        prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
+        return cls(client=zk_client, prefix=prefix)
+
     def _path(self, pjob_id: str, *path: str) -> str:
         """Helper to build a zookeeper path"""
         assert pjob_id.startswith("pj-")
         month = pjob_id[3:9]
         path = (month, pjob_id) + path
-        return "{r}/{p}".format(
-            r=self._prefix.rstrip("/"),
-            p="/".join(path).lstrip("/")
-        )
+        return strip_join("/", self._prefix, *path)
 
     @contextlib.contextmanager
     def _connect(self):

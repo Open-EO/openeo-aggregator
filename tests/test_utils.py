@@ -4,7 +4,7 @@ import pytest
 import shapely.geometry
 
 from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler, \
-    BoundingBox
+    BoundingBox, strip_join
 
 
 class FakeClock:
@@ -250,3 +250,16 @@ class TestBoundingBox:
         assert not bbox.contains(10, 3)
         assert not bbox.contains(2, 1)
         assert not bbox.contains(2, 10)
+
+
+def test_strip_join():
+    assert strip_join("/") == ""
+    assert strip_join("/", "a") == "a"
+    assert strip_join("/", "/a") == "/a"
+    assert strip_join("/", "a/") == "a/"
+    assert strip_join("/", "/a/") == "/a/"
+    assert strip_join("/", "a", "b") == "a/b"
+    assert strip_join("/", "/a/", "/b/") == "/a/b/"
+    assert strip_join("/", "a", "b", "c") == "a/b/c"
+    assert strip_join("/", "/a/", "/b", "/c") == "/a/b/c"
+    assert strip_join("/", "/a/", "/b/", "/c/") == "/a/b/c/"

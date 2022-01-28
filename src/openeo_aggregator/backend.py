@@ -630,16 +630,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
         if config.partitioned_job_tracking:
-            if config.partitioned_job_tracking.get("zk_client"):
-                zk_client = config.partitioned_job_tracking["zk_client"]
-            elif config.partitioned_job_tracking.get("zk_hosts"):
-                zk_client = KazooClient(config.partitioned_job_tracking.get("zk_hosts"))
-            else:
-                raise ConfigException("Failed to construct zk_client")
-            zk_prefix = config.zookeeper_prefix
-            assert len(zk_prefix.replace("/", "")) >= 3
-            zk_db = ZooKeeperPartitionedJobDB(zk_client, prefix=zk_prefix.rstrip("/") + "/pj/v1/")
-            partitioned_job_tracker = PartitionedJobTracker(zk_db, backends=self._backends)
+            partitioned_job_tracker = PartitionedJobTracker.from_config(config=config, backends=self._backends)
         else:
             partitioned_job_tracker = None
 

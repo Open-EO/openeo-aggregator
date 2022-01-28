@@ -1,7 +1,7 @@
 import datetime
 import logging
 import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple, Union
+from typing import Callable, Iterable, Iterator, List, NamedTuple, Union, Tuple
 
 import shapely.geometry
 
@@ -218,3 +218,13 @@ class BoundingBox(NamedTuple):
     def contains(self, x: float, y: float) -> bool:
         """Check if given point is inside the bounding box"""
         return (self.west <= x <= self.east) and (self.south <= y <= self.north)
+
+
+def strip_join(separator: str, *args: str) -> str:
+    """
+    Join multiple strings with given separator,
+    but avoid repeated separators by first stripping it from the glue points
+    """
+    if len(args) > 1:
+        args = [args[0].rstrip(separator)] + [a.strip(separator) for a in args[1:-1]] + [args[-1].lstrip(separator)]
+    return separator.join(args)
