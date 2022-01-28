@@ -48,6 +48,7 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
         OPENEO_DESCRIPTION="openEO Platform, provided through openEO Aggregator Driver",
         OPENEO_BACKEND_VERSION=openeo_aggregator.about.__version__,
         OPENEO_BACKEND_DEPLOY_METADATA=deploy_metadata,
+        OPENEO_BACKEND_IMPLEMENTATION=backend_implementation,
     )
 
     # Some additional experimental inspection/debug endpoints
