@@ -1,7 +1,4 @@
-import itertools
-
 import collections
-
 import pyproj
 import pytest
 import shapely
