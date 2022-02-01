@@ -612,9 +612,7 @@ class AggregatorBatchJobs(BatchJobs):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
-            params = dict_no_none(offset=offset)
-            res = con.get(f"/jobs/{backend_job_id}/logs", params=params, expected_status=200).json()
-        return res["logs"]
+            return con.job(backend_job_id).logs(offset=offset)
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):

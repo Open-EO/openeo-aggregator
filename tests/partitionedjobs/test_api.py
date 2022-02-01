@@ -341,6 +341,30 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
         api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
+    @now.mock
+    def test_get_logs(self, api100, backend1, zk_client, requests_mock, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        res = api100.post("/jobs", json={
+            "title": "3+5",
+            "description": "Addition of 3 and 5",
+            "process": P35,
+            "plan": "free",
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        expected_job_id = "agg-pj-20220119-123456"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        requests_mock.get(backend1 + "/jobs/1-jb-0/logs", json={
+            "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
+        })
+
+        res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
+        assert res.json == {
+            "logs": [{"id": "0000-123", "level": "info", "message": "Created job. You're welcome."}],
+            "links": [],
+        }
+
 
 class TestTileGridBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")

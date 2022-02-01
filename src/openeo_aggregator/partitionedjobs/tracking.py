@@ -6,6 +6,7 @@ import logging
 import threading
 from typing import List, Optional
 
+from openeo.api.logs import LogEntry
 from openeo.rest.job import ResultAsset
 from openeo.util import TimingLogger
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
@@ -271,6 +272,23 @@ class PartitionedJobTracker:
         _log.info(f"Collected {len(assets)} assets for {pjob_id}")
         return assets
 
+    def get_logs(
+            self, user_id: str, pjob_id: str, flask_request: flask.Request, offset: Optional[int] = None
+    ) -> List[LogEntry]:
+        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
+        sjobs = self._db.list_subjobs(pjob_id)
+        all_logs = []
+        with TimingLogger(title=f"Collect logs for {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
+            for sjob_id, sjob_metadata in sjobs.items():
+                job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+                con = self._backends.get_connection(sjob_metadata["backend_id"])
+                with con.authenticated_from_request(request=flask_request):
+                    logs = con.job(job_id).logs(offset=offset)
+                    for log in logs:
+                        log["id"] = f"{sjob_id}-{log.id}"
+                    all_logs.extend(logs)
+        return all_logs
+
 
 class PartitionedJobConnection:
     """
@@ -317,6 +335,15 @@ class PartitionedJobConnection:
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
+            )
+
+        def logs(self, offset=None) -> List[LogEntry]:
+            """Interface `RESTJob.logs`"""
+            return self.connection.partitioned_job_tracker.get_logs(
+                user_id=self.connection._user.user_id,
+                pjob_id=self.pjob_id,
+                flask_request=self.connection._flask_request,
+                offset=offset
             )
 
     def __init__(self, partitioned_job_tracker: PartitionedJobTracker):
