@@ -17,7 +17,7 @@ setup(
     author="Stefaan Lippens",
     author_email="stefaan.lippens@vito.be",
     url="https://github.com/Open-EO/openeo-aggregator",
-    packages=find_packages(where="src", include=["openeo_aggregator"]),
+    packages=find_packages(where="src", include=["openeo_aggregator", "openeo_aggregator.*"]),
     package_dir={"": "src"},
     install_requires=[
         "requests",
