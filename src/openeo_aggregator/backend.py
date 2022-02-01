@@ -1,23 +1,25 @@
+from collections import defaultdict
+
 import contextlib
+import flask
 import functools
 import logging
 import time
-from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
-
-import flask
 from kazoo.client import KazooClient
+from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
-from openeo_aggregator import jobsplitting
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START, ConfigException
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.jobsplitting import PartitionedJob, PartitionedJobConnection
+from openeo_aggregator.partitionedjobs import PartitionedJob
+from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
+from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -433,7 +435,7 @@ class AggregatorBatchJobs(BatchJobs):
             self,
             backends: MultiBackendConnection,
             processing: AggregatorProcessing,
-            partitioned_job_tracker: Optional[jobsplitting.PartitionedJobTracker] = None,
+            partitioned_job_tracker: Optional[PartitionedJobTracker] = None,
     ):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
@@ -472,7 +474,7 @@ class AggregatorBatchJobs(BatchJobs):
             raise ProcessGraphMissingException()
 
         # TODO: better, more generic/specific job_option(s)?
-        if job_options and job_options.get("_jobsplitting"):
+        if job_options and (job_options.get("_jobsplitting") or job_options.get("tile_grid")):
             return self._create_partitioned_job(
                 user_id=user_id,
                 process=process,
@@ -531,7 +533,10 @@ class AggregatorBatchJobs(BatchJobs):
         if not self.partitioned_job_tracker:
             raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
 
-        splitter = jobsplitting.JobSplitter(backends=self.backends)
+        if "tile_grid" in job_options:
+            splitter = TileGridSplitter(processing=self.processing)
+        else:
+            splitter = FlimsySplitter(processing=self.processing)
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
         job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
@@ -607,9 +612,7 @@ class AggregatorBatchJobs(BatchJobs):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
-            params = dict_no_none(offset=offset)
-            res = con.get(f"/jobs/{backend_job_id}/logs", params=params, expected_status=200).json()
-        return res["logs"]
+            return con.job(backend_job_id).logs(offset=offset)
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -628,16 +631,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
         if config.partitioned_job_tracking:
-            if config.partitioned_job_tracking.get("zk_client"):
-                zk_client = config.partitioned_job_tracking["zk_client"]
-            elif config.partitioned_job_tracking.get("zk_hosts"):
-                zk_client = KazooClient(config.partitioned_job_tracking.get("zk_hosts"))
-            else:
-                raise ConfigException("Failed to construct zk_client")
-            zk_prefix = config.zookeeper_prefix
-            assert len(zk_prefix.replace("/", "")) >= 3
-            zk_db = jobsplitting.ZooKeeperPartitionedJobDB(zk_client, prefix=zk_prefix.rstrip("/") + "/pj/v1/")
-            partitioned_job_tracker = jobsplitting.PartitionedJobTracker(zk_db, backends=self._backends)
+            partitioned_job_tracker = PartitionedJobTracker.from_config(config=config, backends=self._backends)
         else:
             partitioned_job_tracker = None
 

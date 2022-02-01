@@ -4,7 +4,7 @@ import flask
 import pytest
 
 from openeo_aggregator.app import create_app
-from openeo_aggregator.backend import MultiBackendConnection
+from openeo_aggregator.backend import MultiBackendConnection, AggregatorBackendImplementation
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import DummyKazooClient
 from openeo_driver.testing import ApiTester
@@ -90,6 +90,12 @@ def get_flask_app(config: AggregatorConfig) -> flask.Flask:
 @pytest.fixture
 def flask_app(config: AggregatorConfig) -> flask.Flask:
     return get_flask_app(config)
+
+
+@pytest.fixture
+def backend_implementation(flask_app) -> AggregatorBackendImplementation:
+    """Get AggregatorBackendImplementation from flask app"""
+    return flask_app.config["OPENEO_BACKEND_IMPLEMENTATION"]
 
 
 def get_api100(flask_app: flask.Flask) -> ApiTester:

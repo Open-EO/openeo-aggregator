@@ -1,7 +1,9 @@
 import datetime
 import logging
 import time
-from typing import Callable, Iterable, Iterator, List
+from typing import Callable, Iterable, Iterator, List, NamedTuple, Union, Tuple
+
+import shapely.geometry
 
 from openeo.util import TimingLogger
 
@@ -117,7 +119,7 @@ class MultiDictGetter:
         return MultiDictGetter(d for d in self.get(key=key) if isinstance(d, dict))
 
 
-def subdict(d: dict, *args, keys: list = None, default=None) -> dict:
+def subdict(d: dict, *args, keys: Iterable[str] = None, default=None) -> dict:
     """Extract dict with only selected keys from given dict"""
     keys = set(keys or []) | set(args)
     # TODO: way to not provide default and raise KeyError on missing keys
@@ -185,3 +187,44 @@ class Clock:
         Like `datetime.datetime.utcnow()`: Current UTC datetime (naive).
         """
         return datetime.datetime.utcfromtimestamp(cls.time())
+
+
+class BoundingBox(NamedTuple):
+    """Simple NamedTuple container for a bounding box """
+    # TODO: move this to openeo_driver
+    west: float
+    south: float
+    east: float
+    north: float
+    # TODO: also accept integer EPSG code as CRS?
+    # TODO: automatically normalize CRS (e.g. lower case)
+    crs: str = "EPSG:4326"
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BoundingBox":
+        return cls(**{
+            k: d[k]
+            for k in cls._fields
+            if k not in cls._field_defaults or k in d
+        })
+
+    def as_dict(self) -> dict:
+        return self._asdict()
+
+    def as_polygon(self) -> shapely.geometry.Polygon:
+        """Get bounding box as a shapely Polygon"""
+        return shapely.geometry.box(minx=self.west, miny=self.south, maxx=self.east, maxy=self.north)
+
+    def contains(self, x: float, y: float) -> bool:
+        """Check if given point is inside the bounding box"""
+        return (self.west <= x <= self.east) and (self.south <= y <= self.north)
+
+
+def strip_join(separator: str, *args: str) -> str:
+    """
+    Join multiple strings with given separator,
+    but avoid repeated separators by first stripping it from the glue points
+    """
+    if len(args) > 1:
+        args = [args[0].rstrip(separator)] + [a.strip(separator) for a in args[1:-1]] + [args[-1].lstrip(separator)]
+    return separator.join(args)
