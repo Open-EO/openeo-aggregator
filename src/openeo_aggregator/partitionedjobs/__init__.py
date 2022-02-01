@@ -1,5 +1,11 @@
 from typing import NamedTuple, List
 
+from openeo_driver.errors import OpenEOApiException
+
+
+class PartitionedJobFailure(OpenEOApiException):
+    code = "PartitionedJobFailure"
+
 
 class SubJob(NamedTuple):
     """A part of a partitioned job, target at a particular, single back-end."""

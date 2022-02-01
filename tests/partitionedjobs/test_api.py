@@ -155,6 +155,12 @@ class TestFlimsyBatchJobSplitting:
             "message": "Create failed: [500] Internal: nope",
         })
 
+        res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
+        assert res.json == {
+            "logs": [{"id": "0000-0", "level": "error", "message": approx_str_contains("NoJobIdForSubJob")}],
+            "links": [],
+        }
+
     @now.mock
     def test_start_job(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -343,6 +349,9 @@ class TestFlimsyBatchJobSplitting:
 
     @now.mock
     def test_get_logs(self, api100, backend1, zk_client, requests_mock, dummy1):
+        requests_mock.get(backend1 + "/jobs/1-jb-0/logs", json={
+            "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
+        })
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -354,10 +363,6 @@ class TestFlimsyBatchJobSplitting:
         }).assert_status_code(201)
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
-
-        requests_mock.get(backend1 + "/jobs/1-jb-0/logs", json={
-            "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
-        })
 
         res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {

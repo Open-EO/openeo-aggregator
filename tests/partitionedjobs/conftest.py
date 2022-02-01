@@ -76,12 +76,14 @@ class DummyBackend:
         # Basic collections
         requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(self.backend_url + "/collections/S2", json={})
-        # Batch job handling
+        # Batch job handling: create job
         requests_mock.post(self.backend_url + "/jobs", text=self._handle_post_jobs)
+        # Batch job handling: start job
         requests_mock.post(
             re.compile(re.escape(self.backend_url) + "/jobs/(?P<job_id>[a-z0-9-]+)/results$"),
             text=self._handle_post_jobs_jobid_result,
         )
+        # Batch job handling: poll job status
         requests_mock.get(
             re.compile(re.escape(self.backend_url) + "/jobs/(?P<job_id>[a-z0-9-]+)$"),
             json=self._handle_get_jobs_jobid,

@@ -2,6 +2,7 @@ import kazoo
 import kazoo.exceptions
 import pytest
 
+from openeo_aggregator.partitionedjobs.zookeeper import NoJobIdForSubJobException
 from openeo_aggregator.testing import clock_mock, approx_now
 from openeo_driver.testing import TEST_USER
 from .conftest import PG12, PG23, P35
@@ -91,7 +92,7 @@ class TestZooKeeperPartitionedJobDB:
     def test_set_get_backend_job_id(self, pjob, zk_db):
         pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)
 
-        with pytest.raises(kazoo.exceptions.NoNodeError):
+        with pytest.raises(NoJobIdForSubJobException):
             zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
 
         zk_db.set_backend_job_id(pjob_id=pjob_id, sjob_id="0000", job_id="b1-job-123")

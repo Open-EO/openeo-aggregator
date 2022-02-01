@@ -2,14 +2,18 @@ import contextlib
 import json
 import logging
 from kazoo.client import KazooClient
-from kazoo.exceptions import NodeExistsError
+from kazoo.exceptions import NodeExistsError, NoNodeError
 from typing import Dict, Optional
 
 from openeo_aggregator.config import AggregatorConfig, ConfigException
-from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED
+from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED, PartitionedJobFailure
 from openeo_aggregator.utils import Clock, strip_join
 
 _log = logging.getLogger(__name__)
+
+
+class NoJobIdForSubJobException(PartitionedJobFailure):
+    code = "NoJobIdForSubJob"
 
 
 class ZooKeeperPartitionedJobDB:
@@ -96,7 +100,7 @@ class ZooKeeperPartitionedJobDB:
                     # TODO: add a sleep() to back off a bit?
                     continue
             else:
-                raise RuntimeError("Too much attempts to create new pjob_id")
+                raise PartitionedJobFailure("Too much attempts to create new pjob_id")
 
             # Updatable metadata
             self._client.create(
@@ -160,7 +164,10 @@ class ZooKeeperPartitionedJobDB:
     def get_backend_job_id(self, pjob_id: str, sjob_id: str) -> str:
         """Get external back-end job id of given sub job"""
         with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
+            try:
+                value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
+            except NoNodeError:
+                raise NoJobIdForSubJobException(f"No job_id for {pjob_id}:{sjob_id}.")
             return self.deserialize(value)["job_id"]
 
     def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None, progress: int = None):

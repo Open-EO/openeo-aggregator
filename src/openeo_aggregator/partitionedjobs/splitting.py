@@ -5,20 +5,19 @@ import re
 import typing
 
 from openeo.internal.process_graph_visitor import ProcessGraphVisitor
-from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
+from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob, PartitionedJobFailure
 from openeo_aggregator.utils import BoundingBox
 from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
-from openeo_driver.backend import OpenEoBackendImplementation, CollectionCatalog, AbstractCollectionCatalog
+from openeo_driver.backend import OpenEoBackendImplementation
 from openeo_driver.dry_run import DryRunDataTracer
-from openeo_driver.errors import OpenEOApiException
 from openeo_driver.util.utm import auto_utm_epsg_for_geometry
 from openeo_driver.utils import EvalEnv, spatial_extent_union, reproject_bounding_box
 
 if typing.TYPE_CHECKING:
-    from openeo_aggregator.backend import AggregatorProcessing, AggregatorBackendImplementation
+    from openeo_aggregator.backend import AggregatorProcessing
 
 
-class JobSplittingFailure(OpenEOApiException):
+class JobSplittingFailure(PartitionedJobFailure):
     code = "JobSplitFailure"
 
 

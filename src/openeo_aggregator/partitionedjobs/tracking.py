@@ -13,7 +13,7 @@ from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorCon
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
     STATUS_RUNNING, STATUS_FINISHED
-from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB, NoJobIdForSubJobException
 from openeo_aggregator.utils import _UNSET
 from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
@@ -259,6 +259,7 @@ class PartitionedJobTracker:
                     # TODO Partial result https://github.com/Open-EO/openeo-api/pull/433
                     raise JobNotFinishedException
                 # Get assets from remote back-end
+                # TODO: handle `get_backend_job_id` failure (e.g. `NoJobIdForSubJobException`)
                 job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
                 con = self._backends.get_connection(sjob_metadata["backend_id"])
                 with con.authenticated_from_request(request=flask_request):
@@ -280,13 +281,19 @@ class PartitionedJobTracker:
         all_logs = []
         with TimingLogger(title=f"Collect logs for {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
             for sjob_id, sjob_metadata in sjobs.items():
-                job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
-                con = self._backends.get_connection(sjob_metadata["backend_id"])
-                with con.authenticated_from_request(request=flask_request):
-                    logs = con.job(job_id).logs(offset=offset)
-                    for log in logs:
-                        log["id"] = f"{sjob_id}-{log.id}"
-                    all_logs.extend(logs)
+                try:
+                    job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+                    con = self._backends.get_connection(sjob_metadata["backend_id"])
+                    with con.authenticated_from_request(request=flask_request):
+                        logs = con.job(job_id).logs(offset=offset)
+                        for log in logs:
+                            log["id"] = f"{sjob_id}-{log.id}"
+                        all_logs.extend(logs)
+                except Exception as e:
+                    all_logs.append(LogEntry(
+                        id=f"{sjob_id}-0", level="error", message=f"Failed to get logs of {pjob_id}:{sjob_id}: {e!r}"
+                    ))
+
         return all_logs
 
 
