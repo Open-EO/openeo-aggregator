@@ -78,7 +78,7 @@ class PartitionedJobTracker:
                     _log.warning(f"Not creating {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
 
         pjob_status = STATUS_CREATED if create_stats[STATUS_CREATED] > 0 else STATUS_ERROR
-        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(create_stats))
+        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(create_stats), progress=0)
 
     def _create_sjob(
             self, pjob_id: str, sjob_id: str,
@@ -130,7 +130,7 @@ class PartitionedJobTracker:
                     _log.warning(f"Not starting {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
 
         pjob_status = STATUS_RUNNING if start_stats[STATUS_RUNNING] > 0 else STATUS_ERROR
-        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(start_stats))
+        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(start_stats), progress=0)
 
     def _start_sjob(self, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request) -> str:
         try:
@@ -210,17 +210,19 @@ class PartitionedJobTracker:
         status_counts = collections.Counter(
             self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
         )
+        # TODO: more advanced progress metric than just #finished/#total?
+        progress = int(100.0 * status_counts.get(STATUS_FINISHED, 0) / sum(status_counts.values()))
         status_message = repr(status_counts)
         _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
         statusses = set(status_counts)
         if statusses == {STATUS_FINISHED}:
-            self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message)
+            self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message, progress=progress)
         elif STATUS_RUNNING in statusses:
-            self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message)
+            self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message, progress=progress)
         elif STATUS_CREATED in statusses or STATUS_INSERTED in statusses:
             pass
         elif STATUS_ERROR in statusses:
-            self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message)
+            self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message, progress=progress)
         else:
             raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
@@ -229,7 +231,8 @@ class PartitionedJobTracker:
         self.sync(user_id=user_id, pjob_id=pjob_id, flask_request=flask_request)
         pjob_metadata = self._db.get_pjob_metadata(pjob_id=pjob_id)
         self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
-        status = self._db.get_pjob_status(pjob_id=pjob_id)["status"]
+        status_data = self._db.get_pjob_status(pjob_id=pjob_id)
+        status = status_data["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
         return BatchJobMetadata(
             id=pjob_id, status=status,
@@ -237,6 +240,7 @@ class PartitionedJobTracker:
             title=pjob_metadata["metadata"].get("title"),
             description=pjob_metadata["metadata"].get("description"),
             process=pjob_metadata["process"],
+            progress=status_data.get("progress"),
             # TODO more fields?
         ).to_api_dict(full=True)
 

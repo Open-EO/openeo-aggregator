@@ -109,7 +109,11 @@ class TestZooKeeperPartitionedJobDB:
 
         zk_db.set_pjob_status(pjob_id="pj-20220117-174800", status="running", message="goin' on")
         status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
-        assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now()}
+        assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now(), "progress": None}
+
+        zk_db.set_pjob_status(pjob_id="pj-20220117-174800", status="running", message="goin' on", progress=45)
+        status = zk_db.get_pjob_status(pjob_id="pj-20220117-174800")
+        assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now(), "progress": 45}
 
     def test_set_get_sjob_status(self, pjob, zk_db):
         with pytest.raises(kazoo.exceptions.NoNodeError):

@@ -65,6 +65,7 @@ class TestFlimsyBatchJobSplitting:
             "process": P35,
             "status": "created",
             "created": self.now.rfc3339,
+            "progress": 0,
         }
 
         # TODO: these unit tests should not really care about the zookeeper state
@@ -80,7 +81,8 @@ class TestFlimsyBatchJobSplitting:
         assert zk_data[zk_prefix + "/status"] == {
             "status": "created",
             "message": approx_str_contains("{'created': 1}"),
-            "timestamp": pytest.approx(self.now.epoch, abs=5)
+            "timestamp": pytest.approx(self.now.epoch, abs=5),
+            "progress": 0,
         }
         assert zk_data[zk_prefix + "/sjobs/0000"] == {
             "backend_id": "b1",
@@ -139,6 +141,7 @@ class TestFlimsyBatchJobSplitting:
             "process": P35,
             "status": "error",
             "created": self.now.rfc3339,
+            "progress": 0,
         }
 
         # TODO: these unit tests should not really care about the zookeeper state
@@ -166,13 +169,13 @@ class TestFlimsyBatchJobSplitting:
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "created", "progress": 0})
 
         # Start job
         api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
@@ -224,17 +227,17 @@ class TestFlimsyBatchJobSplitting:
         # Start job
         api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: still running
         dummy1.set_job_status(TEST_USER, '1-jb-0', "running")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: finished
         dummy1.set_job_status(TEST_USER, '1-jb-0', "finished")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # TODO: these unit tests should not really care about the zookeeper state
         zk_data = zk_client.get_data_deserialized(drop_empty=True)
@@ -289,12 +292,12 @@ class TestFlimsyBatchJobSplitting:
         # Start job
         api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "running"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: finished
         dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
-        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished"})
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # Get results
         # TODO: move this mock to DummyBackend
@@ -381,6 +384,7 @@ class TestTileGridBatchJobSplitting:
             "process": {"process_graph": self.PG_MOL},
             "status": "created",
             "created": self.now.rfc3339,
+            "progress": 0,
         }
 
         assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
@@ -393,7 +397,8 @@ class TestTileGridBatchJobSplitting:
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "created",
             "message": approx_str_contains("{'created': 9}"),
-            "timestamp": pytest.approx(self.now.epoch, abs=5)
+            "timestamp": pytest.approx(self.now.epoch, abs=5),
+            "progress": 0,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert len(subjobs) == 9

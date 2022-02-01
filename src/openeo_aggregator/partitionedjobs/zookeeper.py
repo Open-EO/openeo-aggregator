@@ -163,7 +163,7 @@ class ZooKeeperPartitionedJobDB:
             value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
             return self.deserialize(value)["job_id"]
 
-    def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None):
+    def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None, progress: int = None):
         """
         Store status of partitioned job (with optional message).
 
@@ -174,7 +174,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             self._client.set(
                 path=self._path(pjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=Clock.time())
+                value=self.serialize(status=status, message=message, timestamp=Clock.time(), progress=progress)
             )
 
     def get_pjob_status(self, pjob_id: str) -> dict:

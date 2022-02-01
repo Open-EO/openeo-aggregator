@@ -81,6 +81,7 @@ class TestPartitionedJobTracker:
             "status": "error",
             "message": approx_str_contains("{'error': 2}"),
             "timestamp": approx_now(),
+            "progress": 0,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -149,6 +150,7 @@ class TestPartitionedJobTracker:
             "status": "running",
             "message": approx_str_contains("{'running': 2}"),
             "timestamp": approx_now(),
+            "progress": 0,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -168,6 +170,7 @@ class TestPartitionedJobTracker:
             "status": "running",
             "message": approx_str_contains("{'running': 1, 'finished': 1}"),
             "timestamp": approx_now(),
+            "progress": 50,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -191,6 +194,7 @@ class TestPartitionedJobTracker:
             "status": "finished",
             "message": approx_str_contains("{'finished': 2}"),
             "timestamp": approx_now(),
+            "progress": 100,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -222,6 +226,7 @@ class TestPartitionedJobTracker:
             "status": "running",
             "message": approx_str_contains("{'running': 1, 'error': 1}"),
             "timestamp": approx_now(),
+            "progress": 0,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
@@ -245,6 +250,7 @@ class TestPartitionedJobTracker:
             "status": "error",
             "message": approx_str_contains("{'error': 2}"),
             "timestamp": approx_now(),
+            "progress": 0,
         }
         subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
