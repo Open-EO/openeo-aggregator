@@ -507,7 +507,10 @@ class TestTileGridBatchJobSplitting:
                     "type": "application/geo+json",
                 })
             },
-            "geometry": DictSubSet({"type": "MultiPolygon"})
+            "geometry": DictSubSet({
+                "type": "GeometryCollection",
+                "geometries": [DictSubSet({"type": "Polygon"}), DictSubSet({"type": "MultiPolygon"})]
+            })
         })
 
         res = api100.get("/jobs/agg-pj-20220119-123456/results/tile_grid.geojson").assert_status_code(200)

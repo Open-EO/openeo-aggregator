@@ -252,7 +252,7 @@ class PartitionedJobTracker:
             try:
                 # Add tiling geometry in MultiPolygon format
                 tiling = pjob_metadata["metadata"][TileGridSplitter.METADATA_KEY]
-                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="MultiPolygon")
+                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="GeometryCollection")
                 job_metadata["geometry"] = geojson
             except Exception as e:
                 _log.error("Failed to add tiling geometry to batch job metadata", exc_info=True)

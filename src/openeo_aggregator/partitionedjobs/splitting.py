@@ -239,9 +239,9 @@ class TileGridSplitter(AbstractJobSplitter):
         global_spatial_extent = reproject(global_spatial_extent)
         tiles = [reproject(t) for t in tiles]
 
-        if format == "MultiPolygon":
-            mp = shapely.geometry.MultiPolygon([global_spatial_extent] + tiles)
-            return shapely.geometry.mapping(mp)
+        if format == "GeometryCollection":
+            geom = shapely.geometry.GeometryCollection([global_spatial_extent, shapely.geometry.MultiPolygon(tiles)])
+            return shapely.geometry.mapping(geom)
         elif format == "FeatureCollection":
             # Feature collection
             def feature(polygon, **kwargs):
