@@ -4,7 +4,7 @@ import pytest
 from openeo.util import rfc3339
 from openeo_aggregator.backend import AggregatorBackendImplementation, AggregatorBatchJobs
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.testing import clock_mock, approx_str_contains
+from openeo_aggregator.testing import clock_mock, approx_str_contains, approx_str_prefix
 from openeo_aggregator.utils import BoundingBox
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
 from .conftest import PG35, P35, OTHER_TEST_USER_BEARER_TOKEN
@@ -94,7 +94,7 @@ class TestFlimsyBatchJobSplitting:
         }
         assert zk_data[zk_prefix + "/sjobs/0000/status"] == {
             "status": "created",
-            "message": "created",
+            "message": approx_str_prefix("Created in 0:00"),
             "timestamp": pytest.approx(self.now.epoch, abs=5)
         }
 

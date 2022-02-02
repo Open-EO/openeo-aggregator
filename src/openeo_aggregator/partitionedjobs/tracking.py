@@ -91,7 +91,7 @@ class PartitionedJobTracker:
             # TODO: different way to authenticate request?
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
-                with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info):
+                with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.create_job(
                         process_graph=sjob_metadata["process_graph"],
                         title=sjob_metadata.get("title"),
@@ -102,7 +102,7 @@ class PartitionedJobTracker:
                     )
             _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
             self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message="created")
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message=f"Created in {timer.elapsed}")
             return STATUS_CREATED
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
@@ -140,10 +140,10 @@ class PartitionedJobTracker:
             # TODO: different way to authenticate request?
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
-                with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info):
+                with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.job(job_id)
                     job.start_job()
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message="started")
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=f"Started in {timer.elapsed}")
             return STATUS_RUNNING
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
@@ -190,18 +190,20 @@ class PartitionedJobTracker:
                     # Skip unexpected failure for now (could be temporary)
                     # TODO: inspect error and flag as failed, skip temporary glitches, ....
                 else:
+                    msg = f"Upstream status: {status!r}"
                     if status == "finished":
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=msg)
                         # TODO: collect result/asset URLS here already?
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=status)
+                        # TODO: differentiate between created queued and running?
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=msg)
                     elif status in {"error", "canceled"}:
                         # TODO: handle "canceled" state properly?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
             elif sjob_status == STATUS_ERROR:
                 # TODO: status "error" is not necessarily final see https://github.com/Open-EO/openeo-api/issues/436
                 pass

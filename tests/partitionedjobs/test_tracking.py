@@ -58,7 +58,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({
                 "status": "created",
-                "message": "created",
+                "message": approx_str_prefix("Created in 0:00"),
             })
         assert dummy1.jobs[john, "1-jb-0"].create == {
             "process": P12,
@@ -115,7 +115,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({
                 "status": "running",
-                "message": "started",
+                "message": approx_str_prefix("Started in 0:00"),
             })
 
         assert dummy1.jobs[john, "1-jb-0"].history == ["created", "running"]
@@ -157,7 +157,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {
                 "status": "running",
-                "message": "running",
+                "message": "Upstream status: 'running'",
                 "timestamp": approx_now(),
             }
 
@@ -176,12 +176,12 @@ class TestPartitionedJobTracker:
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == {
             "status": "running",
-            "message": "running",
+            "message": "Upstream status: 'running'",
             "timestamp": approx_now(),
         }
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0001") == {
             "status": "finished",
-            "message": "finished",
+            "message": "Upstream status: 'finished'",
             "timestamp": approx_now(),
         }
 
@@ -201,7 +201,7 @@ class TestPartitionedJobTracker:
         for sjob_id in subjobs:
             assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == {
                 "status": "finished",
-                "message": "finished",
+                "message": "Upstream status: 'finished'",
                 "timestamp": approx_now(),
             }
 
@@ -232,12 +232,12 @@ class TestPartitionedJobTracker:
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == {
             "status": "running",
-            "message": "running",
+            "message": "Upstream status: 'running'",
             "timestamp": approx_now(),
         }
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0001") == {
             "status": "error",
-            "message": "error",
+            "message": "Upstream status: 'error'",
             "timestamp": approx_now(),
         }
 
@@ -256,12 +256,12 @@ class TestPartitionedJobTracker:
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == {
             "status": "error",
-            "message": "3rr0r",
+            "message": "Upstream status: '3rr0r'",
             "timestamp": approx_now(),
         }
         assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0001") == {
             "status": "error",
-            "message": "error",
+            "message": "Upstream status: 'error'",
             "timestamp": approx_now(),
         }
         assert dummy1.jobs[john, "1-jb-0"].history == ["created", "running", "3rr0r"]
