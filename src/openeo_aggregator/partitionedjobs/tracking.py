@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from openeo.api.logs import LogEntry
 from openeo.rest.job import ResultAsset
-from openeo.util import TimingLogger
+from openeo.util import TimingLogger, rfc3339
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
@@ -237,15 +237,16 @@ class PartitionedJobTracker:
         status_data = self._db.get_pjob_status(pjob_id=pjob_id)
         status = status_data["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
-        return BatchJobMetadata(
-            id=pjob_id, status=status,
-            created=datetime.datetime.utcfromtimestamp(pjob_metadata["created"]),
-            title=pjob_metadata["metadata"].get("title"),
-            description=pjob_metadata["metadata"].get("description"),
-            process=pjob_metadata["process"],
-            progress=status_data.get("progress"),
-            # TODO more fields?
-        ).to_api_dict(full=True)
+        return {
+            "id": pjob_id,
+            "status": status,
+            "created": rfc3339.datetime(datetime.datetime.utcfromtimestamp(pjob_metadata["created"])),
+            "title": pjob_metadata["metadata"].get("title"),
+            "description": pjob_metadata["metadata"].get("description"),
+            "process": pjob_metadata["process"],
+            "progress": status_data.get("progress"),
+            "geometry": pjob_metadata["metadata"].get("_tiling_geometry")
+        }
 
     def get_assets(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
         # TODO: do a sync if latest sync is too long ago?

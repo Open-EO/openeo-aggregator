@@ -30,16 +30,16 @@ def flask_request(test_user) -> flask.Request:
 
 @pytest.fixture
 def dummy1(backend1, requests_mock, test_user) -> DummyBackend:
-    dummy = DummyBackend(backend_url=backend1, job_id_template="1-jb-{i}")
-    dummy.setup_requests_mock(requests_mock)
+    dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
+    dummy.setup_basic_requests_mocks()
     dummy.register_user(bearer_token=test_user["bearer"], user_id=test_user["user_id"])
     return dummy
 
 
 @pytest.fixture
 def dummy2(backend2, requests_mock, test_user) -> DummyBackend:
-    dummy = DummyBackend(backend_url=backend2, job_id_template="2-jb-{i}")
-    dummy.setup_requests_mock(requests_mock)
+    dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend2, job_id_template="2-jb-{i}")
+    dummy.setup_basic_requests_mocks()
     dummy.register_user(bearer_token=test_user["bearer"], user_id=test_user["user_id"])
     return dummy
 

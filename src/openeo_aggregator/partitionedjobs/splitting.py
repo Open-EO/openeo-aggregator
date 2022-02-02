@@ -1,8 +1,12 @@
 import abc
 import copy
 import math
+import pyproj
 import re
+import shapely.geometry
+import shapely.ops
 import typing
+from typing import List
 
 from openeo.internal.process_graph_visitor import ProcessGraphVisitor
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob, PartitionedJobFailure
@@ -69,7 +73,7 @@ class TileGrid(typing.NamedTuple):
             raise JobSplittingFailure(f"Failed to parse tile_grid {tile_grid!r}")
         return cls(crs_type=m.group("crs"), size=int(m.group("size")), unit=m.group("unit"))
 
-    def get_tiles(self, bbox: BoundingBox, max_tiles=MAX_TILES) -> typing.Iterator[BoundingBox]:
+    def get_tiles(self, bbox: BoundingBox, max_tiles=MAX_TILES) -> List[BoundingBox]:
         """Calculate tiles to cover given bounding box"""
         if self.crs_type == "utm":
             # TODO: properly handle bbox that covers multiple UTM zones
@@ -96,15 +100,17 @@ class TileGrid(typing.NamedTuple):
         if tile_count > max_tiles:
             raise JobSplittingFailure(f"Tile count {tile_count} exceeds limit {max_tiles}")
 
+        tiles = []
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):
-                yield BoundingBox(
+                tiles.append(BoundingBox(
                     west=x * tile_size + x_offset,
                     south=y * tile_size,
                     east=(x + 1) * tile_size + x_offset,
                     north=(y + 1) * tile_size,
                     crs=tiling_crs,
-                )
+                ))
+        return tiles
 
 
 def find_new_id(prefix: str, is_new: typing.Callable[[str], bool], limit=100) -> str:
@@ -143,6 +149,12 @@ class TileGridSplitter(AbstractJobSplitter):
             SubJob(process_graph=inject(tile), backend_id=backend_id)
             for tile in tiles
         ]
+
+        if metadata is None:
+            metadata = {}
+        tiling_geojson = self._tile_grid_geojson(global_spatial_extent=global_spatial_extent, tiles=tiles)
+        metadata["_tiling_geometry"] = tiling_geojson
+
         return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=subjobs)
 
     def _extract_global_spatial_extent(self, process: dict) -> BoundingBox:
@@ -202,3 +214,20 @@ class TileGridSplitter(AbstractJobSplitter):
             return new
 
         return inject
+
+    def _tile_grid_geojson(self, global_spatial_extent: BoundingBox, tiles: List[BoundingBox]) -> dict:
+        """Generate geoJSON of tile grid configuration"""
+
+        def get_feature(bbox: BoundingBox, properties: dict):
+            polygon = shapely.ops.transform(
+                pyproj.Transformer.from_crs(crs_from=bbox.crs, crs_to="epsg:4326", always_xy=True).transform,
+                bbox.as_polygon()
+            )
+            return {"type": "feature", "geometry": shapely.geometry.mapping(polygon), "properties": properties}
+
+        features = [
+            get_feature(global_spatial_extent, {"id": "spatial_extent"}),
+        ]
+        for i, tile in enumerate(tiles):
+            features.append(get_feature(tile, {"id": f"tile{i:04d}"}))
+        return {"type": "FeatureCollection", "features": features}
