@@ -127,6 +127,9 @@ def find_new_id(prefix: str, is_new: typing.Callable[[str], bool], limit=100) ->
 class TileGridSplitter(AbstractJobSplitter):
     """Split spatial extent in UTM/LonLat tiles."""
 
+    # metadata key for tiling grid geometry
+    METADATA_KEY = "_tiling_geometry"
+
     def __init__(self, processing: "AggregatorProcessing"):
         self.backend_implementation = OpenEoBackendImplementation(
             catalog=processing._catalog,
@@ -150,10 +153,13 @@ class TileGridSplitter(AbstractJobSplitter):
             for tile in tiles
         ]
 
+        # Store tiling geometry in metadata
         if metadata is None:
             metadata = {}
-        tiling_geojson = self._tile_grid_geojson(global_spatial_extent=global_spatial_extent, tiles=tiles)
-        metadata["_tiling_geometry"] = tiling_geojson
+        metadata[self.METADATA_KEY] = {
+            "global_spatial_extent": global_spatial_extent.as_dict(),
+            "tiles": [t.as_dict() for t in tiles]
+        }
 
         return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=subjobs)
 
@@ -215,19 +221,35 @@ class TileGridSplitter(AbstractJobSplitter):
 
         return inject
 
-    def _tile_grid_geojson(self, global_spatial_extent: BoundingBox, tiles: List[BoundingBox]) -> dict:
-        """Generate geoJSON of tile grid configuration"""
+    @staticmethod
+    def tiling_geometry_to_geojson(geometry: dict, format: str) -> dict:
+        """Convert tiling geometry metadata to GeoJSON format (MultiPolygon or FeatureCollection)."""
+        # Load BoundingBox objects from metadata
+        global_spatial_extent = BoundingBox.from_dict(geometry["global_spatial_extent"])
+        tiles = [BoundingBox.from_dict(t) for t in geometry["tiles"]]
 
-        def get_feature(bbox: BoundingBox, properties: dict):
+        # Reproject to shapely Polygons in lon-lat
+        def reproject(bbox: BoundingBox) -> shapely.geometry.Polygon:
             polygon = shapely.ops.transform(
                 pyproj.Transformer.from_crs(crs_from=bbox.crs, crs_to="epsg:4326", always_xy=True).transform,
                 bbox.as_polygon()
             )
-            return {"type": "feature", "geometry": shapely.geometry.mapping(polygon), "properties": properties}
+            return polygon
 
-        features = [
-            get_feature(global_spatial_extent, {"id": "spatial_extent"}),
-        ]
-        for i, tile in enumerate(tiles):
-            features.append(get_feature(tile, {"id": f"tile{i:04d}"}))
-        return {"type": "FeatureCollection", "features": features}
+        global_spatial_extent = reproject(global_spatial_extent)
+        tiles = [reproject(t) for t in tiles]
+
+        if format == "MultiPolygon":
+            mp = shapely.geometry.MultiPolygon([global_spatial_extent] + tiles)
+            return shapely.geometry.mapping(mp)
+        elif format == "FeatureCollection":
+            # Feature collection
+            def feature(polygon, **kwargs):
+                return {"type": "Feature", "geometry": shapely.geometry.mapping(polygon), "properties": kwargs}
+
+            features = [feature(global_spatial_extent, id="global_spatial_extent")]
+            for i, tile in enumerate(tiles):
+                features.append(feature(tile, id=f"tile{i:04d}"))
+            return {"type": "FeatureCollection", "features": features}
+        else:
+            raise ValueError(format)

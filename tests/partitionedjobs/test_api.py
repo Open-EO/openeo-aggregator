@@ -415,7 +415,9 @@ class TestTileGridBatchJobSplitting:
             "process": {"process_graph": self.PG_MOL},
             "metadata": {
                 "title": "Mol", "plan": "free",
-                "_tiling_geometry": DictSubSet({"type": "FeatureCollection"})
+                "_tiling_geometry": DictSubSet({
+                    "global_spatial_extent": DictSubSet({"west": 4.9})
+                }),
             },
             "job_options": {"tile_grid": "utm-10km"},
         })
@@ -505,7 +507,7 @@ class TestTileGridBatchJobSplitting:
                     "type": "application/geo+json",
                 })
             },
-            "geometry": DictSubSet({"type": "FeatureCollection"})
+            "geometry": DictSubSet({"type": "MultiPolygon"})
         })
 
         res = api100.get("/jobs/agg-pj-20220119-123456/results/tile_grid.geojson").assert_status_code(200)

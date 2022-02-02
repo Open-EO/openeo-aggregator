@@ -13,6 +13,7 @@ from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorCon
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
     STATUS_RUNNING, STATUS_FINISHED
+from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB, NoJobIdForSubJobException
 from openeo_aggregator.utils import _UNSET
 from openeo_driver.backend import BatchJobMetadata
@@ -237,7 +238,7 @@ class PartitionedJobTracker:
         status_data = self._db.get_pjob_status(pjob_id=pjob_id)
         status = status_data["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
-        return {
+        job_metadata = {
             "id": pjob_id,
             "status": status,
             "created": rfc3339.datetime(datetime.datetime.utcfromtimestamp(pjob_metadata["created"])),
@@ -245,8 +246,18 @@ class PartitionedJobTracker:
             "description": pjob_metadata["metadata"].get("description"),
             "process": pjob_metadata["process"],
             "progress": status_data.get("progress"),
-            "geometry": pjob_metadata["metadata"].get("_tiling_geometry")
         }
+
+        if TileGridSplitter.METADATA_KEY in pjob_metadata["metadata"]:
+            try:
+                # Add tiling geometry in MultiPolygon format
+                tiling = pjob_metadata["metadata"][TileGridSplitter.METADATA_KEY]
+                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="MultiPolygon")
+                job_metadata["geometry"] = geojson
+            except Exception as e:
+                _log.error("Failed to add tiling geometry to batch job metadata", exc_info=True)
+
+        return job_metadata
 
     def get_assets(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
         # TODO: do a sync if latest sync is too long ago?
@@ -276,15 +287,20 @@ class PartitionedJobTracker:
                 )
         _log.info(f"Collected {len(assets)} assets for {pjob_id}")
 
-        if "metadata" in pjob_metadata and "_tiling_geometry" in pjob_metadata["metadata"]:
-            tiling_geometry = pjob_metadata["metadata"]["_tiling_geometry"]
-            metadata = {
-                "media_type": "application/geo+json",
-                "json_response": tiling_geometry,
-            }
-            # No href, but let openeo_driver build URL from filename.
-            # TODO: Signed URL support for this asset.
-            assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
+        if "metadata" in pjob_metadata and TileGridSplitter.METADATA_KEY in pjob_metadata["metadata"]:
+            try:
+                tiling = pjob_metadata["metadata"][TileGridSplitter.METADATA_KEY]
+                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="FeatureCollection")
+                metadata = {
+                    "media_type": "application/geo+json",
+                    "json_response": geojson,
+                }
+                # No href, but let openeo_driver build URL from filename.
+                # TODO: Signed URL support for this asset.
+                assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
+            except Exception as e:
+                _log.error("Failed to add result asset with tiling geometry", exc_info=True)
+
         return assets
 
     def get_logs(
