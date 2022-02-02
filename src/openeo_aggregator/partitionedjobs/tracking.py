@@ -250,7 +250,8 @@ class PartitionedJobTracker:
 
     def get_assets(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
         # TODO: do a sync if latest sync is too long ago?
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
+        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
+        self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
         sjobs = self._db.list_subjobs(pjob_id)
         assets = []
         with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
@@ -274,6 +275,16 @@ class PartitionedJobTracker:
                     for a in sjob_assets
                 )
         _log.info(f"Collected {len(assets)} assets for {pjob_id}")
+
+        if "metadata" in pjob_metadata and "_tiling_geometry" in pjob_metadata["metadata"]:
+            tiling_geometry = pjob_metadata["metadata"]["_tiling_geometry"]
+            metadata = {
+                "media_type": "application/geo+json",
+                "json_response": tiling_geometry,
+            }
+            # No href, but let openeo_driver build URL from filename.
+            # TODO: Signed URL support for this asset.
+            assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
         return assets
 
     def get_logs(
