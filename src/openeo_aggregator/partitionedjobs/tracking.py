@@ -184,7 +184,10 @@ class PartitionedJobTracker:
             elif sjob_status == STATUS_CREATED:
                 # TODO: dynamically start subjobs instead of starting all subjobs when partitioned job is started?
                 pass
-            elif sjob_status == STATUS_RUNNING:
+            elif sjob_status == STATUS_RUNNING or sjob_status == STATUS_ERROR:
+                # TODO: updating status when already in error status: only do this for recoverable errors
+                #       or a limited number of times?
+                #       also see https://github.com/Open-EO/openeo-api/issues/436
                 try:
                     with con.authenticated_from_request(request=flask_request):
                         job_id = self._db.get_backend_job_id(pjob_id, sjob_id)
@@ -210,9 +213,6 @@ class PartitionedJobTracker:
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
                         update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
-            elif sjob_status == STATUS_ERROR:
-                # TODO: status "error" is not necessarily final see https://github.com/Open-EO/openeo-api/issues/436
-                pass
             elif sjob_status == STATUS_FINISHED:
                 pass
 
