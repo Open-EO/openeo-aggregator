@@ -535,7 +535,7 @@ class TestProcessing:
         assert (b1_mock.call_count, b2_mock.call_count) == expected_call_counts
 
     def test_load_result_job_id_parsing_basic(self, api100, requests_mock, backend1, backend2):
-        """https://github.com/Open-EO/openeo-aggregator/issues/19"""
+        """Issue #19: strip backend prefix from job_id in load_result"""
 
         def b1_post_result(request: requests.Request, context):
             pg = request.json()["process"]["process_graph"]
@@ -574,7 +574,7 @@ class TestProcessing:
     def test_load_result_job_id_parsing_with_load_collection(
             self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
     ):
-        """https://github.com/Open-EO/openeo-aggregator/issues/19"""
+        """Issue #19: strip backend prefix from job_id in load_result"""
 
         backend_root = {1: backend1, 2: backend2}[s2_backend]
         requests_mock.get(backend_root + "/collections", json={"collections": [{"id": "S2"}]})
@@ -719,7 +719,11 @@ class TestBatchJobs:
     def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
 
+        jobs = []
+
         def post_jobs(request: requests.Request, context):
+            nonlocal jobs
+            jobs.append(request.json())
             context.headers["Location"] = backend1 + "/jobs/th3j0b"
             context.headers["OpenEO-Identifier"] = "th3j0b"
             context.status_code = 201
@@ -731,6 +735,9 @@ class TestBatchJobs:
         res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
         assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+        assert jobs == [
+            {"process": {"process_graph": pg}}
+        ]
 
     def test_create_job_options(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -1026,6 +1033,33 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/nope-and-nope/logs")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+    def test_create_job_preprocessing(self, api100, requests_mock, backend1):
+        """Issue #19: strip backend prefix from job_id in load_result"""
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        jobs = []
+
+        def post_jobs(request: requests.Request, context):
+            nonlocal jobs
+            jobs.append(request.json())
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+
+        pg = {"load": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
+        assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
+        assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+
+        assert jobs == [
+            {"process": {"process_graph": {
+                "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
+            }}}
+        ]
 
 
 class TestResilience:

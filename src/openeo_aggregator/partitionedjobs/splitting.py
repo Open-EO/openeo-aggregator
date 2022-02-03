@@ -50,10 +50,11 @@ class FlimsySplitter(AbstractJobSplitter):
         self.processing = processing
 
     def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
-        backend_id = self.processing.get_backend_for_process_graph(
-            process_graph=process["process_graph"], api_version="TODO"
-        )
-        subjob = SubJob(process_graph=process["process_graph"], backend_id=backend_id)
+        process_graph = process["process_graph"]
+        backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph, api_version="TODO")
+        process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+
+        subjob = SubJob(process_graph=process_graph, backend_id=backend_id)
         return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=[subjob])
 
 
@@ -139,15 +140,17 @@ class TileGridSplitter(AbstractJobSplitter):
     def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         # TODO: pass tile_grid from job_options or from save_result format options?
 
-        global_spatial_extent = self._extract_global_spatial_extent(process)
+        # TODO: refactor process graph preprocessing and backend_id getting in reusable AbstractJobSplitter method?
+        processing: AggregatorProcessing = self.backend_implementation.processing
+        process_graph = process["process_graph"]
+        backend_id = processing.get_backend_for_process_graph(process_graph=process_graph, api_version="TODO")
+        process_graph = processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
+        global_spatial_extent = self._extract_global_spatial_extent(process)
         tile_grid = TileGrid.from_string(job_options["tile_grid"])
         tiles = tile_grid.get_tiles(bbox=global_spatial_extent, max_tiles=job_options.get("max_tiles", MAX_TILES))
-        inject = self._filter_bbox_injector(process_graph=process["process_graph"])
+        inject = self._filter_bbox_injector(process_graph=process_graph)
 
-        backend_id = self.backend_implementation.processing.get_backend_for_process_graph(
-            process_graph=process["process_graph"], api_version="TODO"
-        )
         subjobs = [
             SubJob(process_graph=inject(tile), backend_id=backend_id)
             for tile in tiles
@@ -180,6 +183,7 @@ class TileGridSplitter(AbstractJobSplitter):
             ENV_DRY_RUN_TRACER: dry_run_tracer,
             "backend_implementation": backend_implementation,
             "version": "1.0.0",  # TODO
+            "user": None,  # TODO
         }))
         source_constraints = dry_run_tracer.get_source_constraints()
         # get global spatial extent

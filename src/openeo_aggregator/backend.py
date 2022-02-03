@@ -498,6 +498,8 @@ class AggregatorBatchJobs(BatchJobs):
         backend_id = self.processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
+        process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), \
                 con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):

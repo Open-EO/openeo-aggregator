@@ -98,6 +98,23 @@ class TestFlimsyBatchJobSplitting:
             "timestamp": pytest.approx(self.now.epoch, abs=5)
         }
 
+    @now.mock
+    def test_create_job_preprocessing(self, api100, backend1, zk_db, dummy1):
+        """Issue #19: strip backend prefix from job_id in load_result"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {"load": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}, "result": True}}
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}, "job_options": {"_jobsplitting": True}})
+        res.assert_status_code(201)
+
+        expected_job_id = "agg-pj-20220119-123456"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        job_id = zk_db.get_backend_job_id(pjob_id="pj-20220119-123456", sjob_id="0000")
+        assert dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"] == {
+            "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
+        }
+
     def test_describe_wrong_user(self, api100, backend1, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -444,6 +461,37 @@ class TestTileGridBatchJobSplitting:
         assert sorted(dummy_jobs) == [f"1-jb-{i}" for i in range(9)]
         # Rudimentary coordinate checks
         check_tiling_coordinate_histograms(tiles)
+
+    @now.mock
+    def test_create_job_preprocessing(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+        """Issue #19: strip backend prefix from job_id in load_result"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Process graph with load_result
+        pg = {
+            "lr": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}},
+            "fb": {"process_id": "filter_bbox", "arguments": {
+                "data": {"from_node": "lr"},
+                "extent": {"west": 4.9, "south": 51.1, "east": 4.91, "north": 51.11},
+            }},
+            "sr": {
+                "process_id": "save_result",
+                "arguments": {"data": {"from_node": "fb"}, "format": "GTiff"},
+                "result": True,
+            }
+        }
+        res = api100.post("/jobs", json={
+            "process": {"process_graph": pg},
+            "job_options": {"tile_grid": "utm-10km"}
+        }).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        job_id = zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
+        pg = dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
+        assert pg["lr"]["arguments"]["id"] == "b6tch-j08"
 
     @now.mock
     def test_job_results_basic(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
