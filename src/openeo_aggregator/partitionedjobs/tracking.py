@@ -14,9 +14,8 @@ from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
     STATUS_RUNNING, STATUS_FINISHED
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
-from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB, NoJobIdForSubJobException
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import _UNSET
-from openeo_driver.backend import BatchJobMetadata
 from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
 from openeo_driver.users import User
 
@@ -166,13 +165,20 @@ class PartitionedJobTracker:
         # TODO: throttle sync logic, or cache per request?
         self._check_user_access(user_id=user_id, pjob_id=pjob_id)
 
+        def update_status(sjob_id: str, status: str, old: str, upstream: str):
+            msg = f"Upstream status: {upstream!r}"
+            self._db.set_sjob_status(pjob_id, sjob_id, status=status, message=msg)
+            _log.info(
+                f"Synced status {pjob_id}:{sjob_id}: {status} (was {old}). Upstream status: {upstream} ({job_id})."
+            )
+
         sjobs = self._db.list_subjobs(pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
         for sjob_id, sjob_metadata in sjobs.items():
             # TODO: limit number of concurrent jobs (per partitioned job, per user, ...)
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
-            _log.info(f"pjob {pjob_id!r} sjob {sjob_id!r} status {sjob_status}")
+            _log.debug(f"Internal status of {pjob_id}:{sjob_id}: {sjob_status}")
             if sjob_status == STATUS_INSERTED:
                 _log.warning(f"pjob {pjob_id!r} sjob {sjob_id!r} not yet created on remote back-end")
             elif sjob_status == STATUS_CREATED:
@@ -184,27 +190,26 @@ class PartitionedJobTracker:
                         job_id = self._db.get_backend_job_id(pjob_id, sjob_id)
                         metadata = con.job(job_id).describe_job()
                     status = metadata["status"]
-                    _log.info(f"Got status for {pjob_id}:{sjob_id} ({job_id}): {status}")
+                    _log.debug(f"Upstream status of {job_id} ({pjob_id}:{sjob_id}): {status}")
                     # TODO: handle job "progress" level?
                 except Exception as e:
                     _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}", exc_info=True)
                     # Skip unexpected failure for now (could be temporary)
                     # TODO: inspect error and flag as failed, skip temporary glitches, ....
                 else:
-                    msg = f"Upstream status: {status!r}"
                     if status == "finished":
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=msg)
+                        update_status(sjob_id=sjob_id, status=STATUS_FINISHED, old=sjob_status, upstream=status)
                         # TODO: collect result/asset URLS here already?
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
                         # TODO: differentiate between created queued and running?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=msg)
+                        update_status(sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status)
                     elif status in {"error", "canceled"}:
                         # TODO: handle "canceled" state properly?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
+                        update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
+                        update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
             elif sjob_status == STATUS_ERROR:
                 # TODO: status "error" is not necessarily final see https://github.com/Open-EO/openeo-api/issues/436
                 pass
