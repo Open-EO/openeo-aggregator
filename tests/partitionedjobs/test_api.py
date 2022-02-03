@@ -4,7 +4,7 @@ import pytest
 from openeo.util import rfc3339
 from openeo_aggregator.backend import AggregatorBackendImplementation, AggregatorBatchJobs
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.testing import clock_mock, approx_str_contains
+from openeo_aggregator.testing import clock_mock, approx_str_contains, approx_str_prefix
 from openeo_aggregator.utils import BoundingBox
 from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
 from .conftest import PG35, P35, OTHER_TEST_USER_BEARER_TOKEN
@@ -32,8 +32,8 @@ class _Now:
 
 @pytest.fixture
 def dummy1(backend1, requests_mock) -> DummyBackend:
-    dummy = DummyBackend(backend_url=backend1, job_id_template="1-jb-{i}")
-    dummy.setup_requests_mock(requests_mock)
+    dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
+    dummy.setup_basic_requests_mocks()
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
     return dummy
 
@@ -94,7 +94,7 @@ class TestFlimsyBatchJobSplitting:
         }
         assert zk_data[zk_prefix + "/sjobs/0000/status"] == {
             "status": "created",
-            "message": "created",
+            "message": approx_str_prefix("Created in 0:00"),
             "timestamp": pytest.approx(self.now.epoch, abs=5)
         }
 
@@ -306,22 +306,15 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # Get results
-        # TODO: move this mock to DummyBackend
-        requests_mock.get(backend1 + "/jobs/1-jb-0/results", json={
-            "assets": {
-                "preview.png": {"href": backend1 + "/jobs/1j0b/results/preview.png"},
-                "res001.tif": {"href": backend1 + "/jobs/1j0b/results/res001.tiff"},
-                "res002.tif": {"href": backend1 + "/jobs/1j0b/results/res002.tiff"},
-            }
-        })
+        dummy1.setup_assets(job_id="1-jb-0", assets=["preview.png", "res001.tif", "res002.tif"])
 
         res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
         assert res.json == DictSubSet({
             "id": expected_job_id,
             "assets": {
-                "0000-preview.png": DictSubSet({"href": backend1 + "/jobs/1j0b/results/preview.png"}),
-                "0000-res001.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res001.tiff"}),
-                "0000-res002.tif": DictSubSet({"href": backend1 + "/jobs/1j0b/results/res002.tiff"}),
+                "0000-preview.png": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/preview.png"}),
+                "0000-res001.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/res001.tif"}),
+                "0000-res002.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/res002.tif"}),
             }
         })
 
@@ -420,7 +413,12 @@ class TestTileGridBatchJobSplitting:
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": {"process_graph": self.PG_MOL},
-            "metadata": {"title": "Mol", "plan": "free"},
+            "metadata": {
+                "title": "Mol", "plan": "free",
+                "_tiling_geometry": DictSubSet({
+                    "global_spatial_extent": DictSubSet({"west": 4.9})
+                }),
+            },
             "job_options": {"tile_grid": "utm-10km"},
         })
         assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
@@ -446,5 +444,76 @@ class TestTileGridBatchJobSplitting:
         assert sorted(dummy_jobs) == [f"1-jb-{i}" for i in range(9)]
         # Rudimentary coordinate checks
         check_tiling_coordinate_histograms(tiles)
+
+    @now.mock
+    def test_job_results_basic(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        res = api100.post("/jobs", json={
+            "title": "Mol",
+            "process": {"process_graph": self.PG_MOL},
+            "plan": "free",
+            "job_options": {"tile_grid": "utm-10km"}
+        }).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "title": "Mol",
+            "process": {"process_graph": self.PG_MOL},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # Start job
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
+
+        # Status check: Partially finished
+        for i in range(5):
+            dummy1.set_job_status(TEST_USER, f"1-jb-{i}", "finished")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 55})
+
+        # Status check: Fully finished
+        for i in range(9):
+            dummy1.set_job_status(TEST_USER, f"1-jb-{i}", "finished")
+            dummy1.setup_assets(job_id=f"1-jb-{i}", assets=["result.tif"])
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
+
+        # Get results
+        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        assert res.json == DictSubSet({
+            "id": expected_job_id,
+            "assets": {
+                "0000-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/result.tif"}),
+                "0001-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-1/results/result.tif"}),
+                "0002-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-2/results/result.tif"}),
+                "0003-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-3/results/result.tif"}),
+                "0004-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-4/results/result.tif"}),
+                "0005-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-5/results/result.tif"}),
+                "0006-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-6/results/result.tif"}),
+                "0007-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-7/results/result.tif"}),
+                "0008-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-8/results/result.tif"}),
+                "tile_grid.geojson": DictSubSet({
+                    "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/tile_grid.geojson",
+                    "type": "application/geo+json",
+                })
+            },
+            "geometry": DictSubSet({
+                "type": "GeometryCollection",
+                "geometries": [DictSubSet({"type": "Polygon"}), DictSubSet({"type": "MultiPolygon"})]
+            })
+        })
+
+        res = api100.get("/jobs/agg-pj-20220119-123456/results/tile_grid.geojson").assert_status_code(200)
+        assert res.json == DictSubSet({"type": "FeatureCollection"})
 
     # TODO: more/full TileGridSplitter batch job tests

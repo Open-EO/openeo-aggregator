@@ -2,7 +2,7 @@ import collections
 import pytest
 import re
 import requests
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
@@ -52,7 +52,8 @@ class DummyBackend:
 
     # TODO: move this to openeo_aggregator.testing?
 
-    def __init__(self, backend_url: str, job_id_template: str = "job{i}"):
+    def __init__(self, requests_mock, backend_url: str, job_id_template: str = "job{i}"):
+        self.requests_mock = requests_mock
         self.backend_url = backend_url
         self.job_id_template = job_id_template
         self.jobs: Dict[Tuple[str, str], DummyBatchJobData] = {}
@@ -72,19 +73,19 @@ class DummyBackend:
             raise JobNotFoundException
         return self.jobs[user_id, job_id]
 
-    def setup_requests_mock(self, requests_mock):
+    def setup_basic_requests_mocks(self):
         # Basic collections
-        requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(self.backend_url + "/collections/S2", json={})
+        self.requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
+        self.requests_mock.get(self.backend_url + "/collections/S2", json={})
         # Batch job handling: create job
-        requests_mock.post(self.backend_url + "/jobs", text=self._handle_post_jobs)
+        self.requests_mock.post(self.backend_url + "/jobs", text=self._handle_post_jobs)
         # Batch job handling: start job
-        requests_mock.post(
+        self.requests_mock.post(
             re.compile(re.escape(self.backend_url) + "/jobs/(?P<job_id>[a-z0-9-]+)/results$"),
             text=self._handle_post_jobs_jobid_result,
         )
         # Batch job handling: poll job status
-        requests_mock.get(
+        self.requests_mock.get(
             re.compile(re.escape(self.backend_url) + "/jobs/(?P<job_id>[a-z0-9-]+)$"),
             json=self._handle_get_jobs_jobid,
         )
@@ -96,6 +97,16 @@ class DummyBackend:
 
     def get_job_status(self, user_id: str, job_id: str):
         return self.get_job_data(user_id, job_id).history[-1]
+
+    def setup_assets(self, job_id: str, assets: List[str] = None):
+        """Mock `GET /jobs/{}/results` response with fake assets """
+        if assets is None:
+            assets = ["preview.png", "result.tif"]
+        results = {"assets": {
+            a: {"href": self.backend_url + f"/jobs/{job_id}/results/{a}"}
+            for a in assets
+        }}
+        self.requests_mock.get(self.backend_url + f"/jobs/{job_id}/results", json=results)
 
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""

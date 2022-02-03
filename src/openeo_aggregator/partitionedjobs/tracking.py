@@ -8,11 +8,12 @@ from typing import List, Optional
 
 from openeo.api.logs import LogEntry
 from openeo.rest.job import ResultAsset
-from openeo.util import TimingLogger
+from openeo.util import TimingLogger, rfc3339
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
     STATUS_RUNNING, STATUS_FINISHED
+from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB, NoJobIdForSubJobException
 from openeo_aggregator.utils import _UNSET
 from openeo_driver.backend import BatchJobMetadata
@@ -91,7 +92,7 @@ class PartitionedJobTracker:
             # TODO: different way to authenticate request?
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
-                with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info):
+                with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.create_job(
                         process_graph=sjob_metadata["process_graph"],
                         title=sjob_metadata.get("title"),
@@ -102,7 +103,7 @@ class PartitionedJobTracker:
                     )
             _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
             self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message="created")
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message=f"Created in {timer.elapsed}")
             return STATUS_CREATED
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
@@ -140,10 +141,10 @@ class PartitionedJobTracker:
             # TODO: different way to authenticate request?
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
-                with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info):
+                with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.job(job_id)
                     job.start_job()
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message="started")
+            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=f"Started in {timer.elapsed}")
             return STATUS_RUNNING
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
@@ -190,18 +191,20 @@ class PartitionedJobTracker:
                     # Skip unexpected failure for now (could be temporary)
                     # TODO: inspect error and flag as failed, skip temporary glitches, ....
                 else:
+                    msg = f"Upstream status: {status!r}"
                     if status == "finished":
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_FINISHED, message=msg)
                         # TODO: collect result/asset URLS here already?
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=status)
+                        # TODO: differentiate between created queued and running?
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=msg)
                     elif status in {"error", "canceled"}:
                         # TODO: handle "canceled" state properly?
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
-                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=status)
+                        self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=msg)
             elif sjob_status == STATUS_ERROR:
                 # TODO: status "error" is not necessarily final see https://github.com/Open-EO/openeo-api/issues/436
                 pass
@@ -235,19 +238,31 @@ class PartitionedJobTracker:
         status_data = self._db.get_pjob_status(pjob_id=pjob_id)
         status = status_data["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
-        return BatchJobMetadata(
-            id=pjob_id, status=status,
-            created=datetime.datetime.utcfromtimestamp(pjob_metadata["created"]),
-            title=pjob_metadata["metadata"].get("title"),
-            description=pjob_metadata["metadata"].get("description"),
-            process=pjob_metadata["process"],
-            progress=status_data.get("progress"),
-            # TODO more fields?
-        ).to_api_dict(full=True)
+        job_metadata = {
+            "id": pjob_id,
+            "status": status,
+            "created": rfc3339.datetime(datetime.datetime.utcfromtimestamp(pjob_metadata["created"])),
+            "title": pjob_metadata["metadata"].get("title"),
+            "description": pjob_metadata["metadata"].get("description"),
+            "process": pjob_metadata["process"],
+            "progress": status_data.get("progress"),
+        }
+
+        if TileGridSplitter.METADATA_KEY in pjob_metadata["metadata"]:
+            try:
+                # Add tiling geometry in MultiPolygon format
+                tiling = pjob_metadata["metadata"][TileGridSplitter.METADATA_KEY]
+                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="GeometryCollection")
+                job_metadata["geometry"] = geojson
+            except Exception as e:
+                _log.error("Failed to add tiling geometry to batch job metadata", exc_info=True)
+
+        return job_metadata
 
     def get_assets(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
         # TODO: do a sync if latest sync is too long ago?
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
+        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
+        self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
         sjobs = self._db.list_subjobs(pjob_id)
         assets = []
         with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
@@ -271,6 +286,21 @@ class PartitionedJobTracker:
                     for a in sjob_assets
                 )
         _log.info(f"Collected {len(assets)} assets for {pjob_id}")
+
+        if "metadata" in pjob_metadata and TileGridSplitter.METADATA_KEY in pjob_metadata["metadata"]:
+            try:
+                tiling = pjob_metadata["metadata"][TileGridSplitter.METADATA_KEY]
+                geojson = TileGridSplitter.tiling_geometry_to_geojson(geometry=tiling, format="FeatureCollection")
+                metadata = {
+                    "media_type": "application/geo+json",
+                    "json_response": geojson,
+                }
+                # No href, but let openeo_driver build URL from filename.
+                # TODO: Signed URL support for this asset.
+                assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
+            except Exception as e:
+                _log.error("Failed to add result asset with tiling geometry", exc_info=True)
+
         return assets
 
     def get_logs(
