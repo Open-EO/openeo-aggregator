@@ -3,11 +3,11 @@ import json
 import logging
 from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError, NoNodeError
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from openeo_aggregator.config import AggregatorConfig, ConfigException
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED, PartitionedJobFailure
-from openeo_aggregator.utils import Clock, strip_join
+from openeo_aggregator.utils import Clock, strip_join, timestamp_to_rfc3339
 from openeo_driver.errors import JobNotFoundException
 
 _log = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ class ZooKeeperPartitionedJobDB:
 
     def __init__(self, client: KazooClient, prefix: str = None):
         self._client = client
+        self._client_connected = False
         self._prefix = prefix or f"/openeo-aggregator/{self.NAMESPACE}"
 
     @classmethod
@@ -45,23 +46,33 @@ class ZooKeeperPartitionedJobDB:
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
         return cls(client=zk_client, prefix=prefix)
 
-    def _path(self, user_id: str, pjob_id: str, *path: str) -> str:
+    def _path(self, user_id: str, pjob_id: str = None, *path: str) -> str:
         """Helper to build a zookeeper path"""
-        assert pjob_id.startswith("pj-")
-        path = (user_id, pjob_id) + path
+        if pjob_id:
+            assert pjob_id.startswith("pj-")
+            path = (user_id, pjob_id) + path
+        else:
+            path = (user_id,) + path
         return strip_join("/", self._prefix, *path)
 
     @contextlib.contextmanager
     def _connect(self):
-        """Context manager to automatically start and stop zookeeper connection."""
-        # TODO: handle nesting of this context manager smartly?
+        """
+        Context manager to automatically start and stop zookeeper connection.
+        Nesting is supported: only the outer loop will actually start/stop
+        """
         # TODO: instead of blindly doing start/stop all the time,
         #       could it be more efficient to keep connection alive for longer time?
-        self._client.start()
+        outer = not self._client_connected
+        if outer:
+            self._client.start()
+            self._client_connected = True
         try:
             yield self._client
         finally:
-            self._client.stop()
+            if outer:
+                self._client.stop()
+                self._client_connected = False
 
     @staticmethod
     def serialize(**kwargs) -> bytes:
@@ -215,3 +226,28 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", sjob_id, "status"))
             return self.deserialize(value)
+
+    def describe_job(self, user_id: str, pjob_id: str) -> dict:
+        with self._connect():
+            pjob_metadata = self.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
+            status_data = self.get_pjob_status(user_id=user_id, pjob_id=pjob_id)
+        status = status_data["status"]
+        status = {STATUS_INSERTED: "created"}.get(status, status)
+        return {
+            "id": pjob_id,
+            "status": status,
+            "created": timestamp_to_rfc3339(pjob_metadata["created"]),
+            "title": pjob_metadata["metadata"].get("title"),
+            "description": pjob_metadata["metadata"].get("description"),
+            "process": pjob_metadata["process"],
+            "progress": status_data.get("progress"),
+        }
+
+    def list_user_jobs(self, user_id: str) -> List[dict]:
+        jobs = []
+        with self._connect():
+            user_path = self._path(user_id=user_id)
+            if self._client.exists(user_path):
+                for pjob_id in self._client.get_children(path=user_path):
+                    jobs.append(self.describe_job(user_id=user_id, pjob_id=pjob_id))
+        return jobs

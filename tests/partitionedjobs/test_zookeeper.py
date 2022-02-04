@@ -1,8 +1,9 @@
 import kazoo
 import kazoo.exceptions
+from unittest import mock
 import pytest
 
-from openeo_aggregator.partitionedjobs.zookeeper import NoJobIdForSubJobException
+from openeo_aggregator.partitionedjobs.zookeeper import NoJobIdForSubJobException, ZooKeeperPartitionedJobDB
 from openeo_aggregator.testing import clock_mock, approx_now
 from openeo_driver.errors import JobNotFoundException
 from .conftest import PG12, PG23, P35
@@ -12,6 +13,38 @@ TEST_USER = "tstsr"
 
 @clock_mock("2022-01-17T17:48:00Z")
 class TestZooKeeperPartitionedJobDB:
+
+    def test_connect_context_manager_basic(self):
+        client = mock.Mock()
+        zk_db = ZooKeeperPartitionedJobDB(client=client)
+        # First use
+        assert client.mock_calls == []
+        with zk_db._connect():
+            assert client.mock_calls == [mock.call.start()]
+        assert client.mock_calls == [mock.call.start(), mock.call.stop()]
+        # Reuse
+        with zk_db._connect():
+            assert client.mock_calls == [mock.call.start(), mock.call.stop(), mock.call.start()]
+        assert client.mock_calls == [mock.call.start(), mock.call.stop(), mock.call.start(), mock.call.stop()]
+
+    def test_connect_context_manager_nesting(self):
+        client = mock.Mock()
+        zk_db = ZooKeeperPartitionedJobDB(client=client)
+        # Nested use
+        assert client.mock_calls == []
+        with zk_db._connect():
+            assert client.mock_calls == [mock.call.start()]
+            with zk_db._connect():
+                assert client.mock_calls == [mock.call.start()]
+                with zk_db._connect():
+                    assert client.mock_calls == [mock.call.start()]
+                assert client.mock_calls == [mock.call.start()]
+            assert client.mock_calls == [mock.call.start()]
+        assert client.mock_calls == [mock.call.start(), mock.call.stop()]
+        # Reuse
+        with zk_db._connect():
+            assert client.mock_calls == [mock.call.start(), mock.call.stop(), mock.call.start()]
+        assert client.mock_calls == [mock.call.start(), mock.call.stop(), mock.call.start(), mock.call.stop()]
 
     def test_insert_basic(self, pjob, zk_client, zk_db):
         pjob_id = zk_db.insert(pjob=pjob, user_id=TEST_USER)

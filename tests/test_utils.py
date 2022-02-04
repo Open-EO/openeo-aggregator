@@ -4,7 +4,7 @@ import pytest
 import shapely.geometry
 
 from openeo_aggregator.utils import TtlCache, CacheMissException, MultiDictGetter, subdict, dict_merge, EventHandler, \
-    BoundingBox, strip_join
+    BoundingBox, strip_join, timestamp_to_rfc3339
 
 
 class FakeClock:
@@ -263,3 +263,8 @@ def test_strip_join():
     assert strip_join("/", "a", "b", "c") == "a/b/c"
     assert strip_join("/", "/a/", "/b", "/c") == "/a/b/c"
     assert strip_join("/", "/a/", "/b/", "/c/") == "/a/b/c/"
+
+
+def test_timestamp_to_rfc3339():
+    assert timestamp_to_rfc3339(0) == "1970-01-01T00:00:00Z"
+    assert timestamp_to_rfc3339(1644012109) == "2022-02-04T22:01:49Z"

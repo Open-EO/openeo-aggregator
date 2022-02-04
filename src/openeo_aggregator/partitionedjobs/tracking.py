@@ -15,7 +15,7 @@ from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, ST
     STATUS_RUNNING, STATUS_FINISHED
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.utils import _UNSET
+from openeo_aggregator.utils import _UNSET, timestamp_to_rfc3339
 from openeo_driver.errors import JobNotFinishedException
 from openeo_driver.users import User
 
@@ -34,6 +34,9 @@ class PartitionedJobTracker:
     @classmethod
     def from_config(cls, config: AggregatorConfig, backends: MultiBackendConnection) -> "PartitionedJobTracker":
         return cls(db=ZooKeeperPartitionedJobDB.from_config(config), backends=backends)
+
+    def list_user_jobs(self, user_id: str) -> List[dict]:
+        return self._db.list_user_jobs(user_id=user_id)
 
     def create(self, user_id: str, pjob: PartitionedJob, flask_request: flask.Request) -> str:
         """
@@ -165,6 +168,7 @@ class PartitionedJobTracker:
         :param pjob_id: storage id of the partitioned job
         :param flask_request: flask request of owning user to use authentication from
         """
+
         # TODO: limit number of remote back-end requests per sync? #38
         # TODO: throttle sync logic, or cache per request? #38
 
@@ -248,18 +252,7 @@ class PartitionedJobTracker:
         """RESTJob.describe_job() interface"""
         pjob_metadata = self._db.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
         self.sync(user_id=user_id, pjob_id=pjob_id, flask_request=flask_request)
-        status_data = self._db.get_pjob_status(user_id=user_id, pjob_id=pjob_id)
-        status = status_data["status"]
-        status = {STATUS_INSERTED: "created"}.get(status, status)
-        job_metadata = {
-            "id": pjob_id,
-            "status": status,
-            "created": rfc3339.datetime(datetime.datetime.utcfromtimestamp(pjob_metadata["created"])),
-            "title": pjob_metadata["metadata"].get("title"),
-            "description": pjob_metadata["metadata"].get("description"),
-            "process": pjob_metadata["process"],
-            "progress": status_data.get("progress"),
-        }
+        job_metadata = self._db.describe_job(user_id=user_id, pjob_id=pjob_id)
 
         if TileGridSplitter.METADATA_KEY in pjob_metadata["metadata"]:
             try:
@@ -371,6 +364,7 @@ class PartitionedJobConnection:
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
             )
+
         # TODO: also support job cancel and delete. #39
 
         def get_results(self):

@@ -111,6 +111,29 @@ class TestFlimsyBatchJobSplitting:
             "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
         }
 
+    @now.mock
+    def test_create_and_list_job(self, api100, zk_db, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs").assert_status_code(200)
+        assert res.json == {
+            'jobs': [
+                {"id": "b1-1-jb-0", "created": self.now.rfc3339, 'status': 'created'},
+                {"id": expected_job_id, "created": self.now.rfc3339, 'status': 'created'}
+            ],
+            'federation:missing': ['b2'],
+            'links': [],
+        }
+
     def test_describe_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
