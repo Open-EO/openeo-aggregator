@@ -9,6 +9,9 @@ from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobD
 from openeo_driver.errors import JobNotFoundException, TokenInvalidException
 from openeo_driver.users.auth import HttpAuthHandler
 
+TEST_USER = "tstsr"
+TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
+
 PG12 = {
     "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
 }

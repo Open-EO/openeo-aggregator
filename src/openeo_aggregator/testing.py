@@ -42,6 +42,9 @@ class DummyKazooClient:
                 raise kazoo.exceptions.NoNodeError
         self.data[path] = value
 
+    def exists(self, path):
+        return path in self.data
+
     def get(self, path):
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()

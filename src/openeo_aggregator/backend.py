@@ -575,7 +575,7 @@ class AggregatorBatchJobs(BatchJobs):
             yield
         except OpenEoApiError as e:
             if e.code == JobNotFoundException.code:
-                raise JobNotFoundException(job_id=job_id, )
+                raise JobNotFoundException(job_id=job_id)
             elif e.code == JobNotFinishedException.code:
                 raise JobNotFinishedException(message=e.message)
             raise

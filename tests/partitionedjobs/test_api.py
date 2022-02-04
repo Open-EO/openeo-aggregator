@@ -6,10 +6,9 @@ from openeo_aggregator.backend import AggregatorBackendImplementation, Aggregato
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.testing import clock_mock, approx_str_contains, approx_str_prefix
 from openeo_aggregator.utils import BoundingBox
-from openeo_driver.testing import TEST_USER_BEARER_TOKEN, DictSubSet, TEST_USER
-from .conftest import PG35, P35, OTHER_TEST_USER_BEARER_TOKEN
+from openeo_driver.testing import DictSubSet
+from .conftest import PG35, P35, TEST_USER, TEST_USER_BEARER_TOKEN, OTHER_TEST_USER_BEARER_TOKEN, DummyBackend
 from .test_splitting import check_tiling_coordinate_histograms
-from .test_tracking import DummyBackend
 
 
 @pytest.fixture()
@@ -69,27 +68,27 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == {
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == {
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
             "job_options": {"_jobsplitting": True},
         }
-        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
             "status": "created",
             "message": approx_str_contains("{'created': 1}"),
             "timestamp": pytest.approx(self.now.epoch, abs=5),
             "progress": 0,
         }
 
-        assert zk_db.list_subjobs(pjob_id=pjob_id) == {"0000": {
+        assert zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id) == {"0000": {
             "backend_id": "b1",
             "process_graph": PG35,
             "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)"
         }}
-        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
-        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == {
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == {
             "status": "created",
             "message": approx_str_prefix("Created in 0:00"),
             "timestamp": pytest.approx(self.now.epoch, abs=5)
@@ -107,7 +106,7 @@ class TestFlimsyBatchJobSplitting:
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        job_id = zk_db.get_backend_job_id(pjob_id="pj-20220119-123456", sjob_id="0000")
+        job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id="pj-20220119-123456", sjob_id="0000")
         assert dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"] == {
             "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
         }
@@ -159,10 +158,10 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "status": "error",
         })
-        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet({
             "status": "error",
             "message": "Create failed: [500] Internal: nope",
         })
@@ -196,16 +195,17 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
-        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "created": self.now.epoch,
             "process": P35,
         })
-        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "status": "running",
             "message": approx_str_contains("{'running': 1}"),
         })
-        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
-        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "running"})
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
+            {"status": "running"})
 
     def test_start_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -256,16 +256,17 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
-        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "created": self.now.epoch,
             "process": P35,
         })
-        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "status": "finished",
             "message": approx_str_contains("{'finished': 1}"),
         })
-        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
-        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "finished"})
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
+            {"status": "finished"})
 
     def test_sync_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -371,6 +372,19 @@ class TestFlimsyBatchJobSplitting:
             "links": [],
         }
 
+    @now.mock
+    def test_get_logs_wrong_user(self, api100, requests_mock, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={
+            "process": P35,
+            "job_options": {"_jobsplitting": True}
+        }).assert_status_code(201)
+        expected_job_id = "agg-pj-20220119-123456"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        api100.set_auth_bearer_token(token=OTHER_TEST_USER_BEARER_TOKEN)
+        api100.get(f"/jobs/{expected_job_id}/logs").assert_error(404, "JobNotFound")
+
 
 class TestTileGridBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")
@@ -417,7 +431,7 @@ class TestTileGridBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": {"process_graph": self.PG_MOL},
@@ -429,19 +443,20 @@ class TestTileGridBatchJobSplitting:
             },
             "job_options": {"tile_grid": "utm-10km"},
         })
-        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
             "status": "created",
             "message": approx_str_contains("{'created': 9}"),
             "timestamp": pytest.approx(self.now.epoch, abs=5),
             "progress": 0,
         }
-        subjobs = zk_db.list_subjobs(pjob_id=pjob_id)
+        subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
         assert len(subjobs) == 9
         dummy_jobs = []
         tiles = []
         for sjob_id, subjob_metadata in subjobs.items():
-            assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({"status": "created"})
-            job_id = zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+            assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet(
+                {"status": "created"})
+            job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id)
             dummy_jobs.append(job_id)
             assert dummy1.get_job_status(TEST_USER, job_id) == "created"
             pg = dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
@@ -480,7 +495,7 @@ class TestTileGridBatchJobSplitting:
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        job_id = zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000")
+        job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000")
         pg = dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
         assert pg["lr"]["arguments"]["id"] == "b6tch-j08"
 

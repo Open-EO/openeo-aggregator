@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from openeo_aggregator.config import AggregatorConfig, ConfigException
 from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED, PartitionedJobFailure
 from openeo_aggregator.utils import Clock, strip_join
+from openeo_driver.errors import JobNotFoundException
 
 _log = logging.getLogger(__name__)
 
@@ -22,9 +23,11 @@ class ZooKeeperPartitionedJobDB:
     # TODO: "database" is a bit of a misnomer, this class is more about a thin abstraction layer above that
     # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
 
-    def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/pj/v1'):
+    NAMESPACE = "pj/v2"
+
+    def __init__(self, client: KazooClient, prefix: str = None):
         self._client = client
-        self._prefix = prefix
+        self._prefix = prefix or f"/openeo-aggregator/{self.NAMESPACE}"
 
     @classmethod
     def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
@@ -38,15 +41,14 @@ class ZooKeeperPartitionedJobDB:
         # Determine ZooKeeper prefix
         base_prefix = config.zookeeper_prefix
         assert len(base_prefix.replace("/", "")) >= 3
-        partitioned_jobs_prefix = config.partitioned_job_tracking.get("zookeeper_prefix", "pj/v1/")
+        partitioned_jobs_prefix = config.partitioned_job_tracking.get("zookeeper_prefix", cls.NAMESPACE)
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
         return cls(client=zk_client, prefix=prefix)
 
-    def _path(self, pjob_id: str, *path: str) -> str:
+    def _path(self, user_id: str, pjob_id: str, *path: str) -> str:
         """Helper to build a zookeeper path"""
         assert pjob_id.startswith("pj-")
-        month = pjob_id[3:9]
-        path = (month, pjob_id) + path
+        path = (user_id, pjob_id) + path
         return strip_join("/", self._prefix, *path)
 
     @contextlib.contextmanager
@@ -92,7 +94,7 @@ class ZooKeeperPartitionedJobDB:
             base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
             for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, 3)]:
                 try:
-                    self._client.create(path=self._path(pjob_id), value=job_node_value, makepath=True)
+                    self._client.create(path=self._path(user_id, pjob_id), value=job_node_value, makepath=True)
                     break
                 except NodeExistsError:
                     # TODO: check that NodeExistsError is thrown on existing job_ids
@@ -103,7 +105,7 @@ class ZooKeeperPartitionedJobDB:
 
             # Updatable metadata
             self._client.create(
-                path=self._path(pjob_id, "status"),
+                path=self._path(user_id, pjob_id, "status"),
                 value=self.serialize(status=STATUS_INSERTED)
             )
 
@@ -111,7 +113,7 @@ class ZooKeeperPartitionedJobDB:
             for i, subjob in enumerate(pjob.subjobs):
                 sjob_id = f"{i:04d}"
                 self._client.create(
-                    path=self._path(pjob_id, "sjobs", sjob_id),
+                    path=self._path(user_id, pjob_id, "sjobs", sjob_id),
                     value=self.serialize(
                         process_graph=subjob.process_graph,
                         backend_id=subjob.backend_id,
@@ -120,19 +122,21 @@ class ZooKeeperPartitionedJobDB:
                     makepath=True,
                 )
                 self._client.create(
-                    path=self._path(pjob_id, "sjobs", sjob_id, "status"),
+                    path=self._path(user_id, pjob_id, "sjobs", sjob_id, "status"),
                     value=self.serialize(status=STATUS_INSERTED),
                 )
 
         return pjob_id
 
-    def get_pjob_metadata(self, pjob_id: str) -> dict:
+    def get_pjob_metadata(self, user_id: str, pjob_id: str) -> dict:
         """Get metadata of partitioned job, given by storage id."""
         with self._connect():
-            value, stat = self._client.get(self._path(pjob_id))
+            if not self._client.exists(self._path(user_id, pjob_id)):
+                raise JobNotFoundException(job_id=pjob_id)
+            value, stat = self._client.get(self._path(user_id, pjob_id))
             return self.deserialize(value)
 
-    def list_subjobs(self, pjob_id: str) -> Dict[str, dict]:
+    def list_subjobs(self, user_id: str, pjob_id: str) -> Dict[str, dict]:
         """
         List subjobs (and their metadata) of given partitioned job.
 
@@ -140,12 +144,14 @@ class ZooKeeperPartitionedJobDB:
         """
         listing = {}
         with self._connect():
-            for child in self._client.get_children(self._path(pjob_id, "sjobs")):
-                value, stat = self._client.get(self._path(pjob_id, "sjobs", child))
+            if not self._client.exists(self._path(user_id, pjob_id)):
+                raise JobNotFoundException(job_id=pjob_id)
+            for child in self._client.get_children(self._path(user_id, pjob_id, "sjobs")):
+                value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", child))
                 listing[child] = self.deserialize(value)
         return listing
 
-    def set_backend_job_id(self, pjob_id: str, sjob_id: str, job_id: str):
+    def set_backend_job_id(self, user_id: str, pjob_id: str, sjob_id: str, job_id: str):
         """
         Store external backend's job id for given sub job
 
@@ -155,20 +161,21 @@ class ZooKeeperPartitionedJobDB:
         """
         with self._connect():
             self._client.create(
-                path=self._path(pjob_id, "sjobs", sjob_id, "job_id"),
+                path=self._path(user_id, pjob_id, "sjobs", sjob_id, "job_id"),
                 value=self.serialize(job_id=job_id)
             )
 
-    def get_backend_job_id(self, pjob_id: str, sjob_id: str) -> str:
+    def get_backend_job_id(self, user_id: str, pjob_id: str, sjob_id: str) -> str:
         """Get external back-end job id of given sub job"""
         with self._connect():
             try:
-                value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "job_id"))
+                value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", sjob_id, "job_id"))
             except NoNodeError:
                 raise NoJobIdForSubJobException(f"No job_id for {pjob_id}:{sjob_id}.")
             return self.deserialize(value)["job_id"]
 
-    def set_pjob_status(self, pjob_id: str, status: str, message: Optional[str] = None, progress: int = None):
+    def set_pjob_status(self, user_id: str, pjob_id: str, status: str, message: Optional[str] = None,
+                        progress: int = None):
         """
         Store status of partitioned job (with optional message).
 
@@ -178,11 +185,11 @@ class ZooKeeperPartitionedJobDB:
         """
         with self._connect():
             self._client.set(
-                path=self._path(pjob_id, "status"),
+                path=self._path(user_id, pjob_id, "status"),
                 value=self.serialize(status=status, message=message, timestamp=Clock.time(), progress=progress)
             )
 
-    def get_pjob_status(self, pjob_id: str) -> dict:
+    def get_pjob_status(self, user_id: str, pjob_id: str) -> dict:
         """
         Get status of partitioned job.
 
@@ -192,19 +199,19 @@ class ZooKeeperPartitionedJobDB:
         TODO return predefined struct instead of dict with fields "status" and "message"?
         """
         with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "status"))
+            value, stat = self._client.get(self._path(user_id, pjob_id, "status"))
             return self.deserialize(value)
 
-    def set_sjob_status(self, pjob_id: str, sjob_id: str, status: str, message: Optional[str] = None):
+    def set_sjob_status(self, user_id: str, pjob_id: str, sjob_id: str, status: str, message: Optional[str] = None):
         """Store status of sub-job (with optional message)"""
         with self._connect():
             self._client.set(
-                path=self._path(pjob_id, "sjobs", sjob_id, "status"),
+                path=self._path(user_id, pjob_id, "sjobs", sjob_id, "status"),
                 value=self.serialize(status=status, message=message, timestamp=Clock.time()),
             )
 
-    def get_sjob_status(self, pjob_id: str, sjob_id: str) -> dict:
+    def get_sjob_status(self, user_id: str, pjob_id: str, sjob_id: str) -> dict:
         """Get status of sub-job"""
         with self._connect():
-            value, stat = self._client.get(self._path(pjob_id, "sjobs", sjob_id, "status"))
+            value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", sjob_id, "status"))
             return self.deserialize(value)

@@ -16,7 +16,7 @@ from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, ST
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import _UNSET
-from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
+from openeo_driver.errors import JobNotFinishedException
 from openeo_driver.users import User
 
 _log = logging.getLogger(__name__)
@@ -35,14 +35,6 @@ class PartitionedJobTracker:
     def from_config(cls, config: AggregatorConfig, backends: MultiBackendConnection) -> "PartitionedJobTracker":
         return cls(db=ZooKeeperPartitionedJobDB.from_config(config), backends=backends)
 
-    def _check_user_access(self, user_id: str, pjob_id: str, pjob_metadata: Optional[dict] = None):
-        pjob_metadata = pjob_metadata or self._db.get_pjob_metadata(pjob_id)
-        expected_user_id = pjob_metadata["user_id"]
-        if expected_user_id != user_id:
-            _log.error(f"User access violation for job {pjob_id!r}: {expected_user_id!r} != {user_id!r}")
-            # TODO: Better exception for this?
-            raise JobNotFoundException(job_id=pjob_id)
-
     def create(self, user_id: str, pjob: PartitionedJob, flask_request: flask.Request) -> str:
         """
         Submit a partitioned job: store metadata of partitioned and related sub-jobs in the database.
@@ -57,17 +49,16 @@ class PartitionedJobTracker:
 
     def create_sjobs(self, user_id: str, pjob_id: str, flask_request: flask.Request):
         """Create all sub-jobs on remote back-end for given partitioned job"""
-        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
-        sjobs = self._db.list_subjobs(pjob_id)
+        pjob_metadata = self._db.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
+        sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         create_stats = collections.Counter()
         with TimingLogger(title=f"Create partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs", logger=_log.info):
             for sjob_id, sjob_metadata in sjobs.items():
-                sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+                sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
                 _log.info(f"To create: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
                 if sjob_status == STATUS_INSERTED:
                     new_status = self._create_sjob(
-                        pjob_id=pjob_id, sjob_id=sjob_id,
+                        user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id,
                         pjob_metadata=pjob_metadata, sjob_metadata=sjob_metadata,
                         flask_request=flask_request,
                     )
@@ -76,10 +67,12 @@ class PartitionedJobTracker:
                     _log.warning(f"Not creating {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
 
         pjob_status = STATUS_CREATED if create_stats[STATUS_CREATED] > 0 else STATUS_ERROR
-        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(create_stats), progress=0)
+        self._db.set_pjob_status(
+            user_id=user_id, pjob_id=pjob_id, status=pjob_status, message=repr(create_stats), progress=0
+        )
 
     def _create_sjob(
-            self, pjob_id: str, sjob_id: str,
+            self, user_id: str, pjob_id: str, sjob_id: str,
             pjob_metadata: dict, sjob_metadata: dict,
             flask_request: flask.Request,
     ) -> str:
@@ -98,28 +91,33 @@ class PartitionedJobTracker:
                         additional=pjob_metadata.get("job_options"),
                     )
             _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
-            self._db.set_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_CREATED, message=f"Created in {timer.elapsed}")
+            self._db.set_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
+            self._db.set_sjob_status(
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_CREATED,
+                message=f"Created in {timer.elapsed}"
+            )
             return STATUS_CREATED
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
             _log.error(f"Creation of {pjob_id}:{sjob_id} failed", exc_info=True)
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=f"Create failed: {e}")
+            self._db.set_sjob_status(
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR,
+                message=f"Create failed: {e}"
+            )
             return STATUS_ERROR
 
     def start_sjobs(self, user_id: str, pjob_id: str, flask_request: flask.Request):
         """Start all sub-jobs on remote back-end for given partitioned job"""
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
-        # TODO: only start a subset of sub-jobs? #37
-        sjobs = self._db.list_subjobs(pjob_id)
+        sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         start_stats = collections.Counter()
         with TimingLogger(title=f"Starting partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs", logger=_log.info):
+            # TODO: only start a subset of sub-jobs? #37
             for sjob_id, sjob_metadata in sjobs.items():
-                sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+                sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
                 _log.info(f"To Start: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
                 if sjob_status == STATUS_CREATED:
                     new_status = self._start_sjob(
-                        pjob_id=pjob_id, sjob_id=sjob_id,
+                        user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id,
                         sjob_metadata=sjob_metadata,
                         flask_request=flask_request,
                     )
@@ -128,11 +126,15 @@ class PartitionedJobTracker:
                     _log.warning(f"Not starting {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
 
         pjob_status = STATUS_RUNNING if start_stats[STATUS_RUNNING] > 0 else STATUS_ERROR
-        self._db.set_pjob_status(pjob_id=pjob_id, status=pjob_status, message=repr(start_stats), progress=0)
+        self._db.set_pjob_status(
+            user_id=user_id, pjob_id=pjob_id, status=pjob_status, message=repr(start_stats), progress=0
+        )
 
-    def _start_sjob(self, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request) -> str:
+    def _start_sjob(
+            self, user_id: str, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request
+    ) -> str:
         try:
-            job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+            job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             # TODO: different way to authenticate request? #29
             with con.authenticated_from_request(request=flask_request), \
@@ -140,12 +142,18 @@ class PartitionedJobTracker:
                 with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.job(job_id)
                     job.start_job()
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_RUNNING, message=f"Started in {timer.elapsed}")
+            self._db.set_sjob_status(
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_RUNNING,
+                message=f"Started in {timer.elapsed}"
+            )
             return STATUS_RUNNING
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
             _log.error(f"Start of {pjob_id}:{sjob_id} failed", exc_info=True)
-            self._db.set_sjob_status(pjob_id, sjob_id, status=STATUS_ERROR, message=f"Failed to start: {e}")
+            self._db.set_sjob_status(
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR,
+                message=f"Failed to start: {e}"
+            )
             return STATUS_ERROR
 
     def sync(self, user_id: str, pjob_id: str, flask_request: flask.Request):
@@ -159,21 +167,20 @@ class PartitionedJobTracker:
         """
         # TODO: limit number of remote back-end requests per sync? #38
         # TODO: throttle sync logic, or cache per request? #38
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
 
         def update_status(sjob_id: str, status: str, old: str, upstream: str):
             msg = f"Upstream status: {upstream!r}"
-            self._db.set_sjob_status(pjob_id, sjob_id, status=status, message=msg)
+            self._db.set_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=status, message=msg)
             _log.info(
                 f"Synced status {pjob_id}:{sjob_id}: {status} (was {old}). Upstream status: {upstream} ({job_id})."
             )
 
-        sjobs = self._db.list_subjobs(pjob_id)
+        sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
         for sjob_id, sjob_metadata in sjobs.items():
             # TODO: limit number of concurrent jobs (per partitioned job, per user, ...) #38
             con = self._backends.get_connection(sjob_metadata["backend_id"])
-            sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+            sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
             _log.debug(f"Internal status of {pjob_id}:{sjob_id}: {sjob_status}")
             if sjob_status == STATUS_INSERTED:
                 _log.warning(f"pjob {pjob_id!r} sjob {sjob_id!r} not yet created on remote back-end")
@@ -186,7 +193,7 @@ class PartitionedJobTracker:
                 #       also see https://github.com/Open-EO/openeo-api/issues/436
                 try:
                     with con.authenticated_from_request(request=flask_request):
-                        job_id = self._db.get_backend_job_id(pjob_id, sjob_id)
+                        job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
                         metadata = con.job(job_id).describe_job()
                     status = metadata["status"]
                     _log.debug(f"Upstream status of {job_id} ({pjob_id}:{sjob_id}): {status}")
@@ -213,7 +220,7 @@ class PartitionedJobTracker:
                 pass
 
         status_counts = collections.Counter(
-            self._db.get_sjob_status(pjob_id, sjob_id)["status"] for sjob_id in sjobs
+            self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"] for sjob_id in sjobs
         )
         # TODO: more advanced progress metric than just #finished/#total?
         progress = int(100.0 * status_counts.get(STATUS_FINISHED, 0) / sum(status_counts.values()))
@@ -221,22 +228,27 @@ class PartitionedJobTracker:
         _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
         statusses = set(status_counts)
         if statusses == {STATUS_FINISHED}:
-            self._db.set_pjob_status(pjob_id, status=STATUS_FINISHED, message=status_message, progress=progress)
+            self._db.set_pjob_status(
+                user_id=user_id, pjob_id=pjob_id, status=STATUS_FINISHED, message=status_message, progress=progress
+            )
         elif STATUS_RUNNING in statusses:
-            self._db.set_pjob_status(pjob_id, status=STATUS_RUNNING, message=status_message, progress=progress)
+            self._db.set_pjob_status(
+                user_id=user_id, pjob_id=pjob_id, status=STATUS_RUNNING, message=status_message, progress=progress
+            )
         elif STATUS_CREATED in statusses or STATUS_INSERTED in statusses:
             pass
         elif STATUS_ERROR in statusses:
-            self._db.set_pjob_status(pjob_id, status=STATUS_ERROR, message=status_message, progress=progress)
+            self._db.set_pjob_status(
+                user_id=user_id, pjob_id=pjob_id, status=STATUS_ERROR, message=status_message, progress=progress
+            )
         else:
             raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
     def describe_job(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> dict:
         """RESTJob.describe_job() interface"""
+        pjob_metadata = self._db.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
         self.sync(user_id=user_id, pjob_id=pjob_id, flask_request=flask_request)
-        pjob_metadata = self._db.get_pjob_metadata(pjob_id=pjob_id)
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
-        status_data = self._db.get_pjob_status(pjob_id=pjob_id)
+        status_data = self._db.get_pjob_status(user_id=user_id, pjob_id=pjob_id)
         status = status_data["status"]
         status = {STATUS_INSERTED: "created"}.get(status, status)
         job_metadata = {
@@ -262,13 +274,12 @@ class PartitionedJobTracker:
 
     def get_assets(self, user_id: str, pjob_id: str, flask_request: flask.Request) -> List[ResultAsset]:
         # TODO: do a sync if latest sync is too long ago?
-        pjob_metadata = self._db.get_pjob_metadata(pjob_id)
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id, pjob_metadata=pjob_metadata)
-        sjobs = self._db.list_subjobs(pjob_id)
+        pjob_metadata = self._db.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
+        sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         assets = []
         with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
             for sjob_id, sjob_metadata in sjobs.items():
-                sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
+                sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
                 if sjob_status in {STATUS_INSERTED, STATUS_CREATED, STATUS_RUNNING}:
                     raise JobNotFinishedException
                 if sjob_status != STATUS_FINISHED:
@@ -276,7 +287,7 @@ class PartitionedJobTracker:
                     raise JobNotFinishedException
                 # Get assets from remote back-end
                 # TODO: handle `get_backend_job_id` failure (e.g. `NoJobIdForSubJobException`)
-                job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+                job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
                 con = self._backends.get_connection(sjob_metadata["backend_id"])
                 with con.authenticated_from_request(request=flask_request):
                     # TODO: when some sjob assets fail, still continue with partial results  #40
@@ -306,13 +317,12 @@ class PartitionedJobTracker:
     def get_logs(
             self, user_id: str, pjob_id: str, flask_request: flask.Request, offset: Optional[int] = None
     ) -> List[LogEntry]:
-        self._check_user_access(user_id=user_id, pjob_id=pjob_id)
-        sjobs = self._db.list_subjobs(pjob_id)
+        sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         all_logs = []
         with TimingLogger(title=f"Collect logs for {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
             for sjob_id, sjob_metadata in sjobs.items():
                 try:
-                    job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
+                    job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
                     con = self._backends.get_connection(sjob_metadata["backend_id"])
                     with con.authenticated_from_request(request=flask_request):
                         logs = con.job(job_id).logs(offset=offset)
