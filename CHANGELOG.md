@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed stripping back-end id prefix in `load_result` calls in batch jobs ([#19](https://github.com/Open-EO/openeo-aggregator/issues/19))
 
 
 ## [0.3.x]
