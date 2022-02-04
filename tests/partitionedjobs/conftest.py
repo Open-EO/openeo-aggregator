@@ -6,8 +6,12 @@ from typing import Dict, Tuple, List
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
+from openeo_aggregator.utils import Clock, timestamp_to_rfc3339
 from openeo_driver.errors import JobNotFoundException, TokenInvalidException
 from openeo_driver.users.auth import HttpAuthHandler
+
+TEST_USER = "tstsr"
+TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
 
 PG12 = {
     "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
@@ -44,7 +48,7 @@ def pjob():
     )
 
 
-DummyBatchJobData = collections.namedtuple("DummyJobData", ["create", "history"])
+DummyBatchJobData = collections.namedtuple("DummyJobData", ["created", "create", "history"])
 
 
 class DummyBackend:
@@ -77,6 +81,8 @@ class DummyBackend:
         # Basic collections
         self.requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
         self.requests_mock.get(self.backend_url + "/collections/S2", json={})
+        # Batch job handling: list jobs
+        self.requests_mock.get(self.backend_url + "/jobs", json=self._handle_get_jobs)
         # Batch job handling: create job
         self.requests_mock.post(self.backend_url + "/jobs", text=self._handle_post_jobs)
         # Batch job handling: start job
@@ -108,12 +114,20 @@ class DummyBackend:
         }}
         self.requests_mock.get(self.backend_url + f"/jobs/{job_id}/results", json=results)
 
+    def _handle_get_jobs(self, request: requests.Request, context):
+        user_id = self.get_user_id(request)
+        return {"jobs": [
+            {"id": job_id, "created": timestamp_to_rfc3339(job_data.created), "status": job_data.history[-1]}
+            for (u, job_id), job_data in self.jobs.items()
+            if u == user_id
+        ]}
+
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""
         user_id = self.get_user_id(request)
         job_id = self.job_id_template.format(i=len(self.jobs))
         assert (user_id, job_id) not in self.jobs
-        self.jobs[user_id, job_id] = DummyBatchJobData(create=request.json(), history=["created"])
+        self.jobs[user_id, job_id] = DummyBatchJobData(created=Clock.time(), create=request.json(), history=["created"])
         context.headers["Location"] = f"{self.backend_url}/jobs/{job_id}"
         context.headers["OpenEO-Identifier"] = job_id
         context.status_code = 201

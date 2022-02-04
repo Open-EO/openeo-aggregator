@@ -1,11 +1,10 @@
 import datetime
 import logging
-import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple, Union, Tuple
-
 import shapely.geometry
+import time
+from typing import Callable, Iterable, Iterator, List, NamedTuple
 
-from openeo.util import TimingLogger
+from openeo.util import TimingLogger, rfc3339
 
 # Generic "sentinel object" for unset values (where `None` is valid value)
 # https://python-patterns.guide/python/sentinel-object/)
@@ -228,3 +227,9 @@ def strip_join(separator: str, *args: str) -> str:
     if len(args) > 1:
         args = [args[0].rstrip(separator)] + [a.strip(separator) for a in args[1:-1]] + [args[-1].lstrip(separator)]
     return separator.join(args)
+
+
+def timestamp_to_rfc3339(timestamp: float) -> str:
+    """Convert unix epoch timestamp to RFC3339 datetime string"""
+    dt = datetime.datetime.utcfromtimestamp(timestamp)
+    return rfc3339.datetime(dt)
