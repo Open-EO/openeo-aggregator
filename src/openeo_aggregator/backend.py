@@ -160,7 +160,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             },
         }
         result["links"] = list(getter.union("links"))
-        # TODO         cube_dimensions = getter.get("cube:dimensions") ...
+        # TODO: combine cube:dimensions smarter?
+        cube_dimensions = getter.first("cube:dimensions")
+        if cube_dimensions:
+            result["cube:dimensions"] = cube_dimensions
         # TODO merge existing summaries?
         result["summaries"] = {
             # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)

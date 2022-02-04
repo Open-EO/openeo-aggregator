@@ -193,6 +193,10 @@ class TestAggregatorCollectionCatalog:
                 "spatial": {"bbox": [[-10, 20, 30, 50]]},
                 "temporal": {"interval": [["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"]]}
             },
+            "cube:dimensions": {
+                "bands": {"type": "bands", "values": ["B01", "B02"]},
+                "x": {"type": "spatial", "axis": "x"}
+            },
             "links": [
                 {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
             ],
@@ -208,6 +212,10 @@ class TestAggregatorCollectionCatalog:
             "extent": {
                 "spatial": {"bbox": [[-20, -20, 40, 40]]},
                 "temporal": {"interval": [["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}
+            },
+            "cube:dimensions": {
+                "bands": {"type": "bands", "values": ["B01", "B02"]},
+                "y": {"type": "spatial", "axis": "y"}
             },
             "links": [
                 {"rel": "license", "href": "https://spdx.org/licenses/Apache-1.0.html"},
@@ -227,6 +235,10 @@ class TestAggregatorCollectionCatalog:
                     "spatial": {"bbox": [[-10, 20, 30, 50], [-20, -20, 40, 40]]},
                     "temporal": {"interval": [["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"],
                                               ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}},
+                "cube:dimensions": {
+                    "bands": {"type": "bands", "values": ["B01", "B02"]},
+                    "x": {"type": "spatial", "axis": "x"}
+                },
                 "license": "various",
                 "providers": [{"name": "ESA", "roles": ["producer"]}, {"name": "ESA", "roles": ["licensor"]}],
                 "summaries": {"provider:backend": ["b1", "b2"]},
