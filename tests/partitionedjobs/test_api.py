@@ -42,7 +42,7 @@ class TestFlimsyBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")
 
     @now.mock
-    def test_create_job_basic(self, api100, zk_client, dummy1):
+    def test_create_job_basic(self, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -53,7 +53,8 @@ class TestFlimsyBatchJobSplitting:
             "job_options": {"_jobsplitting": True}
         }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220119-123456"
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
         assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
@@ -68,31 +69,27 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        # TODO: these unit tests should not really care about the zookeeper state
-        zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
-        assert zk_data[zk_prefix] == {
+        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == {
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
             "job_options": {"_jobsplitting": True},
         }
-        assert zk_data[zk_prefix + "/status"] == {
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == {
             "status": "created",
             "message": approx_str_contains("{'created': 1}"),
             "timestamp": pytest.approx(self.now.epoch, abs=5),
             "progress": 0,
         }
-        assert zk_data[zk_prefix + "/sjobs/0000"] == {
+
+        assert zk_db.list_subjobs(pjob_id=pjob_id) == {"0000": {
             "backend_id": "b1",
             "process_graph": PG35,
             "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)"
-        }
-        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == {
-            "job_id": "1-jb-0",
-        }
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == {
+        }}
+        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == {
             "status": "created",
             "message": approx_str_prefix("Created in 0:00"),
             "timestamp": pytest.approx(self.now.epoch, abs=5)
@@ -115,7 +112,7 @@ class TestFlimsyBatchJobSplitting:
             "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
         }
 
-    def test_describe_wrong_user(self, api100, zk_client, dummy1):
+    def test_describe_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -135,7 +132,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_create_job_failed_backend(self, api100, zk_client, requests_mock, dummy1):
+    def test_create_job_failed_backend(self, api100, zk_db, requests_mock, dummy1):
         requests_mock.post(dummy1.backend_url + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -147,7 +144,8 @@ class TestFlimsyBatchJobSplitting:
             "job_options": {"_jobsplitting": True}
         }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220119-123456"
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -161,13 +159,10 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        # TODO: these unit tests should not really care about the zookeeper state
-        zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
-        assert zk_data[zk_prefix + "/status"] == DictSubSet({
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "error",
         })
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({
+        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({
             "status": "error",
             "message": "Create failed: [500] Internal: nope",
         })
@@ -179,7 +174,7 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_start_job(self, api100, zk_client, dummy1):
+    def test_start_job(self, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -188,7 +183,8 @@ class TestFlimsyBatchJobSplitting:
             "job_options": {"_jobsplitting": True}
         }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220119-123456"
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -200,21 +196,18 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
-        # TODO: these unit tests should not really care about the zookeeper state
-        zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
-        assert zk_data[zk_prefix] == DictSubSet({
+        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
             "created": self.now.epoch,
             "process": P35,
         })
-        assert zk_data[zk_prefix + "/status"] == DictSubSet({
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "running",
             "message": approx_str_contains("{'running': 1}"),
         })
-        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "running"})
+        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "running"})
 
-    def test_start_job_wrong_user(self, api100, zk_client, dummy1):
+    def test_start_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -232,7 +225,7 @@ class TestFlimsyBatchJobSplitting:
         api100.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_sync_job(self, api100, zk_client, dummy1):
+    def test_sync_job(self, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -241,7 +234,8 @@ class TestFlimsyBatchJobSplitting:
             "job_options": {"_jobsplitting": True}
         }).assert_status_code(201)
 
-        expected_job_id = "agg-pj-20220119-123456"
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
@@ -262,21 +256,18 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
-        # TODO: these unit tests should not really care about the zookeeper state
-        zk_data = zk_client.get_data_deserialized(drop_empty=True)
-        zk_prefix = "/o-a/pj/v1/202201/pj-20220119-123456"
-        assert zk_data[zk_prefix] == DictSubSet({
+        assert zk_db.get_pjob_metadata(pjob_id=pjob_id) == DictSubSet({
             "created": self.now.epoch,
             "process": P35,
         })
-        assert zk_data[zk_prefix + "/status"] == DictSubSet({
+        assert zk_db.get_pjob_status(pjob_id=pjob_id) == DictSubSet({
             "status": "finished",
             "message": approx_str_contains("{'finished': 1}"),
         })
-        assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
-        assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "finished"})
+        assert zk_db.get_backend_job_id(pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "finished"})
 
-    def test_sync_job_wrong_user(self, api100, zk_client, dummy1):
+    def test_sync_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -300,7 +291,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_job_results(self, api100, zk_client, dummy1):
+    def test_job_results(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -335,7 +326,7 @@ class TestFlimsyBatchJobSplitting:
             }
         })
 
-    def test_job_results_wrong_user(self, api100, zk_client, dummy1):
+    def test_job_results_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -358,7 +349,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_get_logs(self, api100, zk_client, requests_mock, dummy1):
+    def test_get_logs(self, api100, requests_mock, dummy1):
         requests_mock.get(dummy1.backend_url + "/jobs/1-jb-0/logs", json={
             "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
         })
@@ -401,7 +392,7 @@ class TestTileGridBatchJobSplitting:
     }
 
     @now.mock
-    def test_create_job_basic(self, flask_app, api100, zk_client, zk_db, dummy1):
+    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -463,7 +454,7 @@ class TestTileGridBatchJobSplitting:
         check_tiling_coordinate_histograms(tiles)
 
     @now.mock
-    def test_create_job_preprocessing(self, flask_app, api100, zk_client, zk_db, dummy1):
+    def test_create_job_preprocessing(self, flask_app, api100, zk_db, dummy1):
         """Issue #19: strip backend prefix from job_id in load_result"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -494,7 +485,7 @@ class TestTileGridBatchJobSplitting:
         assert pg["lr"]["arguments"]["id"] == "b6tch-j08"
 
     @now.mock
-    def test_job_results_basic(self, flask_app, api100, zk_client, zk_db, dummy1):
+    def test_job_results_basic(self, flask_app, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
