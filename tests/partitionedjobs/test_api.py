@@ -42,7 +42,7 @@ class TestFlimsyBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")
 
     @now.mock
-    def test_create_job_basic(self, api100, backend1, zk_client, dummy1):
+    def test_create_job_basic(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -99,7 +99,7 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_create_job_preprocessing(self, api100, backend1, zk_db, dummy1):
+    def test_create_job_preprocessing(self, api100, zk_db, dummy1):
         """Issue #19: strip backend prefix from job_id in load_result"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -115,7 +115,7 @@ class TestFlimsyBatchJobSplitting:
             "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
         }
 
-    def test_describe_wrong_user(self, api100, backend1, zk_client, dummy1):
+    def test_describe_wrong_user(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -135,8 +135,8 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_create_job_failed_backend(self, api100, backend1, zk_client, requests_mock, dummy1):
-        requests_mock.post(backend1 + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
+    def test_create_job_failed_backend(self, api100, zk_client, requests_mock, dummy1):
+        requests_mock.post(dummy1.backend_url + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -179,7 +179,7 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_start_job(self, api100, backend1, zk_client, dummy1):
+    def test_start_job(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -214,7 +214,7 @@ class TestFlimsyBatchJobSplitting:
         assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
         assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "running"})
 
-    def test_start_job_wrong_user(self, api100, backend1, zk_client, dummy1):
+    def test_start_job_wrong_user(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -232,7 +232,7 @@ class TestFlimsyBatchJobSplitting:
         api100.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_sync_job(self, api100, backend1, zk_client, dummy1):
+    def test_sync_job(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -276,7 +276,7 @@ class TestFlimsyBatchJobSplitting:
         assert zk_data[zk_prefix + "/sjobs/0000/job_id"] == DictSubSet({"job_id": "1-jb-0"})
         assert zk_data[zk_prefix + "/sjobs/0000/status"] == DictSubSet({"status": "finished"})
 
-    def test_sync_job_wrong_user(self, api100, backend1, zk_client, dummy1):
+    def test_sync_job_wrong_user(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -300,7 +300,7 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_job_results(self, api100, backend1, zk_client, requests_mock, dummy1):
+    def test_job_results(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -329,13 +329,13 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == DictSubSet({
             "id": expected_job_id,
             "assets": {
-                "0000-preview.png": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/preview.png"}),
-                "0000-res001.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/res001.tif"}),
-                "0000-res002.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/res002.tif"}),
+                "0000-preview.png": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/preview.png"}),
+                "0000-res001.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res001.tif"}),
+                "0000-res002.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res002.tif"}),
             }
         })
 
-    def test_job_results_wrong_user(self, api100, backend1, zk_client, dummy1):
+    def test_job_results_wrong_user(self, api100, zk_client, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
@@ -358,8 +358,8 @@ class TestFlimsyBatchJobSplitting:
         api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_get_logs(self, api100, backend1, zk_client, requests_mock, dummy1):
-        requests_mock.get(backend1 + "/jobs/1-jb-0/logs", json={
+    def test_get_logs(self, api100, zk_client, requests_mock, dummy1):
+        requests_mock.get(dummy1.backend_url + "/jobs/1-jb-0/logs", json={
             "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
         })
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -401,7 +401,7 @@ class TestTileGridBatchJobSplitting:
     }
 
     @now.mock
-    def test_create_job_basic(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+    def test_create_job_basic(self, flask_app, api100, zk_client, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -463,7 +463,7 @@ class TestTileGridBatchJobSplitting:
         check_tiling_coordinate_histograms(tiles)
 
     @now.mock
-    def test_create_job_preprocessing(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+    def test_create_job_preprocessing(self, flask_app, api100, zk_client, zk_db, dummy1):
         """Issue #19: strip backend prefix from job_id in load_result"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -494,7 +494,7 @@ class TestTileGridBatchJobSplitting:
         assert pg["lr"]["arguments"]["id"] == "b6tch-j08"
 
     @now.mock
-    def test_job_results_basic(self, flask_app, api100, backend1, zk_client, zk_db, dummy1):
+    def test_job_results_basic(self, flask_app, api100, zk_client, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         res = api100.post("/jobs", json={
@@ -541,15 +541,15 @@ class TestTileGridBatchJobSplitting:
         assert res.json == DictSubSet({
             "id": expected_job_id,
             "assets": {
-                "0000-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-0/results/result.tif"}),
-                "0001-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-1/results/result.tif"}),
-                "0002-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-2/results/result.tif"}),
-                "0003-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-3/results/result.tif"}),
-                "0004-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-4/results/result.tif"}),
-                "0005-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-5/results/result.tif"}),
-                "0006-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-6/results/result.tif"}),
-                "0007-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-7/results/result.tif"}),
-                "0008-result.tif": DictSubSet({"href": backend1 + "/jobs/1-jb-8/results/result.tif"}),
+                "0000-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/result.tif"}),
+                "0001-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-1/results/result.tif"}),
+                "0002-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-2/results/result.tif"}),
+                "0003-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-3/results/result.tif"}),
+                "0004-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-4/results/result.tif"}),
+                "0005-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-5/results/result.tif"}),
+                "0006-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-6/results/result.tif"}),
+                "0007-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-7/results/result.tif"}),
+                "0008-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-8/results/result.tif"}),
                 "tile_grid.geojson": DictSubSet({
                     "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/tile_grid.geojson",
                     "type": "application/geo+json",
