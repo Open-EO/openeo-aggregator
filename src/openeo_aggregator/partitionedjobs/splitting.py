@@ -77,7 +77,7 @@ class TileGrid(typing.NamedTuple):
     def get_tiles(self, bbox: BoundingBox, max_tiles=MAX_TILES) -> List[BoundingBox]:
         """Calculate tiles to cover given bounding box"""
         if self.crs_type == "utm":
-            # TODO: properly handle bbox that covers multiple UTM zones
+            # TODO: properly handle bbox that covers multiple UTM zones #36
             utm_zone: int = auto_utm_epsg_for_geometry(geometry=bbox.as_polygon(), crs=bbox.crs)
             tiling_crs = f"epsg:{utm_zone}"
             tile_size = self.size * {"km": 1000}[self.unit]
@@ -138,8 +138,6 @@ class TileGridSplitter(AbstractJobSplitter):
         )
 
     def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
-        # TODO: pass tile_grid from job_options or from save_result format options?
-
         # TODO: refactor process graph preprocessing and backend_id getting in reusable AbstractJobSplitter method?
         processing: AggregatorProcessing = self.backend_implementation.processing
         process_graph = process["process_graph"]
@@ -147,6 +145,8 @@ class TileGridSplitter(AbstractJobSplitter):
         process_graph = processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         global_spatial_extent = self._extract_global_spatial_extent(process)
+        # TODO: pass tile_grid from job_options or from save_result format options?
+        #       see https://github.com/openEOPlatform/architecture-docs/issues/187
         tile_grid = TileGrid.from_string(job_options["tile_grid"])
         tiles = tile_grid.get_tiles(bbox=global_spatial_extent, max_tiles=job_options.get("max_tiles", MAX_TILES))
         inject = self._filter_bbox_injector(process_graph=process_graph)

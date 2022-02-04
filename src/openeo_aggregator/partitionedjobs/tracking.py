@@ -19,9 +19,6 @@ from openeo_aggregator.utils import _UNSET
 from openeo_driver.errors import JobNotFinishedException, JobNotFoundException
 from openeo_driver.users import User
 
-# TODO: not only support batch jobs but also sync jobs?
-
-
 _log = logging.getLogger(__name__)
 
 
@@ -88,7 +85,7 @@ class PartitionedJobTracker:
     ) -> str:
         try:
             con = self._backends.get_connection(sjob_metadata["backend_id"])
-            # TODO: different way to authenticate request?
+            # TODO: different way to authenticate request? #29
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
                 with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info) as timer:
@@ -113,7 +110,7 @@ class PartitionedJobTracker:
     def start_sjobs(self, user_id: str, pjob_id: str, flask_request: flask.Request):
         """Start all sub-jobs on remote back-end for given partitioned job"""
         self._check_user_access(user_id=user_id, pjob_id=pjob_id)
-        # TODO: only start a subset of sub-jobs
+        # TODO: only start a subset of sub-jobs? #37
         sjobs = self._db.list_subjobs(pjob_id)
         start_stats = collections.Counter()
         with TimingLogger(title=f"Starting partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs", logger=_log.info):
@@ -137,7 +134,7 @@ class PartitionedJobTracker:
         try:
             job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
             con = self._backends.get_connection(sjob_metadata["backend_id"])
-            # TODO: different way to authenticate request?
+            # TODO: different way to authenticate request? #29
             with con.authenticated_from_request(request=flask_request), \
                     con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
                 with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
@@ -160,9 +157,8 @@ class PartitionedJobTracker:
         :param pjob_id: storage id of the partitioned job
         :param flask_request: flask request of owning user to use authentication from
         """
-        # TODO: (timing) logging
-        # TODO: limit number of remote back-end requests per sync?
-        # TODO: throttle sync logic, or cache per request?
+        # TODO: limit number of remote back-end requests per sync? #38
+        # TODO: throttle sync logic, or cache per request? #38
         self._check_user_access(user_id=user_id, pjob_id=pjob_id)
 
         def update_status(sjob_id: str, status: str, old: str, upstream: str):
@@ -175,14 +171,14 @@ class PartitionedJobTracker:
         sjobs = self._db.list_subjobs(pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
         for sjob_id, sjob_metadata in sjobs.items():
-            # TODO: limit number of concurrent jobs (per partitioned job, per user, ...)
+            # TODO: limit number of concurrent jobs (per partitioned job, per user, ...) #38
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             sjob_status = self._db.get_sjob_status(pjob_id, sjob_id)["status"]
             _log.debug(f"Internal status of {pjob_id}:{sjob_id}: {sjob_status}")
             if sjob_status == STATUS_INSERTED:
                 _log.warning(f"pjob {pjob_id!r} sjob {sjob_id!r} not yet created on remote back-end")
             elif sjob_status == STATUS_CREATED:
-                # TODO: dynamically start subjobs instead of starting all subjobs when partitioned job is started?
+                # TODO: dynamically start subjobs instead of starting all subjobs when partitioned job is started? #37
                 pass
             elif sjob_status == STATUS_RUNNING or sjob_status == STATUS_ERROR:
                 # TODO: updating status when already in error status: only do this for recoverable errors
@@ -208,7 +204,7 @@ class PartitionedJobTracker:
                         # TODO: differentiate between created queued and running?
                         update_status(sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status)
                     elif status in {"error", "canceled"}:
-                        # TODO: handle "canceled" state properly?
+                        # TODO: handle "canceled" state properly? #39
                         update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
@@ -276,16 +272,15 @@ class PartitionedJobTracker:
                 if sjob_status in {STATUS_INSERTED, STATUS_CREATED, STATUS_RUNNING}:
                     raise JobNotFinishedException
                 if sjob_status != STATUS_FINISHED:
-                    # TODO Partial result https://github.com/Open-EO/openeo-api/pull/433
+                    # TODO Partial results #40
                     raise JobNotFinishedException
                 # Get assets from remote back-end
                 # TODO: handle `get_backend_job_id` failure (e.g. `NoJobIdForSubJobException`)
                 job_id = self._db.get_backend_job_id(pjob_id=pjob_id, sjob_id=sjob_id)
                 con = self._backends.get_connection(sjob_metadata["backend_id"])
                 with con.authenticated_from_request(request=flask_request):
-                    # TODO: when some sjob assets fail, still continue with partial results
+                    # TODO: when some sjob assets fail, still continue with partial results  #40
                     sjob_assets = con.job(job_id).get_results().get_assets()
-                # TODO: rename assets to avoid collision across sjobs
                 assets.extend(
                     ResultAsset(job=None, name=f"{sjob_id}-{a.name}", href=a.href, metadata=a.metadata)
                     for a in sjob_assets
@@ -301,7 +296,7 @@ class PartitionedJobTracker:
                     "json_response": geojson,
                 }
                 # No href, but let openeo_driver build URL from filename.
-                # TODO: Signed URL support for this asset.
+                # TODO: Signed URL support for this asset. #41
                 assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
             except Exception as e:
                 _log.error("Failed to add result asset with tiling geometry", exc_info=True)
@@ -366,6 +361,7 @@ class PartitionedJobConnection:
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
             )
+        # TODO: also support job cancel and delete. #39
 
         def get_results(self):
             """Interface `RESTJob.get_results`"""

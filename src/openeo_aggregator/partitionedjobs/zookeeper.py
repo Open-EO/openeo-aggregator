@@ -20,7 +20,6 @@ class ZooKeeperPartitionedJobDB:
     """ZooKeeper based Partitioned job database"""
 
     # TODO: "database" is a bit of a misnomer, this class is more about a thin abstraction layer above that
-    # TODO: support for canceling?
     # TODO: extract abstract PartitionedJobDB for other storage backends (e.g. Elastic Search)?
 
     def __init__(self, client: KazooClient, prefix: str = '/openeo-aggregator/pj/v1'):
@@ -117,7 +116,6 @@ class ZooKeeperPartitionedJobDB:
                         process_graph=subjob.process_graph,
                         backend_id=subjob.backend_id,
                         title=f"Partitioned job {pjob_id} part {sjob_id} ({i + 1}/{len(pjob.subjobs)})",
-                        # TODO:  dependencies/constraints between subjobs?
                     ),
                     makepath=True,
                 )

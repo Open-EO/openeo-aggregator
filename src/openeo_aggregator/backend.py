@@ -462,6 +462,8 @@ class AggregatorBatchJobs(BatchJobs):
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_api_dict(job))
 
+        # TODO: include partitioned jobs. #35
+
         federation_missing.update(self.backends.get_disabled_connection_ids())
         return dict_no_none({
             "jobs": jobs,
