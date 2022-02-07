@@ -44,7 +44,11 @@ class AbstractJobSplitter(metaclass=abc.ABCMeta):
 
 
 class FlimsySplitter(AbstractJobSplitter):
-    """A simple job splitter that does not split."""
+    """
+    A simple job splitter that does not split.
+
+    Mainly intended for testing and debugging purposes.
+    """
 
     def __init__(self, processing: "AggregatorProcessing"):
         self.processing = processing

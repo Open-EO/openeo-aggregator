@@ -49,7 +49,7 @@ class TestFlimsyBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "plan": "free",
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -73,7 +73,7 @@ class TestFlimsyBatchJobSplitting:
             "created": self.now.epoch,
             "process": P35,
             "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
-            "job_options": {"_jobsplitting": True},
+            "job_options": {"split_strategy": "flimsy"},
         }
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
             "status": "created",
@@ -100,7 +100,10 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {"load": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}, "result": True}}
-        res = api100.post("/jobs", json={"process": {"process_graph": pg}, "job_options": {"_jobsplitting": True}})
+        res = api100.post("/jobs", json={
+            "process": {"process_graph": pg},
+            "job_options": {"split_strategy": "flimsy"}
+        })
         res.assert_status_code(201)
 
         expected_job_id = "agg-pj-20220119-123456"
@@ -117,7 +120,7 @@ class TestFlimsyBatchJobSplitting:
 
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -142,7 +145,7 @@ class TestFlimsyBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "plan": "free",
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
@@ -163,7 +166,7 @@ class TestFlimsyBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "plan": "free",
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -202,7 +205,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -236,7 +239,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
@@ -254,7 +257,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -297,7 +300,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
@@ -321,7 +324,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
 
         expected_job_id = "agg-pj-20220119-123456"
@@ -356,7 +359,7 @@ class TestFlimsyBatchJobSplitting:
         # Submit job
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
@@ -384,7 +387,7 @@ class TestFlimsyBatchJobSplitting:
             "description": "Addition of 3 and 5",
             "process": P35,
             "plan": "free",
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
@@ -400,7 +403,7 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs", json={
             "process": P35,
-            "job_options": {"_jobsplitting": True}
+            "job_options": {"split_strategy": "flimsy"}
         }).assert_status_code(201)
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id

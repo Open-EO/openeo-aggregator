@@ -482,7 +482,7 @@ class AggregatorBatchJobs(BatchJobs):
             raise ProcessGraphMissingException()
 
         # TODO: better, more generic/specific job_option(s)?
-        if job_options and (job_options.get("_jobsplitting") or job_options.get("tile_grid")):
+        if job_options and (job_options.get("split_strategy") or job_options.get("tile_grid")):
             return self._create_partitioned_job(
                 user_id=user_id,
                 process=process,
@@ -545,8 +545,10 @@ class AggregatorBatchJobs(BatchJobs):
 
         if "tile_grid" in job_options:
             splitter = TileGridSplitter(processing=self.processing)
-        else:
+        elif job_options.get("split_strategy") == "flimsy":
             splitter = FlimsySplitter(processing=self.processing)
+        else:
+            raise ValueError("Could not determine splitting strategy from job options")
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
         job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
