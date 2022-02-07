@@ -462,7 +462,6 @@ class AggregatorBatchJobs(BatchJobs):
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_api_dict(job))
 
-        # TODO: include partitioned jobs. #35
         if self.partitioned_job_tracker:
             for job in self.partitioned_job_tracker.list_user_jobs(user_id=user_id):
                 job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=JobIdMapping.AGG)
