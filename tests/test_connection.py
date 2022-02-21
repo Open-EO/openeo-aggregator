@@ -186,6 +186,19 @@ class TestBackendConnection:
         con.get("/")
         assert m.call_count == 1
 
+    def test_version_discovery_timeout(self, requests_mock):
+        well_known = requests_mock.get("https://foo.test/.well-known/openeo", status_code=200, json={
+            "versions": [{"api_version": "1.0.0", "url": "https://oeo.test/v1/"}, ],
+        })
+        requests_mock.get("https://oeo.test/v1/", status_code=200, json={"api_version": "1.0.0"})
+
+        _ = BackendConnection(
+            id="foo", url="https://foo.test", configured_oidc_providers=[],
+            default_timeout=20, init_timeout=5
+        )
+        assert well_known.call_count == 1
+        assert well_known.request_history[-1].timeout == 5
+
 
 class TestMultiBackendConnection:
 
