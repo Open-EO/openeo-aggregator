@@ -35,16 +35,17 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 
 # Copy source code
+RUN mkdir /home/openeo/aggregator
 WORKDIR /home/openeo/aggregator
-COPY setup.py setup.py
-COPY src src
-COPY conf conf
-COPY pytest.ini pytest.ini
-COPY tests tests
+COPY --chown=openeo setup.py setup.py
+COPY --chown=openeo src src
+COPY --chown=openeo conf conf
+COPY --chown=openeo pytest.ini pytest.ini
+COPY --chown=openeo tests tests
 
 
 # Install dependencies and app.
-RUN pip install --upgrade 'pip==21.1.1' && \
+RUN pip install --upgrade pip && \
     pip install .
 
 
