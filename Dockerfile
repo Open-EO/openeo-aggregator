@@ -41,9 +41,6 @@ COPY pytest.ini pytest.ini
 COPY tests tests
 
 
-# GDD-1099 Jenkinslib: change whl versions incompatible with pip 20.3
-RUN pip install -U pip==20.2.4
-
 # Install dependencies and app.
 RUN pip install .
 
