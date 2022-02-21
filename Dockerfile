@@ -44,7 +44,7 @@ COPY tests tests
 
 
 # Install dependencies and app.
-RUN pip install --upgrade pip && \
+RUN pip install --upgrade 'pip==21.1.1' && \
     pip install .
 
 
