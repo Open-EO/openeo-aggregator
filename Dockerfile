@@ -17,6 +17,7 @@ RUN apt-get update && \
 ENV PIP_CONF="/etc/pip.conf"
 RUN echo "[global]" >> $PIP_CONF && \
     # Disable pip download cache to reduce image size (https://pythonspeed.com/articles/smaller-docker-images/)
+    # Note the counter-intuitive double negation handling of this config (also see https://github.com/pypa/pip/issues/5011)
     echo "no-cache-dir = false" >> $PIP_CONF && \
     echo "timeout = 60" >> $PIP_CONF && \
     echo "extra-index-url = https://artifactory.vgt.vito.be/api/pypi/python-openeo/simple" >> $PIP_CONF && \
