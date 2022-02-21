@@ -42,7 +42,8 @@ COPY tests tests
 
 
 # Install dependencies and app.
-RUN pip install .
+RUN pip install --upgrade pip && \
+    pip install .
 
 
 CMD ["gunicorn", "--config=conf/gunicorn.prod.py", "openeo_aggregator.app:create_app()"]
