@@ -767,7 +767,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     BILLING_PLAN_FREE = "free"
     BILLING_PLAN_EARLY_ADOPTER = "early-adopter"
-    BILLING_PLAN_VSC4 = "vsc4"
 
     def capabilities_billing(self) -> dict:
         # TODO: ok to hardcode this here, or move to config?
@@ -787,13 +786,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                     # TODO: url?
                     "paid": False
                 },
-                # TODO: Unused plan at the moment: necessary to expose it?
-                {
-                    "name": self.BILLING_PLAN_VSC4,
-                    "description": "[EODC] Use this plan to process data on VSC-4",
-                    # TODO: url?
-                    "paid": True,
-                }
             ]
         }
 
