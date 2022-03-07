@@ -129,12 +129,12 @@ class TestFlimsyBatchJobSplitting:
 
         res = api100.get(f"/jobs").assert_status_code(200)
         assert res.json == {
-            'jobs': [
-                {"id": "b1-1-jb-0", "created": self.now.rfc3339, 'status': 'created'},
-                {"id": expected_job_id, "created": self.now.rfc3339, 'status': 'created'}
+            "jobs": [
+                {"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"},
+                {"id": expected_job_id, "created": self.now.rfc3339, "status": "created", "progress": 0}
             ],
-            'federation:missing': ['b2'],
-            'links': [],
+            "federation:missing": ["b2"],
+            "links": [],
         }
 
     def test_describe_wrong_user(self, api100, dummy1):
