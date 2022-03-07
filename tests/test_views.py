@@ -613,7 +613,7 @@ class TestBatchJobs:
     def test_list_jobs(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/jobs", json={"jobs": [
             {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
         ]})
         requests_mock.get(backend2 + "/jobs", json={"jobs": [
             {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
@@ -623,7 +623,7 @@ class TestBatchJobs:
         assert res == {
             "jobs": [
                 {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
                 {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
             "links": [],
