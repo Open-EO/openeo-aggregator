@@ -19,6 +19,7 @@ setup(
     url="https://github.com/Open-EO/openeo-aggregator",
     packages=find_packages(where="src", include=["openeo_aggregator", "openeo_aggregator.*"]),
     package_dir={"": "src"},
+    python_requires=">=3.8",
     install_requires=[
         "requests",
         "openeo>=0.9.3.a2.dev",
