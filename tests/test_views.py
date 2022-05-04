@@ -932,7 +932,12 @@ class TestBatchJobs:
         })
         m2 = requests_mock.get(backend1 + "/jobs/th3j0b/results", status_code=200, json={
             "assets": {
-                "r1.tiff": {"href": "https//res.b1.test/123/r1.tiff", "title": "Result 1"}
+                "r1.tiff": {
+                    "href": "https//res.b1.test/123/r1.tiff",
+                    "title": "Result 1",
+                    "type": "image/tiff; application=geotiff",
+                    "roles": ["data", "testing"],
+                }
             }
         })
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -943,9 +948,9 @@ class TestBatchJobs:
             "r1.tiff": {
                 "href": "https//res.b1.test/123/r1.tiff",
                 "title": "Result 1",
-                "roles": ["data"],
+                "roles": ["data", "testing"],
                 "file:nodata": [None],
-                "type": "application/octet-stream",
+                "type": "image/tiff; application=geotiff",
             }
         }
         assert res["id"] == "b1-th3j0b"
