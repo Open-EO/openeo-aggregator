@@ -90,6 +90,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 for collection_metadata in backend_collections:
                     if "id" in collection_metadata:
                         grouped[collection_metadata["id"]][con.id] = collection_metadata
+                        # TODO: support a trigger to create a collection alias under other name?
                     else:
                         # TODO: there must be something seriously wrong with this backend: skip all its results?
                         _log.warning(f"Invalid collection metadata from {con.id}: %r", collection_metadata)
@@ -308,6 +309,9 @@ class AggregatorProcessing(Processing):
         self._catalog = catalog
         self._stream_chunk_size = stream_chunk_size
 
+        # TODO #42 /validation support
+        self.validate = None
+
     def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
         if api_version != self.backends.api_version:
             raise OpenEOApiException(
@@ -380,6 +384,11 @@ class AggregatorProcessing(Processing):
                     process_graphs=collection_backend_constraints
                 )
                 backend_candidates = [b for b in backend_candidates if all(c(b) for c in conditions)]
+
+            if len(backend_candidates) > 1:
+                # TODO #42 Check `/validation`?
+                raise NotImplementedError
+
 
         if not backend_candidates:
             raise BackendLookupFailureException(message="No backend matching all constraints")
