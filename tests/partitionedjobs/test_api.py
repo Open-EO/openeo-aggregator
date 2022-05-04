@@ -583,7 +583,7 @@ class TestTileGridBatchJobSplitting:
                 "0007-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-7/results/result.tif"}),
                 "0008-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-8/results/result.tif"}),
                 "tile_grid.geojson": DictSubSet({
-                    "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/tile_grid.geojson",
+                    "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson",
                     "type": "application/geo+json",
                 })
             },
@@ -593,7 +593,7 @@ class TestTileGridBatchJobSplitting:
             })
         })
 
-        res = api100.get("/jobs/agg-pj-20220119-123456/results/tile_grid.geojson").assert_status_code(200)
+        res = api100.get("/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson").assert_status_code(200)
         assert res.json == DictSubSet({"type": "FeatureCollection"})
 
     # TODO: more/full TileGridSplitter batch job tests
