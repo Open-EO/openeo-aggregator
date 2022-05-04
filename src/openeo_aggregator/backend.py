@@ -585,8 +585,9 @@ class AggregatorBatchJobs(BatchJobs):
                 raise JobNotFinishedException(message=e.message)
             raise
 
-    def get_job_info(self, job_id: str, user: User) -> BatchJobMetadata:
+    def get_job_info(self, job_id: str, user_id: str) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        user = User(user_id=user_id)
         with con.authenticated_from_request(request=flask.request, user=user), \
                 self._translate_job_errors(job_id=job_id):
             metadata = con.job(backend_job_id).describe_job()
