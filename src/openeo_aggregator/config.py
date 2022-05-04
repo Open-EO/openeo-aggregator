@@ -114,11 +114,7 @@ def _get_logging_config() -> dict:
             "handlers": ["json"],
         },
         "loggers": {
-            "openeo_aggregator": {
-                "level": "DEBUG",
-                "handlers": ["json"],
-                "propagate": False,
-            },
+            "openeo_aggregator": {"level": "DEBUG"},
             "kazoo": {"level": "WARNING"},
         },
         "handlers": {
