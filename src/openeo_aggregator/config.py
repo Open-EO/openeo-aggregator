@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 from typing import Any, List, Union
 
+import pythonjsonlogger.jsonlogger
+
+import openeo_driver.util.logging
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
 
@@ -129,12 +132,12 @@ def _get_logging_config() -> dict:
         },
         "filters": {
             "request_correlation_id": {
-                "()": "openeo_driver.util.logging.RequestCorrelationIdLogging",
+                "()": openeo_driver.util.logging.FlaskRequestCorrelationIdLogging,
             }
         },
         "formatters": {
             "json": {
-                "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                "()": pythonjsonlogger.jsonlogger.JsonFormatter,
                 # This fake `format` string is the way to list expected fields in json records
                 "format": "%(created)s %(name)s %(filename)s %(lineno)s %(process)s %(levelname)s %(message)s",
             }
