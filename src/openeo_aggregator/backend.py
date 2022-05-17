@@ -386,9 +386,11 @@ class AggregatorProcessing(Processing):
                 backend_candidates = [b for b in backend_candidates if all(c(b) for c in conditions)]
 
             if len(backend_candidates) > 1:
-                # TODO #42 Check `/validation`?
-                raise NotImplementedError
-
+                # TODO #42 Check `/validation` instead of naively picking first one?
+                _log.warning(
+                    f"Multiple back-end candidates {backend_candidates} for collections {collections}."
+                    f" Naively picking first one."
+                )
 
         if not backend_candidates:
             raise BackendLookupFailureException(message="No backend matching all constraints")

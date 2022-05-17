@@ -462,6 +462,29 @@ class TestProcessing:
         assert res.json == 123
         assert (b1_mock.call_count, b2_mock.call_count) == call_counts
 
+    def test_result_backend_by_collection_multiple_hits(self, api100, requests_mock, backend1, backend2, caplog):
+        caplog.set_level(logging.WARNING)
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}, ]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}, ]})
+
+        def post_result(request: requests.Request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            assert request.json()["process"]["process_graph"] == pg
+            context.headers["Content-Type"] = "application/json"
+            return 123
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        request = {"process": {"process_graph": pg}}
+        res = api100.post("/result", json=request).assert_status_code(200)
+        assert res.json == 123
+        assert (b1_mock.call_count, b2_mock.call_count) == (1, 0)
+
+        assert "Multiple back-end candidates ['b1', 'b2'] for collections {'S2'}." in caplog.text
+        assert "Naively picking first one" in caplog.text
+
     def test_result_backend_by_collection_collection_not_found(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
