@@ -44,7 +44,7 @@ configured_oidc_providers = [
 config = AggregatorConfig(
     config_source=__file__,
     aggregator_backends={
-        "vito": "https://openeo-dev.vito.be/openeo/1.1/",
+        "vito": "https://openeo-dev.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
         "creo": "https://openeo.creo.vgt.vito.be/openeo/1.0",  # internal version of https://openeo.creo.vito.be/openeo/1.0/
     },
