@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Change to openEO API 1.1.0 version of terrascope/vito backend 
+- Make sure user id (prefix) is logged in JSON logs
 
 ### Fixed
 
