@@ -1,12 +1,8 @@
 import logging
-import logging.config
 import os
 from pathlib import Path
 from typing import Any, List, Union
 
-import pythonjsonlogger.jsonlogger
-
-import openeo_driver.util.logging
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
 
@@ -103,54 +99,3 @@ def get_config(x: Any) -> AggregatorConfig:
         return AggregatorConfig.from_py_file(x)
 
     raise ValueError(repr(x))
-
-
-def _get_logging_config() -> dict:
-    # TODO option to use standard text logging instead of JSON, for local development?
-    return {
-        "version": 1,
-        "root": {
-            "level": "INFO",
-            "handlers": ["json"],
-        },
-        "loggers": {
-            "openeo_aggregator": {"level": "DEBUG"},
-            "kazoo": {"level": "WARNING"},
-        },
-        "handlers": {
-            "json": {
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
-                "level": "DEBUG",
-                "filters": ["request_correlation_id"],
-                "formatter": "json",
-            },
-        },
-        "filters": {
-            "request_correlation_id": {
-                "()": openeo_driver.util.logging.FlaskRequestCorrelationIdLogging,
-            }
-        },
-        "formatters": {
-            "json": {
-                "()": pythonjsonlogger.jsonlogger.JsonFormatter,
-                # This fake `format` string is the way to list expected fields in json records
-                "format": "%(created)s %(name)s %(filename)s %(lineno)s %(process)s %(levelname)s %(message)s",
-            }
-        },
-        # Keep existing loggers alive (e.g. werkzeug, gunicorn, ...)
-        "disable_existing_loggers": False,
-    }
-
-
-def setup_logging(force=False):
-    if not logging.getLogger().handlers or force:
-        config = _get_logging_config()
-        logging.config.dictConfig(config)
-
-    for name in [
-        "openeo", "openeo_aggregator", "openeo_driver",
-        "flask", "werkzeug",
-    ]:
-        logger = logging.getLogger(name)
-        logger.log(level=logger.getEffectiveLevel(), msg=f"Logger setup: {logger!r}")

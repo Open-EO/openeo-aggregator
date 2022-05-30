@@ -8,8 +8,9 @@ import flask
 
 import openeo_aggregator.about
 import openeo_driver.views
+from openeo_driver.util.logging import setup_logging, get_logging_config, LOGGING_CONTEXT_FLASK
 from openeo_aggregator.backend import AggregatorBackendImplementation, MultiBackendConnection
-from openeo_aggregator.config import get_config, AggregatorConfig, setup_logging
+from openeo_aggregator.config import get_config, AggregatorConfig
 from openeo_driver.server import build_backend_deploy_metadata
 
 _log = logging.getLogger(__name__)
@@ -23,7 +24,20 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
     # see https://flask.palletsprojects.com/en/2.0.x/cli/#application-discovery
 
     if auto_logging_setup:
-        setup_logging()
+        # TODO option to use standard text logging instead of JSON, for local development?
+        setup_logging(config=get_logging_config(
+            root_handlers=["stderr_json"],
+            loggers={
+                "openeo": {"level": "DEBUG"},
+                "openeo_driver": {"level": "DEBUG"},
+                "openeo_aggregator": {"level": "DEBUG"},
+                "flask": {"level": "INFO"},
+                "werkzeug": {"level": "INFO"},
+                "gunicorn": {"level": "INFO"},
+                'kazoo': {'level': 'WARN'},
+            },
+            context=LOGGING_CONTEXT_FLASK,
+        ))
 
     config: AggregatorConfig = get_config(config)
     _log.info(f"Using config: {config}")
