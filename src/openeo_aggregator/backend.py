@@ -753,7 +753,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
         return user
 
-    def health_check(self) -> Union[str, dict, flask.Response]:
+    def health_check(self, options: Optional[dict] = None) -> Union[str, dict, flask.Response]:
+        # TODO: use health check options?
         backend_status = {}
         overall_status_code = 200
         for con in self._backends:

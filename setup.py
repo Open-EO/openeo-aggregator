@@ -23,7 +23,7 @@ setup(
     install_requires=[
         "requests",
         "openeo>=0.9.3.a2.dev",
-        "openeo_driver>=0.19.0.dev",
+        "openeo_driver>=0.20.0.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
         "python-json-logger>=2.0.0",
