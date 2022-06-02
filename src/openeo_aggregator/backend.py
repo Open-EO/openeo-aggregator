@@ -1,25 +1,25 @@
-from collections import defaultdict
-
 import contextlib
-import flask
+import datetime
 import functools
 import logging
 import time
-from kazoo.client import KazooClient
+from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
+import flask
+
+import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
-    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START, ConfigException
+    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_free_tier
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
-from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
@@ -674,6 +674,11 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="General")
         self._backends.on_connections_change.add(self._cache.flush_all)
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
+
+        # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations
+        self.cache_control = openeo_driver.util.view_helpers.cache_control(
+            max_age=datetime.timedelta(minutes=1), public=True,
+        )
 
     def oidc_providers(self) -> List[OidcProvider]:
         # TODO: openeo-python-driver (HttpAuthHandler) currently does support changes in
