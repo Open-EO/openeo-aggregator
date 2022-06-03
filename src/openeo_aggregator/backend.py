@@ -677,7 +677,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations
         self.cache_control = openeo_driver.util.view_helpers.cache_control(
-            max_age=datetime.timedelta(minutes=1), public=True,
+            max_age=datetime.timedelta(minutes=15), public=True,
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
