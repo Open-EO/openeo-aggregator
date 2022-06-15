@@ -47,6 +47,7 @@ config = AggregatorConfig(
         "vito": "https://openeo-dev.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
         "creo": "https://openeo.creo.vgt.vito.be/openeo/1.0",  # internal version of https://openeo.creo.vito.be/openeo/1.0/
+        "sentinelhub": "https://w0j9yieg9l.execute-api.eu-central-1.amazonaws.com/testing",  # Sentinel Hub OpenEO by Sinergise
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
     configured_oidc_providers=configured_oidc_providers,
