@@ -241,7 +241,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         for bid in backends:
             con = self.backends.get_connection(backend_id=bid)
             try:
-                by_backend[bid] = con.describe_collection(name=collection_id)
+                by_backend[bid] = con.describe_collection(collection_id)
             except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed collection metadata for {collection_id!r} at {con.id}: {e!r}", exc_info=True)
