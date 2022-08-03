@@ -1,7 +1,7 @@
 import itertools
 import logging
 import re
-from typing import Tuple
+from typing import Tuple, List
 
 import pytest
 import requests
@@ -250,21 +250,47 @@ class TestAuthEntitlementCheck:
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"KeyError.*eduperson_entitlement", warnings)
 
-    def test_oidc_no_early_adopter(self, api100_with_entitlement_check, requests_mock, caplog):
+    def _get_userifo_handler(self, eduperson_entitlement: List[str], bearer_token: str = "funiculifunicula"):
         def get_userinfo(request: requests.Request, context):
-            assert request.headers["Authorization"] == "Bearer funiculifunicula"
+            assert request.headers["Authorization"] == f"Bearer {bearer_token}"
             return {
                 "sub": "john",
-                "eduperson_entitlement": [
-                    "urn:mace:egi.eu:group:vo.openeo.test:role=foo#test",
-                    "urn:mace:egi.eu:group:vo.openeo.test:role=member#test",
-                ],
+                "eduperson_entitlement": eduperson_entitlement
             }
 
+        return get_userinfo
+
+    @pytest.mark.parametrize(["eduperson_entitlement", "warn_regex"], [
+        (
+                [],
+                r"eduperson_entitlements['\": ]*\[\]",
+        ),
+        (
+                ["urn:mace:egi.eu:group:vo.openeo.test:role=foo#test"],
+                r"eduperson_entitlements.*vo\.openeo\.test:role=foo",
+        ),
+        (
+                ["urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu"],
+                r"eduperson_entitlements.*vo\.openeo\.cloud:role=foo",
+        ),
+        (
+                [
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#test",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=member#test",
+                ],
+                r"eduperson_entitlements.*vo\.openeo\.cloud:role=member",
+        )
+    ])
+    def test_oidc_not_enrolled(
+            self, api100_with_entitlement_check, requests_mock, caplog, eduperson_entitlement, warn_regex
+    ):
         requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
             "userinfo_endpoint": "https://egi.test/userinfo"
         })
-        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+        requests_mock.get(
+            "https://egi.test/userinfo",
+            json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
+        )
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me")
@@ -274,11 +300,16 @@ class TestAuthEntitlementCheck:
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"user_id.*john", warnings)
-        assert re.search(r"eduperson_entitlements.*vo\.openeo\.test:role=foo", warnings)
+        assert re.search(warn_regex, warnings)
 
     @pytest.mark.parametrize(["eduperson_entitlement", "expected_roles", "expected_plan"], [
-        (["urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu"], ["FreeTier"], "free"),
-        (["urn:mace:egi.eu:group:vo.openeo.cloud:role=meh#aai.egi.eu"], ["FreeTier"], "free"),
+        (
+                [
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day-trial#aai.egi.eu",
+                ],
+                ["30DayTrial"], "30day-trial",
+        ),
         (
                 [
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
@@ -291,17 +322,13 @@ class TestAuthEntitlementCheck:
             self, api100_with_entitlement_check, requests_mock,
             eduperson_entitlement, expected_roles, expected_plan,
     ):
-        def get_userinfo(request: requests.Request, context):
-            assert request.headers["Authorization"] == "Bearer funiculifunicula"
-            return {
-                "sub": "john",
-                "eduperson_entitlement": eduperson_entitlement
-            }
-
         requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
             "userinfo_endpoint": "https://egi.test/userinfo"
         })
-        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+        requests_mock.get(
+            "https://egi.test/userinfo",
+            json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
+        )
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me").assert_status_code(200)

@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.egi import parse_eduperson_entitlement, Entitlement, is_early_adopter, is_free_tier
+from openeo_aggregator.egi import parse_eduperson_entitlement, Entitlement, is_early_adopter, is_30day_trial
 
 
 def test_parse_eduperson_entitlement():
@@ -60,15 +60,19 @@ def test_is_early_adopter():
     assert not is_early_adopter("")
 
 
-def test_is_free_tier():
-    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu")
-    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free_tier#aai.egi.eu")
-    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free-tier#aai.egi.eu")
-    assert is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
+def test_is_30day_trial():
+    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu")
+    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day_Trial#aai.egi.eu")
+    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day-Trial#aai.egi.eu")
+    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30-Day-Trial#aai.egi.eu")
+    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30DayTrial#aai.egi.eu")
 
-    assert not is_free_tier("urn:mace:uho.ai:group:vo.openeo.cloud:role=free_tier#aai.egi.eu")
-    assert not is_free_tier("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=free_tier#aai.egi.eu")
-    assert not is_free_tier("urn:mace:egi.eu:group:vo.openeo.cloud:role=free_tier#ooi.egi.eu")
+    assert not is_30day_trial("urn:mace:uho.ai:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu")
+    assert not is_30day_trial("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=30day_trial#aai.egi.eu")
+    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu")
+    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
+    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=member#aai.egi.eu")
+    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu")
 
-    assert not is_free_tier("foobar")
-    assert not is_free_tier("")
+    assert not is_30day_trial("foobar")
+    assert not is_30day_trial("")

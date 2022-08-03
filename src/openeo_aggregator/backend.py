@@ -15,7 +15,7 @@ from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
-from openeo_aggregator.egi import is_early_adopter, is_free_tier
+from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
@@ -741,9 +741,10 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 # TODO: list multiple roles/levels? Better "status" signaling?
                 user.info["roles"] = ["EarlyAdopter"]
                 user.info["default_plan"] = self.BILLING_PLAN_EARLY_ADOPTER
-            elif any(is_free_tier(e) for e in eduperson_entitlements):
-                user.info["roles"] = ["FreeTier"]
-                user.info["default_plan"] = self.BILLING_PLAN_FREE
+            elif any(is_30day_trial(e) for e in eduperson_entitlements):
+                # TODO: list multiple roles/levels? Better "status" signaling?
+                user.info["roles"] = ["30DayTrial"]
+                user.info["default_plan"] = self.BILLING_PLAN_30DAY_TRIAL
             else:
                 _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "user_id": user.user_id,
@@ -783,7 +784,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         response.status_code = overall_status_code
         return response
 
-    BILLING_PLAN_FREE = "free"
+    BILLING_PLAN_30DAY_TRIAL = "30day-trial"
     BILLING_PLAN_EARLY_ADOPTER = "early-adopter"
 
     def capabilities_billing(self) -> dict:
@@ -799,8 +800,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 },
                 # TODO: Unused plan at the moment: necessary to expose it?
                 {
-                    "name": self.BILLING_PLAN_FREE,
-                    "description": "openEO.cloud free plan (experimental)",
+                    "name": self.BILLING_PLAN_30DAY_TRIAL,
+                    "description": "openEO.cloud 30 day free trial plan (experimental)",
                     # TODO: url?
                     "paid": False
                 },
