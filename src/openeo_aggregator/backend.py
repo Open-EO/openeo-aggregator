@@ -13,6 +13,7 @@ import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get, rfc3339
+from openeo_aggregator.caching import TtlCache
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
@@ -21,7 +22,7 @@ from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
-from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge, normalize_issuer_url
+from openeo_aggregator.utils import MultiDictGetter, subdict, dict_merge, normalize_issuer_url
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata

@@ -13,9 +13,10 @@ import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
+from openeo_aggregator.caching import TtlCache
 from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT, \
     AggregatorConfig, CONNECTION_TIMEOUT_INIT
-from openeo_aggregator.utils import TtlCache, _UNSET, EventHandler
+from openeo_aggregator.utils import _UNSET, EventHandler
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
     AuthenticationSchemeInvalidException, InternalException
