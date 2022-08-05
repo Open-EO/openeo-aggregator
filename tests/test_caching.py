@@ -247,7 +247,7 @@ class TestZkMemoizer:
         assert zk_client.get("/test/count")[0] == b"100"
         zk_client.set("/test/count", value=b"(orrup[ JS0N d@ta !*")
         assert zk_client.get("/test/count")[0] == b"(orrup[ JS0N d@ta !*"
-        
+
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"

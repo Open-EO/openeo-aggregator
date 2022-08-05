@@ -89,80 +89,83 @@ class TtlCache:
         self._cache = {}
 
 
+@contextlib.contextmanager
+def zk_connected(client: KazooClient, timeout: int = 5) -> KazooClient:
+    """
+    Context manager to automatically start and stop ZooKeeper connection.
+    """
+    client.start(timeout=timeout)
+    try:
+        yield client
+    finally:
+        client.stop()
+
+
 class ZkMemoizer:
     """
     ZooKeeper based caching of function call results.
 
     Basic usage:
 
-        >>> zk_cache = ZkMemoizer(zk_client, prefix="/myapp/cache/mysubsystem")
-        >>> count = zk_cache.get_or_call("count", callback=calculate_count)
+        zk_cache = ZkMemoizer(zk_client, prefix="/myapp/cache/mysubsystem")
+        count = zk_cache.get_or_call("count", callback=calculate_count)
 
     """
 
-    def __init__(self, client: KazooClient, prefix: str, default_ttl: int = 60, name: str = None):
+    def __init__(self, client: KazooClient, prefix: str, default_ttl: int = 60, name: str = None, zk_timeout: int = 5):
         self._client = client
         self._prefix = prefix
         self._default_ttl = default_ttl
         self._name = name or self.__class__.__name__
+        self._zk_timeout = zk_timeout
 
     def get_or_call(
             self,
             key: Union[str, Tuple],
             callback: Callable,
             ttl=None,
-            log_on_miss=False,
+            log_on_miss=True,
     ):
         """
         Try to get data from cache or calculate otherwise
         """
 
         path = self._path(key)
+        ttl = ttl or self._default_ttl
         if log_on_miss:
-            timing_logger = TimingLogger(
-                title=f"Cache miss {self._name!r} key {key!r}: calling {callback.__qualname__!r}",
-                logger=_log.debug
-            )
-            # Use decorator functionality of TimingLogger to wrap the callback
-            callback = timing_logger(callback)
+            callback = self._wrap_timing_logger(callback=callback, key=key)
 
         try:
-            with self._connect():
+            with zk_connected(self._client, timeout=self._zk_timeout) as connected_client:
+                # Let's see if we find something in cache.
                 try:
-                    zk_value, zk_stat = self._client.get(path=path)
-                    value = self._deserialize(zk_value)
-                    # Expiry logic: note that we evaluate the TTL at "get time",
-                    # instead of storing an expiry threshold at "set time" along with the data
-                    expiry = zk_stat.last_modified + (ttl or self._default_ttl)
-                    now = Clock.time()
-                    if expiry <= now:
-                        _log.debug(f"Cache {self._name!r} key {key!r} expired ({expiry} < {now})")
-                        raise CacheExpiredException
-
+                    zk_value, zk_stat = connected_client.get(path=path)
                 except kazoo.exceptions.NoNodeError:
                     # Simple cache miss: no zookeeper node, so we'll create it.
                     value = callback()
-                    try:
-                        self._client.create(path=path, value=self._serialize(value), makepath=True)
-                    except kazoo.exceptions.NodeExistsError:
-                        # Node has been set in the meantime by other worker probably
-                        _log.warning(f"Tried to create new zk cache node {path!r}, but it already exists.")
-                    except Exception as e:
-                        _log.error(f"Failed to create new zk cache node {path!r}: {e!r}")
-                        # Continue without setting cache
-                except (CacheExpiredException, json.JSONDecodeError):
-                    # Cache hit, but it expired or is invalid: update it
+                    self._try_create(connected_client=connected_client, path=path, value=value)
+                    return value
+                # We found something, let's see if we can read it
+                try:
+                    value = self._deserialize(zk_value)
+                except json.JSONDecodeError as e:
+                    # Cache hit, but corrupt data: update it
+                    _log.error(f"Cache {self._name!r} key {key!r} corrupted data: {e!r}")
                     value = callback()
-                    try:
-                        self._client.set(path=path, value=self._serialize(value))
-                    except Exception as e:
-                        _log.error(f"Failed to update zk cache node {path!r}: {e!r}")
-                        # Continue without setting cache
+                    self._try_set(connected_client=connected_client, path=path, value=value)
+                    return value
+                # Expiry logic: note that we evaluate the TTL at "get time",
+                # instead of storing an expiry threshold at "set time" along with the data
+                expiry = zk_stat.last_modified + ttl
+                now = Clock.time()
+                if expiry <= now:
+                    _log.debug(f"Cache {self._name!r} key {key!r} expired ({expiry} < {now})")
+                    value = callback()
+                    self._try_set(connected_client=connected_client, path=path, value=value)
+                return value
         except Exception as e:
-            _log.error(f"Failed to get zk cache node {path!r}: {e!r}")
+            _log.error(f"Cache {self._name!r} key {key!r} failure: {e!r}")
             value = callback()
-            # TODO: still try to create/set cache in some cases?
-
         return value
 
     def _path(self, key: Union[str, Tuple]) -> str:
@@ -172,16 +175,12 @@ class ZkMemoizer:
         path = strip_join("/", "", self._prefix, *key)
         return kazoo.protocol.paths.normpath(path)
 
-    @contextlib.contextmanager
-    def _connect(self):
-        """
-        Context manager to automatically start and stop zookeeper connection.
-        """
-        self._client.start(timeout=5)
-        try:
-            yield self._client
-        finally:
-            self._client.stop()
+    def _wrap_timing_logger(self, callback: Callable, key):
+        title = f"Cache miss {self._name!r} key {key!r}: calling {callback!r}"
+        timing_logger = TimingLogger(title=title, logger=_log.debug)
+        # Use decorator functionality of TimingLogger to wrap the callback
+        callback = timing_logger(callback)
+        return callback
 
     @staticmethod
     def _serialize(value: dict) -> bytes:
@@ -194,3 +193,44 @@ class ZkMemoizer:
     def _deserialize(zk_value: bytes) -> dict:
         """Deserialize bytes (assuming UTF8 encoded JSON mapping)"""
         return json.loads(zk_value.decode("utf8"))
+
+    @classmethod
+    def _try_create(cls, connected_client, path, value):
+        """Try to create cache node (zk node does not exist yet)"""
+        try:
+            connected_client.create(path=path, value=cls._serialize(value), makepath=True)
+        except kazoo.exceptions.NodeExistsError:
+            # Node has been set in the meantime by other worker probably
+            _log.warning(f"Tried to create new zk cache node {path!r}, but it already exists.")
+        except Exception as e:
+            _log.error(f"Failed to create new zk cache node {path!r}: {e!r}")
+            # Continue without setting cache
+
+    @classmethod
+    def _try_set(cls, connected_client, path, value):
+        """Try to set/update cache node (zk node must exist already)"""
+        try:
+            connected_client.set(path=path, value=cls._serialize(value))
+        except Exception as e:
+            _log.error(f"Failed to update zk cache node {path!r}: {e!r}")
+            # Continue without setting cache
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    zk_client = KazooClient(hosts="127.0.0.1:2181")
+    zk_cache = ZkMemoizer(client=zk_client, prefix="openeo/aggregator/tmp/cache")
+
+    import datetime
+    import os
+    import random
+
+    data = {
+        "pid": os.getpid(),
+        "random": random.randrange(100, 999),
+        "now": datetime.datetime.now().isoformat()
+    }
+    print("New data: ", data)
+
+    res = zk_cache.get_or_call(key="test", callback=(lambda: data), ttl=10, log_on_miss=True)
+    print("Got data: ", res)
