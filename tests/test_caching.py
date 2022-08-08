@@ -8,7 +8,8 @@ import kazoo.exceptions
 import pytest
 
 import openeo_aggregator.caching
-from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer
+from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer, memoizer_from_config, NullMemoizer, \
+    DictMemoizer, ChainedMemoizer
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock
 
@@ -108,11 +109,110 @@ class TestTtlCache:
         assert caplog.text == ""
 
 
-class TestZkMemoizer:
-
+class _TestMemoizer:
     def _build_callback(self, start=100) -> Callable[[], int]:
         """Build callback that just returns increasing numbers on each invocation"""
         return itertools.count(start=start).__next__
+
+
+class TestNullMemoizer(_TestMemoizer):
+
+    def test_basic(self):
+        cache = NullMemoizer()
+        callback = self._build_callback()
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        assert cache.get_or_call(key="count", callback=callback) == 101
+
+
+class TestDictMemoizer(_TestMemoizer):
+    def test_basic(self):
+        cache = DictMemoizer()
+        callback = self._build_callback()
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        assert cache.get_or_call(key="count", callback=callback) == 100
+
+    def test_expiry(self):
+        cache = DictMemoizer(default_ttl=100)
+        callback = self._build_callback()
+        with clock_mock(1000):
+            assert cache.get_or_call(key="count", callback=callback) == 100
+            assert cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1099):
+            assert cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1100):
+            assert cache.get_or_call(key="count", callback=callback) == 101
+            assert cache.get_or_call(key="count", callback=callback) == 101
+        with clock_mock(1150):
+            assert cache.get_or_call(key="count", callback=callback) == 101
+            assert cache.get_or_call(key="count", callback=callback, ttl=10) == 102
+
+    def test_decorator(self):
+        cache = DictMemoizer(default_ttl=100)
+
+        _state = [1, 22, 333]
+
+        @cache.wrap(key="count", ttl=60)
+        def count():
+            return _state.pop()
+
+        with clock_mock(1000):
+            assert count() == 333
+            assert count() == 333
+        with clock_mock(1061):
+            assert count() == 22
+            assert count() == 22
+        with clock_mock(2000):
+            assert count() == 1
+
+
+class TestChainedMemoizer(_TestMemoizer):
+
+    def test_simple(self):
+        dm1 = DictMemoizer(default_ttl=10)
+        dm2 = DictMemoizer(default_ttl=100)
+        cache = ChainedMemoizer(memoizers=[dm1, dm2])
+        callback = self._build_callback()
+
+        with clock_mock(1000):
+            assert cache.get_or_call(key="count", callback=callback) == 100
+            assert cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1020):
+            assert cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1200):
+            assert cache.get_or_call(key="count", callback=callback) == 101
+
+    def test_levels(self):
+        callback = self._build_callback()
+        dm1 = DictMemoizer(default_ttl=10)
+        dm2 = DictMemoizer(default_ttl=100)
+
+        # Prime caches differently
+        with clock_mock(1000):
+            assert dm1.get_or_call(key="count", callback=callback) == 100
+            assert dm2.get_or_call(key="count", callback=callback) == 101
+
+        chained = ChainedMemoizer(memoizers=[dm1, dm2])
+
+        # Cache hit in first level
+        with clock_mock(1005):
+            assert chained.get_or_call(key="count", callback=callback) == 100
+            assert dm1.get_or_call(key="count", callback=callback) == 100
+            assert dm2.get_or_call(key="count", callback=callback) == 101
+
+        # First level expired
+        with clock_mock(1015):
+            assert chained.get_or_call(key="count", callback=callback) == 101
+            assert dm1.get_or_call(key="count", callback=callback) == 101
+            assert dm2.get_or_call(key="count", callback=callback) == 101
+
+        # Second level expired
+        with clock_mock(1150):
+            assert chained.get_or_call(key="count", callback=callback) == 102
+            assert dm1.get_or_call(key="count", callback=callback) == 102
+            assert dm2.get_or_call(key="count", callback=callback) == 102
+
+
+class TestZkMemoizer(_TestMemoizer):
 
     @pytest.fixture
     def zk_client(self) -> mock.Mock:
@@ -253,18 +353,17 @@ class TestZkMemoizer:
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"
 
-    @pytest.mark.parametrize(["kwargs", "expected_path"], [
-        ({"name": "Tezt"}, "/o-a/cache/tezt/count"),
-        ({"name": "Tezt", "prefix": "tezt/_ch"}, "/o-a/tezt/_ch/count"),
-    ])
-    def test_from_config(self, config, zk_client, kwargs, expected_path):
-        config.zk_memoizer = {
-            "zk_hosts": "zk1.test:2181,zk2.test:2181",
-            "default_ttl": 123,
-            "zk_timeout": 7.25,
+    def test_from_config(self, config, zk_client):
+        config.memoizer = {
+            "type": "zookeeper",
+            "config": {
+                "zk_hosts": "zk1.test:2181,zk2.test:2181",
+                "default_ttl": 123,
+                "zk_timeout": 7.25,
+            }
         }
         with mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient:
-            zk_cache = ZkMemoizer.from_config(config, **kwargs)
+            zk_cache = memoizer_from_config(config, namespace="tezt")
 
         KazooClient.assert_called_with(hosts="zk1.test:2181,zk2.test:2181")
 
@@ -281,4 +380,4 @@ class TestZkMemoizer:
         zk_client.start.assert_called_with(timeout=7.25)
 
         paths = set(c[2]["path"] for c in zk_client.mock_calls if c[0] in {"get", "set"})
-        assert paths == {expected_path}
+        assert paths == {"/o-a/cache/tezt/count"}

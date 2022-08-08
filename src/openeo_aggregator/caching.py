@@ -1,8 +1,10 @@
+import abc
 import contextlib
+import functools
 import json
 import logging
 import time
-from typing import Callable, Tuple, Union, Optional
+from typing import Callable, Union, Optional, Sequence, Any, Tuple, List
 
 import kazoo.exceptions
 import kazoo.protocol.paths
@@ -90,6 +92,106 @@ class TtlCache:
         self._cache = {}
 
 
+# Typehint for cache keys: single string or tuple/list of strings (e.g. path components, to be joined in some way)
+CacheKey = Union[str, Sequence[str]]
+
+
+class Memoizer(metaclass=abc.ABCMeta):
+    """
+    (Abstract) base class for function call caching (memoization).
+
+    Implementing classes should just provide `get_or_call` implementation.
+    """
+    log_on_miss = True
+
+    @abc.abstractmethod
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
+        return NotImplementedError
+
+    def wrap(self, key: CacheKey, ttl: Optional[float]):
+        """Wrapper to use memoizer as function/method decorator."""
+
+        def wrapper(callback: Callable[[], Any]):
+            @functools.wraps(callable)
+            def wrapped():
+                return self.get_or_call(key=key, callback=callback, ttl=ttl)
+
+            return wrapped
+
+        return wrapper
+
+    def _normalize_key(self, key: CacheKey) -> Tuple[str, ...]:
+        """Normalize a cache key to tuple"""
+        if isinstance(key, str):
+            key = (key,)
+        return tuple(key)
+
+    def _wrap_logging(self, callback: Callable[[], Any], key) -> Callable:
+        """Wrap given callable with (timing) logging"""
+        if self.log_on_miss:
+            title = f"Cache miss {self!r} key {key!r}: calling {callback!r}"
+            logger = self.log_on_miss if isinstance(self.log_on_miss, logging.Logger) else _log.debug
+            timing_logger = TimingLogger(title=title, logger=logger)
+            # Use decorator functionality of TimingLogger to wrap the callback:
+            callback = timing_logger(callback)
+        return callback
+
+    def flush_all(self):
+        # TODO: implement `flush_all` here or avoid requiring `flush_all` in the first place?
+        _log.warning(f"Cache {self!r} not doing flush_all for now")
+
+
+class NullMemoizer(Memoizer):
+    """No caching at all."""
+
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
+        callback = self._wrap_logging(callback=callback, key=key)
+        return callback()
+
+
+class DictMemoizer(Memoizer):
+    """Simple memoization with an in-memory dictionary"""
+
+    # TODO: this memoizer replaces basically TtlCache, remove the latter?
+
+    DEFAULT_TTL = 60
+
+    def __init__(self, default_ttl: Optional[float] = None):
+        self._cache = {}
+        self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
+
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
+        key = self._normalize_key(key)
+        ttl = ttl or self._default_ttl
+        try:
+            value, ts = self._cache[key]
+            if ts + ttl <= Clock.time():
+                del self._cache[key]
+                raise CacheExpiredException
+        except (KeyError, CacheExpiredException):
+            callback = self._wrap_logging(callback=callback, key=key)
+            value = callback()
+            self._cache[key] = (value, Clock.time())
+        return value
+
+    def flush_all(self):
+        self._cache = {}
+
+
+class ChainedMemoizer(Memoizer):
+    """Chain multiple memoizers for multilevel caching."""
+
+    def __init__(self, memoizers: List[Memoizer]):
+        self._memoizers = memoizers
+
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
+        # Build chained callback function by iteratively wrapping callback in memoizer wrappers
+        # (from the deepest level to top-level)
+        for memoizer in self._memoizers[::-1]:
+            callback = memoizer.wrap(key=key, ttl=ttl)(callback)
+        return callback()
+
+
 @contextlib.contextmanager
 def zk_connected(client: KazooClient, timeout: float = 5) -> KazooClient:
     """
@@ -102,7 +204,7 @@ def zk_connected(client: KazooClient, timeout: float = 5) -> KazooClient:
         client.stop()
 
 
-class ZkMemoizer:
+class ZkMemoizer(Memoizer):
     """
     ZooKeeper based caching of function call results.
 
@@ -112,7 +214,6 @@ class ZkMemoizer:
         count = zk_cache.get_or_call("count", callback=calculate_count)
 
     """
-    DEFAULT_NAME = "default"
     DEFAULT_TTL = 5 * 60
     DEFAULT_ZK_TIMEOUT = 5
 
@@ -120,49 +221,22 @@ class ZkMemoizer:
             self,
             client: KazooClient,
             prefix: str,
-            name: str = DEFAULT_NAME,
-            default_ttl: float = DEFAULT_TTL,
-            zk_timeout: float = DEFAULT_ZK_TIMEOUT,
+            default_ttl: Optional[float] = None,
+            zk_timeout: Optional[float] = None,
     ):
         self._client = client
         self._prefix = kazoo.protocol.paths.normpath(prefix)
-        self._name = name
-        self._default_ttl = float(default_ttl)
-        self._zk_timeout = float(zk_timeout)
+        self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
+        self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
 
-    @classmethod
-    def from_config(
-            cls,
-            config: AggregatorConfig,
-            name: str = DEFAULT_NAME,
-            prefix: Optional[str] = None,
-    ) -> "ZkMemoizer":
-        """Factory to create `ZkMemoizer` instance from config values."""
-        if prefix is None:
-            prefix = f"cache/{name.lower()}"
-        return cls(
-            client=KazooClient(hosts=config.zk_memoizer.get("zk_hosts", "localhost:2181")),
-            prefix=f"{config.zookeeper_prefix}/{prefix}",
-            name=name,
-            default_ttl=config.zk_memoizer.get("default_ttl", cls.DEFAULT_TTL),
-            zk_timeout=config.zk_memoizer.get("zk_timeout", cls.DEFAULT_ZK_TIMEOUT),
-        )
-
-    def get_or_call(
-            self,
-            key: Union[str, Tuple],
-            callback: Callable,
-            ttl=None,
-            log_on_miss=True,
-    ):
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         """
         Try to get data from cache or calculate otherwise
         """
 
         path = self._path(key)
         ttl = ttl or self._default_ttl
-        if log_on_miss:
-            callback = self._wrap_timing_logger(callback=callback, key=key)
+        callback = self._wrap_logging(callback=callback, key=key)
 
         try:
             with zk_connected(self._client, timeout=self._zk_timeout) as connected_client:
@@ -179,7 +253,7 @@ class ZkMemoizer:
                     value = self._deserialize(zk_value)
                 except json.JSONDecodeError as e:
                     # Cache hit, but corrupt data: update it
-                    _log.error(f"Cache {self._name!r} key {key!r} corrupted data: {e!r}")
+                    _log.error(f"{self!r} key {key!r} corrupted data: {e!r}")
                     value = callback()
                     self._try_set(connected_client=connected_client, path=path, value=value)
                     return value
@@ -188,28 +262,20 @@ class ZkMemoizer:
                 expiry = zk_stat.last_modified + ttl
                 now = Clock.time()
                 if expiry <= now:
-                    _log.debug(f"Cache {self._name!r} key {key!r} expired ({expiry} < {now})")
+                    _log.debug(f"{self!r} key {key!r} expired ({expiry} < {now})")
                     value = callback()
                     self._try_set(connected_client=connected_client, path=path, value=value)
                 return value
         except Exception as e:
-            _log.error(f"Cache {self._name!r} key {key!r} failure: {e!r}")
+            _log.error(f"{self!r} key {key!r} failure: {e!r}")
             value = callback()
         return value
 
-    def _path(self, key: Union[str, Tuple]) -> str:
+    def _path(self, key: CacheKey) -> str:
         """Helper to build a zookeeper path"""
-        if isinstance(key, str):
-            key = (key,)
+        key = self._normalize_key(key)
         path = strip_join("/", "", self._prefix, *key)
         return kazoo.protocol.paths.normpath(path)
-
-    def _wrap_timing_logger(self, callback: Callable, key):
-        title = f"Cache miss {self._name!r} key {key!r}: calling {callback!r}"
-        timing_logger = TimingLogger(title=title, logger=_log.debug)
-        # Use decorator functionality of TimingLogger to wrap the callback
-        callback = timing_logger(callback)
-        return callback
 
     @staticmethod
     def _serialize(value: dict) -> bytes:
@@ -245,6 +311,28 @@ class ZkMemoizer:
             # Continue without setting cache
 
 
+def memoizer_from_config(
+        config: AggregatorConfig,
+        namespace: str,
+) -> Memoizer:
+    """Factory to create `ZkMemoizer` instance from config values."""
+    memoizer_type = config.memoizer.get("type", "null")
+    memoizer_conf = config.memoizer.get("config", {})
+    if memoizer_type == "null":
+        return NullMemoizer()
+    elif memoizer_type == "dict":
+        return DictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+    elif memoizer_type == "zookeeper":
+        return ZkMemoizer(
+            client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
+            prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
+            default_ttl=memoizer_conf.get("default_ttl"),
+            zk_timeout=memoizer_conf.get("zk_timeout"),
+        )
+    else:
+        raise ValueError(memoizer_type)
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     zk_client = KazooClient(hosts="127.0.0.1:2181")
@@ -261,5 +349,5 @@ if __name__ == '__main__':
     }
     print("New data: ", data)
 
-    res = zk_cache.get_or_call(key="test", callback=(lambda: data), ttl=10, log_on_miss=True)
+    res = zk_cache.get_or_call(key="test", callback=(lambda: data), ttl=10)
     print("Got data: ", res)
