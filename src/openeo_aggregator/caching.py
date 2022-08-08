@@ -2,13 +2,14 @@ import contextlib
 import json
 import logging
 import time
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Union, Optional
 
 import kazoo.exceptions
 import kazoo.protocol.paths
 from kazoo.client import KazooClient
 
 from openeo.util import TimingLogger
+from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.utils import strip_join, Clock
 
 
@@ -90,7 +91,7 @@ class TtlCache:
 
 
 @contextlib.contextmanager
-def zk_connected(client: KazooClient, timeout: int = 5) -> KazooClient:
+def zk_connected(client: KazooClient, timeout: float = 5) -> KazooClient:
     """
     Context manager to automatically start and stop ZooKeeper connection.
     """
@@ -111,13 +112,41 @@ class ZkMemoizer:
         count = zk_cache.get_or_call("count", callback=calculate_count)
 
     """
+    DEFAULT_NAME = "default"
+    DEFAULT_TTL = 5 * 60
+    DEFAULT_ZK_TIMEOUT = 5
 
-    def __init__(self, client: KazooClient, prefix: str, default_ttl: int = 60, name: str = None, zk_timeout: int = 5):
+    def __init__(
+            self,
+            client: KazooClient,
+            prefix: str,
+            name: str = DEFAULT_NAME,
+            default_ttl: float = DEFAULT_TTL,
+            zk_timeout: float = DEFAULT_ZK_TIMEOUT,
+    ):
         self._client = client
-        self._prefix = prefix
-        self._default_ttl = default_ttl
-        self._name = name or self.__class__.__name__
-        self._zk_timeout = zk_timeout
+        self._prefix = kazoo.protocol.paths.normpath(prefix)
+        self._name = name
+        self._default_ttl = float(default_ttl)
+        self._zk_timeout = float(zk_timeout)
+
+    @classmethod
+    def from_config(
+            cls,
+            config: AggregatorConfig,
+            name: str = DEFAULT_NAME,
+            prefix: Optional[str] = None,
+    ) -> "ZkMemoizer":
+        """Factory to create `ZkMemoizer` instance from config values."""
+        if prefix is None:
+            prefix = f"cache/{name.lower()}"
+        return cls(
+            client=KazooClient(hosts=config.zk_memoizer.get("zk_hosts", "localhost:2181")),
+            prefix=f"{config.zookeeper_prefix}/{prefix}",
+            name=name,
+            default_ttl=config.zk_memoizer.get("default_ttl", cls.DEFAULT_TTL),
+            zk_timeout=config.zk_memoizer.get("zk_timeout", cls.DEFAULT_ZK_TIMEOUT),
+        )
 
     def get_or_call(
             self,

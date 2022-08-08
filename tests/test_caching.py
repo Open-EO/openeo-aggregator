@@ -7,6 +7,7 @@ from unittest import mock
 import kazoo.exceptions
 import pytest
 
+import openeo_aggregator.caching
 from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock
@@ -251,3 +252,33 @@ class TestZkMemoizer:
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"
+
+    @pytest.mark.parametrize(["kwargs", "expected_path"], [
+        ({"name": "Tezt"}, "/o-a/cache/tezt/count"),
+        ({"name": "Tezt", "prefix": "tezt/_ch"}, "/o-a/tezt/_ch/count"),
+    ])
+    def test_from_config(self, config, zk_client, kwargs, expected_path):
+        config.zk_memoizer = {
+            "zk_hosts": "zk1.test:2181,zk2.test:2181",
+            "default_ttl": 123,
+            "zk_timeout": 7.25,
+        }
+        with mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient:
+            zk_cache = ZkMemoizer.from_config(config, **kwargs)
+
+        KazooClient.assert_called_with(hosts="zk1.test:2181,zk2.test:2181")
+
+        callback = self._build_callback()
+        with clock_mock(1000):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1122):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1123):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 101
+            assert zk_cache.get_or_call(key="count", callback=callback) == 101
+
+        zk_client.start.assert_called_with(timeout=7.25)
+
+        paths = set(c[2]["path"] for c in zk_client.mock_calls if c[0] in {"get", "set"})
+        assert paths == {expected_path}
