@@ -216,6 +216,7 @@ class TestJsonDictMemoizer(TestDictMemoizer):
             def __init__(self):
                 self.x = self._state.pop()
 
+        # No caching, but callback keeps working
         res = cache.get_or_call(key="data", callback=Foo)
         assert isinstance(res, Foo) and res.x == 333
         assert "failed to memoize" in caplog.text
@@ -294,6 +295,38 @@ class TestChainedMemoizer(_TestMemoizer):
         assert dm1.get_or_call(key="count", callback=callback) == 101
         assert dm2.get_or_call(key="count", callback=callback) == 101
 
+    def test_failing_callback(self, caplog):
+        dm1 = DictMemoizer(default_ttl=10)
+        dm2 = DictMemoizer(default_ttl=100)
+        cache = ChainedMemoizer(memoizers=[dm1, dm2])
+        callback = self._build_failing_callback(start=999, fail_mod=2)
+
+        with clock_mock(100):
+            assert cache.get_or_call(key="count", callback=callback) == 999
+            assert dm1.get_or_call(key="count", callback=callback) == 999
+            assert dm2.get_or_call(key="count", callback=callback) == 999
+        with clock_mock(150):
+            assert cache.get_or_call(key="count", callback=callback) == 999
+        with clock_mock(250):
+            # Second call fails
+            with pytest.raises(ValueError, match="1000"):
+                _ = cache.get_or_call(key="count", callback=callback)
+            # Third call works again
+            assert cache.get_or_call(key="count", callback=callback) == 1001
+            assert dm1.get_or_call(key="count", callback=callback) == 1001
+            assert dm2.get_or_call(key="count", callback=callback) == 1001
+        with clock_mock(400):
+            # evaluate wrapped caches first now
+            with pytest.raises(ValueError, match="1002"):
+                _ = dm1.get_or_call(key="count", callback=callback)
+            # call on wrapped caches first now
+            assert dm2.get_or_call(key="count", callback=callback) == 1003
+            with pytest.raises(ValueError, match="1004"):
+                _ = dm1.get_or_call(key="count", callback=callback)
+            assert cache.get_or_call(key="count", callback=callback) == 1003
+            assert dm1.get_or_call(key="count", callback=callback) == 1003
+            assert dm2.get_or_call(key="count", callback=callback) == 1003
+
 
 DummyZnodeStat = collections.namedtuple("DummyZnodeStat", ["last_modified"])
 
@@ -329,7 +362,7 @@ class TestZkMemoizer(_TestMemoizer):
         return zk_client
 
     def test_basic(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test")
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
         callback = self._build_callback()
         zk_client.get.assert_not_called()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
@@ -364,7 +397,7 @@ class TestZkMemoizer(_TestMemoizer):
         zk_client.set = mock.Mock(side_effect=side_effects.get("set"))
         zk_client.stop = mock.Mock(side_effect=side_effects.get("stop"))
 
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test")
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
 
         callback = self._build_callback()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
@@ -377,7 +410,7 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 102
 
     def test_basic_caching(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test")
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
         callback = self._build_callback()
         zk_client.get.assert_not_called()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
@@ -385,7 +418,7 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
 
     def test_failing_callback(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=66)
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=66)
         callback = self._build_failing_callback(start=999, fail_mod=2)
         with clock_mock(100):
             assert zk_cache.get_or_call(key="count", callback=callback) == 999
@@ -399,7 +432,7 @@ class TestZkMemoizer(_TestMemoizer):
     @clock_mock(0)
     def test_caching_expiry(self, zk_client):
         callback = self._build_callback()
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=1000)
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=1000)
         with clock_mock(1000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
         with clock_mock(1999):
@@ -413,9 +446,10 @@ class TestZkMemoizer(_TestMemoizer):
             assert zk_cache.get_or_call(key="count", callback=callback, ttl=60) == 103
 
     @clock_mock(0)
-    def test_invalidate(self, zk_client):
+    def test_invalidate(self, zk_client, caplog):
+        caplog.set_level(logging.DEBUG)
         callback = self._build_callback()
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=1000)
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=1000)
         with clock_mock(1000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
@@ -423,6 +457,7 @@ class TestZkMemoizer(_TestMemoizer):
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
             zk_cache.invalidate()
             assert zk_cache.get_or_call(key="count", callback=callback) == 101
+            assert "invalidated '/test/count'" in caplog.text
         with clock_mock(2000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 101
         with clock_mock(3000):
@@ -438,14 +473,14 @@ class TestZkMemoizer(_TestMemoizer):
         ("test", ["v1", "user", "count", "today"], "/test/v1/user/count/today"),
     ])
     def test_key_to_path(self, zk_client, prefix, key, path):
-        zk_cache = ZkMemoizer(client=zk_client, prefix=prefix)
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix=prefix)
         callback = self._build_callback()
         assert zk_cache.get_or_call(key=key, callback=callback) == 100
         zk_client.get.assert_called_once_with(path=path)
         # TODO test for having non-strings parts in key?
 
     def test_caching_create_vs_set(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=100)
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=100)
         callback = self._build_callback()
         assert (0, 0) == (zk_client.create.call_count, zk_client.set.call_count)
         with clock_mock(1000):
@@ -458,6 +493,14 @@ class TestZkMemoizer(_TestMemoizer):
             assert zk_cache.get_or_call(key="count", callback=callback) == 102
         assert (1, 2) == (zk_client.create.call_count, zk_client.set.call_count)
 
+    def test_create_on_existing_node(self, zk_client, caplog):
+        # Force "NodeExistsErr from `create`
+        zk_client.create.side_effect = kazoo.exceptions.NodeExistsError
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=100)
+        callback = self._build_callback()
+        assert zk_cache.get_or_call(key="count", callback=callback) == 100
+        assert "failed to create node '/test/count': already exists." in caplog.text
+
     @pytest.mark.parametrize(["data", "expected_prefix"], [
         (1234, b"1234"),
         ("just a string", b'"just'),
@@ -466,7 +509,7 @@ class TestZkMemoizer(_TestMemoizer):
         ([123, None, False, True, "foo"], b'[123'),
     ])
     def test_serializing(self, zk_client, data, expected_prefix):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test")
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
 
         callback = mock.Mock(return_value=data)
 
@@ -481,8 +524,8 @@ class TestZkMemoizer(_TestMemoizer):
         assert isinstance(zk_value, bytes)
         assert zk_value.startswith(expected_prefix)
 
-    def test_corrupted_cache(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=100)
+    def test_corrupted_cache(self, zk_client, caplog):
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test", default_ttl=100)
         callback = self._build_callback()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
@@ -494,6 +537,8 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"
+
+        assert "corrupt data on '/test/count'" in caplog.text
 
     @clock_mock(0)
     def test_from_config(self, config, zk_client):

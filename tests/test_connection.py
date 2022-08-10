@@ -233,8 +233,19 @@ class TestMultiBackendConnection:
             "b2": {"orig_url": "https://b2.test/v1", "root_url": "https://b2.test/v1"},
         }
 
-    def test_api_version(self, multi_backend_connection):
+    def test_api_version(self, multi_backend_connection, requests_mock, backend1):
+        m = requests_mock.get(backend1 + "/", json={"api_version": "1.0.0"})
+        assert m.call_count == 0
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+        assert m.call_count == 1
+        assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+        assert m.call_count == 1
+        # There is an additional caching layer (`openeo.Connection._capabilities_cache`)
+        # to invalidate, which we do now through `multi_backend_connection._CONNECTIONS_CACHING_TTL`
+        # TODO: is there a better way?
+        with clock_mock(offset=multi_backend_connection._CONNECTIONS_CACHING_TTL + 1):
+            assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+            assert m.call_count == 2
 
     @pytest.mark.parametrize(["pid", "issuer", "title"], [
         ("egi", "https://egi.test", "EGI"),

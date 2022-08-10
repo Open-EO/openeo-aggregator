@@ -794,6 +794,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
 
         self._memoizer = memoizer_from_config(config=config, namespace="general")
+        self._backends.on_connections_change.add(self._memoizer.invalidate)
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations
         self.cache_control = openeo_driver.util.view_helpers.cache_control(

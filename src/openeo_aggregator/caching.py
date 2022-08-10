@@ -4,7 +4,7 @@ import functools
 import json
 import logging
 import time
-from typing import Callable, Union, Optional, Sequence, Any, Tuple, List, Dict
+from typing import Callable, Union, Optional, Sequence, Any, Tuple, List
 
 import kazoo.exceptions
 import kazoo.protocol.paths
@@ -106,7 +106,7 @@ class Memoizer(metaclass=abc.ABCMeta):
     """
     (Abstract) base class for function call caching (memoization).
 
-    Implementing classes should just provide `get_or_call` implementation.
+    Concrete classes should just implement `get_or_call` and `invalidate`.
     """
     log_on_miss = True
 
@@ -263,18 +263,6 @@ class ChainedMemoizer(Memoizer):
             memoizer.invalidate()
 
 
-@contextlib.contextmanager
-def zk_connected(client: KazooClient, timeout: float = 5) -> KazooClient:
-    """
-    Context manager to automatically start and stop ZooKeeper connection.
-    """
-    client.start(timeout=timeout)
-    try:
-        yield client
-    finally:
-        client.stop()
-
-
 class ZkMemoizer(Memoizer):
     """
     ZooKeeper based caching of function call results.
@@ -293,12 +281,12 @@ class ZkMemoizer(Memoizer):
     def __init__(
             self,
             client: KazooClient,
-            prefix: str,
+            path_prefix: str,
             default_ttl: Optional[float] = None,
             zk_timeout: Optional[float] = None,
     ):
         self._client = client
-        self._prefix = kazoo.protocol.paths.normpath(prefix)
+        self._prefix = kazoo.protocol.paths.normpath(path_prefix)
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
         self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
         # Minimum timestamp for valid entries
@@ -369,9 +357,12 @@ class ZkMemoizer(Memoizer):
                 # Cache hit, but corrupt data: update it
                 return handle(store="set", error=f"corrupt data on {path!r}: {e!r}")
 
-            return handle(found=value, store=None, debug=f"cache set {path!r}")
+            return handle(found=value, store=None, debug=f"cache hit {path!r}")
 
     def invalidate(self):
+        # TODO: this invalidates zk cache data for current ZkMemoizer only
+        #   how to signal this to other workers?
+        #   Remove zk subtree instead of just setting timestamp threshold?
         self._valid_threshold = Clock.time()
 
     def _path(self, key: CacheKey) -> str:
@@ -418,29 +409,9 @@ def memoizer_from_config(
     elif memoizer_type == "zookeeper":
         return ZkMemoizer(
             client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
-            prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
+            path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
             default_ttl=memoizer_conf.get("default_ttl"),
             zk_timeout=memoizer_conf.get("zk_timeout"),
         )
     else:
         raise ValueError(memoizer_type)
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    zk_client = KazooClient(hosts="127.0.0.1:2181")
-    zk_cache = ZkMemoizer(client=zk_client, prefix="openeo/aggregator/tmp/cache")
-
-    import datetime
-    import os
-    import random
-
-    data = {
-        "pid": os.getpid(),
-        "random": random.randrange(100, 999),
-        "now": datetime.datetime.now().isoformat()
-    }
-    print("New data: ", data)
-
-    res = zk_cache.get_or_call(key="test", callback=(lambda: data), ttl=10)
-    print("Got data: ", res)
