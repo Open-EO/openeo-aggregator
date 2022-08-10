@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, List, Union
 
@@ -76,26 +77,31 @@ def get_config_dir() -> Path:
     raise RuntimeError("No config dir found")
 
 
-def get_config(x: Any) -> AggregatorConfig:
+def get_config(x: Any = None) -> AggregatorConfig:
     """
     Get aggregator config from given object:
     - if None: check env variable "OPENEO_AGGREGATOR_CONFIG" or return default config
     - if it is already an `AggregatorConfig` object: return as is
     - if it is a string: try to parse it as JSON (file)
     """
+
     if x is None:
-        if OPENEO_AGGREGATOR_CONFIG in os.environ:
-            x = os.environ[OPENEO_AGGREGATOR_CONFIG]
-            _log.info(f"Config file from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
+        for env_var in [OPENEO_AGGREGATOR_CONFIG, ENVIRONMENT_INDICATOR]:
+            if env_var in os.environ:
+                x = os.environ[env_var]
+                _log.info(f"Config from env var {env_var}: {x!r}")
+                break
         else:
-            # TODO: just use OPENEO_AGGREGATOR_CONFIG feature for this?
-            env = os.environ.get(ENVIRONMENT_INDICATOR, "dev").lower()
-            x = get_config_dir() / f"aggregator.{env}.py"
-            _log.info(f"Config file for env {env!r}: {x}")
+            x = "dev"
+
+    if isinstance(x, str):
+        if re.match("^[a-zA-Z]+$", x):
+            x = get_config_dir() / f"aggregator.{x.lower()}.py"
+        x = Path(x)
 
     if isinstance(x, AggregatorConfig):
         return x
-    elif isinstance(x, (str, Path)) and Path(x).suffix.lower() == '.py':
+    elif isinstance(x, Path) and x.suffix.lower() == ".py":
         return AggregatorConfig.from_py_file(x)
 
     raise ValueError(repr(x))
