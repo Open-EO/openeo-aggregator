@@ -4,7 +4,7 @@ import functools
 import json
 import logging
 import time
-from typing import Callable, Union, Optional, Sequence, Any, Tuple, List
+from typing import Callable, Union, Optional, Sequence, Any, Tuple, List, Dict
 
 import kazoo.exceptions
 import kazoo.protocol.paths
@@ -15,15 +15,21 @@ from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.utils import strip_join, Clock
 
 
-class CacheMissException(KeyError):
+class CacheException(Exception):
     pass
 
 
-class CacheExpiredException(CacheMissException):
+class CacheMissException(CacheException):
+    pass
+
+
+class CacheInvalidException(CacheException):
     pass
 
 
 _log = logging.getLogger(__name__)
+
+UNSET = object()
 
 
 class TtlCache:
@@ -106,9 +112,13 @@ class Memoizer(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
-        return NotImplementedError
+        ...
 
-    def wrap(self, key: CacheKey, ttl: Optional[float]):
+    @abc.abstractmethod
+    def invalidate(self):
+        ...
+
+    def wrap(self, key: CacheKey, ttl: Optional[float] = None):
         """Wrapper to use memoizer as function/method decorator."""
 
         def wrapper(callback: Callable[[], Any]):
@@ -136,9 +146,8 @@ class Memoizer(metaclass=abc.ABCMeta):
             callback = timing_logger(callback)
         return callback
 
-    def flush_all(self):
-        # TODO: implement `flush_all` here or avoid requiring `flush_all` in the first place?
-        _log.warning(f"Cache {self!r} not doing flush_all for now")
+    def __repr__(self):
+        return f"<{self.__class__.__name__}>"
 
 
 class NullMemoizer(Memoizer):
@@ -148,6 +157,36 @@ class NullMemoizer(Memoizer):
         callback = self._wrap_logging(callback=callback, key=key)
         return callback()
 
+    def invalidate(self):
+        pass
+
+
+class NoSerDe:
+    """No serialization"""
+
+    @staticmethod
+    def serialize(value: Any) -> Any:
+        return value
+
+    @staticmethod
+    def deserialize(value: Any) -> Any:
+        return value
+
+
+class JsonSerDe:
+    """JSON serialization/deserialization"""
+
+    # TODO: support other serialization (pickle, json+gzip, ...)?
+    # TODO: JSON serialization converts tuples to lists: is that a problem somewhere?
+
+    @staticmethod
+    def serialize(value: dict) -> bytes:
+        return json.dumps(value, indent=None, separators=(',', ':')).encode("utf8")
+
+    @staticmethod
+    def deserialize(value: bytes) -> dict:
+        return json.loads(value.decode("utf8"))
+
 
 class DictMemoizer(Memoizer):
     """Simple memoization with an in-memory dictionary"""
@@ -156,6 +195,8 @@ class DictMemoizer(Memoizer):
 
     DEFAULT_TTL = 60
 
+    _serde = NoSerDe
+
     def __init__(self, default_ttl: Optional[float] = None):
         self._cache = {}
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
@@ -163,19 +204,45 @@ class DictMemoizer(Memoizer):
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         key = self._normalize_key(key)
         ttl = ttl or self._default_ttl
+
+        def _calculate_and_cache() -> Any:
+            value = self._wrap_logging(callback=callback, key=key)()
+            try:
+                self._cache[key] = (self._serde.serialize(value), Clock.time())
+            except Exception as e:
+                _log.error(f"{self!r} failed to memoize for {key}: {e!r}")
+            return value
+
         try:
             value, ts = self._cache[key]
-            if ts + ttl <= Clock.time():
-                del self._cache[key]
-                raise CacheExpiredException
-        except (KeyError, CacheExpiredException):
-            callback = self._wrap_logging(callback=callback, key=key)
-            value = callback()
-            self._cache[key] = (value, Clock.time())
+        except KeyError:
+            # Cache miss
+            return _calculate_and_cache()
+        try:
+            value = self._serde.deserialize(value)
+        except json.JSONDecodeError as e:
+            _log.error(f"{self!r} key {key} corrupted data: {e!r}")
+            return _calculate_and_cache()
+        if ts + ttl <= Clock.time():
+            # Cache expired
+            del self._cache[key]
+            return _calculate_and_cache()
         return value
 
-    def flush_all(self):
+    def invalidate(self):
         self._cache = {}
+
+    def dump(self, values_only=False) -> Union[dict, list]:
+        """Allow inspection of cache for testing purposes"""
+        if values_only:
+            return [x[0] for x in self._cache.values()]
+        else:
+            return self._cache
+
+
+class JsonDictMemoizer(DictMemoizer):
+    """In-memory dict memoizer, but with JSON serialization (mainly for testing serialization flows)"""
+    _serde = JsonSerDe
 
 
 class ChainedMemoizer(Memoizer):
@@ -190,6 +257,10 @@ class ChainedMemoizer(Memoizer):
         for memoizer in self._memoizers[::-1]:
             callback = memoizer.wrap(key=key, ttl=ttl)(callback)
         return callback()
+
+    def invalidate(self):
+        for memoizer in self._memoizers:
+            memoizer.invalidate()
 
 
 @contextlib.contextmanager
@@ -217,6 +288,8 @@ class ZkMemoizer(Memoizer):
     DEFAULT_TTL = 5 * 60
     DEFAULT_ZK_TIMEOUT = 5
 
+    _serde = JsonSerDe
+
     def __init__(
             self,
             client: KazooClient,
@@ -228,48 +301,78 @@ class ZkMemoizer(Memoizer):
         self._prefix = kazoo.protocol.paths.normpath(prefix)
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
         self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
+        # Minimum timestamp for valid entries
+        self._valid_threshold = Clock.time()
 
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         """
-        Try to get data from cache or calculate otherwise
+        Try to get data from cache or calculate otherwise.
+
+        Note that we proactively swallow errors related to ZooKeeper storage
+        in order to keep things working when ZooKeeper is acting up
+        (at the cost of reduced caching performance)
         """
 
         path = self._path(key)
         ttl = ttl or self._default_ttl
         callback = self._wrap_logging(callback=callback, key=key)
 
-        try:
-            with zk_connected(self._client, timeout=self._zk_timeout) as connected_client:
-                # Let's see if we find something in cache.
-                try:
-                    zk_value, zk_stat = connected_client.get(path=path)
-                except kazoo.exceptions.NoNodeError:
-                    # Simple cache miss: no zookeeper node, so we'll create it.
+        with self._zk_connect_or_not() as connected_client:
+
+            def handle(found: Any = UNSET, store: str = None, debug=None, error=None) -> Any:
+                """Helper to compactly handle various cache miss/hit/error situations"""
+                if error:
+                    _log.error(f"{self!r} {error}")
+                elif debug:
+                    _log.debug(f"{self!r} {debug}")
+
+                if found is not UNSET:
+                    value = found
+                else:
                     value = callback()
-                    self._try_create(connected_client=connected_client, path=path, value=value)
-                    return value
-                # We found something, let's see if we can read it
-                try:
-                    value = self._deserialize(zk_value)
-                except json.JSONDecodeError as e:
-                    # Cache hit, but corrupt data: update it
-                    _log.error(f"{self!r} key {key!r} corrupted data: {e!r}")
-                    value = callback()
-                    self._try_set(connected_client=connected_client, path=path, value=value)
-                    return value
-                # Expiry logic: note that we evaluate the TTL at "get time",
-                # instead of storing an expiry threshold at "set time" along with the data
-                expiry = zk_stat.last_modified + ttl
-                now = Clock.time()
-                if expiry <= now:
-                    _log.debug(f"{self!r} key {key!r} expired ({expiry} < {now})")
-                    value = callback()
-                    self._try_set(connected_client=connected_client, path=path, value=value)
+                    try:
+                        # Try to store value (but skip any failure)
+                        if store == "create":
+                            connected_client.create(path=path, value=self._serde.serialize(value), makepath=True)
+                        elif store == "set":
+                            connected_client.set(path=path, value=self._serde.serialize(value))
+                    except kazoo.exceptions.NodeExistsError:
+                        # When creating node that already exists: another worker probably set cache in the meantime
+                        _log.warning(f"{self!r} failed to create node {path!r}: already exists.")
+                    except Exception as e:
+                        _log.error(f"{self!r} failed to {store} {path!r}: {e!r}")
+
                 return value
-        except Exception as e:
-            _log.error(f"{self!r} key {key!r} failure: {e!r}")
-            value = callback()
-        return value
+
+            if connected_client is None:
+                return handle(store=None, error="no connection")
+            # Let's see if we find something in cache.
+            try:
+                zk_value, zk_stat = connected_client.get(path=path)
+            except kazoo.exceptions.NoNodeError:
+                # Simple cache miss: no zookeeper node, so we'll have to create it.
+                return handle(store="create", debug=f"cache miss {path!r}")
+            except Exception as e:
+                return handle(store=None, error=f"unexpected get failure: {e!r}")
+
+            # We found something, check expiry and validity
+            if zk_stat.last_modified < self._valid_threshold:
+                return handle(store="set", debug=f"invalidated {path!r}")
+            if zk_stat.last_modified + ttl <= Clock.time():
+                # Note that we evaluate the TTL at "get time",
+                # instead of storing an expiry threshold at "set time" along with the data
+                return handle(store="set", debug=f"expired {path!r}")
+            try:
+                # Can we read it?
+                value = self._serde.deserialize(zk_value)
+            except json.JSONDecodeError as e:
+                # Cache hit, but corrupt data: update it
+                return handle(store="set", error=f"corrupt data on {path!r}: {e!r}")
+
+            return handle(found=value, store=None, debug=f"cache set {path!r}")
+
+    def invalidate(self):
+        self._valid_threshold = Clock.time()
 
     def _path(self, key: CacheKey) -> str:
         """Helper to build a zookeeper path"""
@@ -277,38 +380,26 @@ class ZkMemoizer(Memoizer):
         path = strip_join("/", "", self._prefix, *key)
         return kazoo.protocol.paths.normpath(path)
 
-    @staticmethod
-    def _serialize(value: dict) -> bytes:
-        """Serialize a dictionary (given as arguments) in JSON (UTF8 byte-encoded)."""
-        # TODO: support other serialization (pickle, json+gzip, ...)?
-        # TODO: JSON serialization converts tuples to lists: is that a problem somewhere?
-        return json.dumps(value, indent=None, separators=(',', ':')).encode("utf8")
-
-    @staticmethod
-    def _deserialize(zk_value: bytes) -> dict:
-        """Deserialize bytes (assuming UTF8 encoded JSON mapping)"""
-        return json.loads(zk_value.decode("utf8"))
-
-    @classmethod
-    def _try_create(cls, connected_client, path, value):
-        """Try to create cache node (zk node does not exist yet)"""
+    @contextlib.contextmanager
+    def _zk_connect_or_not(self) -> Union[KazooClient, None]:
+        """
+        Helper context manager to robustly start and stop ZooKeeper connection.
+        Swallows start/stop failures (just returns None instead of connected client on start failure).
+        """
+        client = self._client
         try:
-            connected_client.create(path=path, value=cls._serialize(value), makepath=True)
-        except kazoo.exceptions.NodeExistsError:
-            # Node has been set in the meantime by other worker probably
-            _log.warning(f"Tried to create new zk cache node {path!r}, but it already exists.")
+            client.start(timeout=self._zk_timeout)
         except Exception as e:
-            _log.error(f"Failed to create new zk cache node {path!r}: {e!r}")
-            # Continue without setting cache
-
-    @classmethod
-    def _try_set(cls, connected_client, path, value):
-        """Try to set/update cache node (zk node must exist already)"""
+            _log.error(f"{self!r} failed to start connection: {e!r}")
+            client = None
         try:
-            connected_client.set(path=path, value=cls._serialize(value))
-        except Exception as e:
-            _log.error(f"Failed to update zk cache node {path!r}: {e!r}")
-            # Continue without setting cache
+            yield client
+        finally:
+            if client:
+                try:
+                    client.stop()
+                except Exception as e:
+                    _log.error(f"{self!r} failed to stop connection: {e!r}")
 
 
 def memoizer_from_config(
@@ -322,6 +413,8 @@ def memoizer_from_config(
         return NullMemoizer()
     elif memoizer_type == "dict":
         return DictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+    elif memoizer_type == "jsondict":
+        return JsonDictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
     elif memoizer_type == "zookeeper":
         return ZkMemoizer(
             client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),

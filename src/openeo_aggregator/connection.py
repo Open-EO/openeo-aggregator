@@ -1,9 +1,7 @@
 import collections
 import contextlib
-import functools
 import logging
 import re
-import time
 from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union, Optional
 
 import flask
@@ -13,10 +11,10 @@ import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
-from openeo_aggregator.caching import TtlCache
-from openeo_aggregator.config import CACHE_TTL_DEFAULT, CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT, \
+from openeo_aggregator.caching import memoizer_from_config, Memoizer, NullMemoizer
+from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT, \
     AggregatorConfig, CONNECTION_TIMEOUT_INIT
-from openeo_aggregator.utils import _UNSET, EventHandler
+from openeo_aggregator.utils import _UNSET, EventHandler, Clock
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
     AuthenticationSchemeInvalidException, InternalException
@@ -177,10 +175,12 @@ class MultiBackendConnection:
 
     _TIMEOUT = 5
 
-    # Simplify mocking time for unit tests.
-    _clock = time.time  # TODO: centralized helper for this test pattern
-
-    def __init__(self, backends: Dict[str, str], configured_oidc_providers: List[OidcProvider]):
+    def __init__(
+            self,
+            backends: Dict[str, str],
+            configured_oidc_providers: List[OidcProvider],
+            memoizer: Memoizer = None,
+    ):
         if any(not re.match(r"^[a-z0-9]+$", bid) for bid in backends.keys()):
             raise ValueError(
                 f"Backend ids should be alphanumeric only (no dots, dashes, ...) "
@@ -191,19 +191,20 @@ class MultiBackendConnection:
         self._configured_oidc_providers = configured_oidc_providers
 
         # General (metadata/status) caching
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="MultiBackendConnection")
+        self._memoizer = memoizer or NullMemoizer()
 
         # Caching of connection objects
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
         # Event handler for when there is a change in the set of working back-end ids.
         self.on_connections_change = EventHandler("connections_change")
-        self.on_connections_change.add(self._cache.flush_all)
+        self.on_connections_change.add(self._memoizer.invalidate)
 
     @staticmethod
     def from_config(config: AggregatorConfig) -> 'MultiBackendConnection':
         return MultiBackendConnection(
             backends=config.aggregator_backends,
-            configured_oidc_providers=config.configured_oidc_providers
+            configured_oidc_providers=config.configured_oidc_providers,
+            memoizer=memoizer_from_config(config, namespace="mbcon"),
         )
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
@@ -221,7 +222,7 @@ class MultiBackendConnection:
 
     def get_connections(self) -> List[BackendConnection]:
         """Get backend connections (re-created automatically if cache ttl expired)"""
-        now = self._clock()
+        now = Clock.time()
         if now > self._connections_cache.expiry:
             _log.debug(f"Connections cache expired ({now:.2f}>{self._connections_cache.expiry:.2f})")
             orig_bids = [c.id for c in self._connections_cache.connections]
@@ -274,16 +275,17 @@ class MultiBackendConnection:
             for c in self.get_connections()
         }
 
-    def _get_api_version(self) -> ComparableVersion:
+    def _get_api_version(self) -> str:
         # TODO: ignore patch level of API versions?
         versions = set(v for (i, v) in self.map(lambda c: c.capabilities().api_version()))
         if len(versions) != 1:
             raise OpenEOApiException(f"Only single version is supported, but found: {versions}")
-        return ComparableVersion(versions.pop())
+        return versions.pop()
 
     @property
     def api_version(self) -> ComparableVersion:
-        return self._cache.get_or_call(key="api_version", callback=self._get_api_version, log_on_miss=True)
+        version = self._memoizer.get_or_call(key="api_version", callback=self._get_api_version)
+        return ComparableVersion(version)
 
     def map(self, callback: Callable[[BackendConnection], Any]) -> Iterator[Tuple[str, Any]]:
         """

@@ -9,7 +9,7 @@ import pytest
 
 import openeo_aggregator.caching
 from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer, memoizer_from_config, NullMemoizer, \
-    DictMemoizer, ChainedMemoizer
+    DictMemoizer, ChainedMemoizer, JsonDictMemoizer
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock
 
@@ -110,9 +110,20 @@ class TestTtlCache:
 
 
 class _TestMemoizer:
-    def _build_callback(self, start=100) -> Callable[[], int]:
+    def _build_callback(self, start=100, step=1) -> Callable[[], int]:
         """Build callback that just returns increasing numbers on each invocation"""
-        return itertools.count(start=start).__next__
+        return itertools.count(start=start, step=step).__next__
+
+    def _build_failing_callback(self, start=100, step=1, fail_mod=2):
+        stream = itertools.count(start=start, step=1)
+
+        def callback():
+            x = next(stream)
+            if x % fail_mod == 0:
+                raise ValueError(x)
+            return x
+
+        return callback
 
 
 class TestNullMemoizer(_TestMemoizer):
@@ -131,6 +142,18 @@ class TestDictMemoizer(_TestMemoizer):
         assert cache.get_or_call(key="count", callback=callback) == 100
         assert cache.get_or_call(key="count", callback=callback) == 100
 
+    def test_failing_callback(self):
+        cache = DictMemoizer(default_ttl=66)
+        callback = self._build_failing_callback(start=999, fail_mod=2)
+        with clock_mock(100):
+            assert cache.get_or_call(key="count", callback=callback) == 999
+        with clock_mock(200):
+            # Second call fails
+            with pytest.raises(ValueError, match="1000"):
+                cache.get_or_call(key="count", callback=callback)
+            # Third call works again
+            assert cache.get_or_call(key="count", callback=callback) == 1001
+
     def test_expiry(self):
         cache = DictMemoizer(default_ttl=100)
         callback = self._build_callback()
@@ -145,6 +168,14 @@ class TestDictMemoizer(_TestMemoizer):
         with clock_mock(1150):
             assert cache.get_or_call(key="count", callback=callback) == 101
             assert cache.get_or_call(key="count", callback=callback, ttl=10) == 102
+
+    def test_invalidate(self):
+        cache = DictMemoizer(default_ttl=100)
+        callback = self._build_callback()
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        cache.invalidate()
+        assert cache.get_or_call(key="count", callback=callback) == 101
 
     def test_decorator(self):
         cache = DictMemoizer(default_ttl=100)
@@ -165,6 +196,35 @@ class TestDictMemoizer(_TestMemoizer):
             assert count() == 1
 
 
+class TestJsonDictMemoizer(TestDictMemoizer):
+
+    def test_json_coercion(self):
+        cache = JsonDictMemoizer()
+        callback = lambda: {"ids": [1, 2, 3], "size": (4, 5, 6)}
+
+        assert cache.get_or_call(key="data", callback=callback) == {'ids': [1, 2, 3], 'size': (4, 5, 6)}
+        # This is expected: tuple is not supported in JSON and silently converted to list
+        assert cache.get_or_call(key="data", callback=callback) == {'ids': [1, 2, 3], 'size': [4, 5, 6]}
+
+    def test_json_encode_error(self, caplog):
+        caplog.set_level(logging.ERROR)
+        cache = JsonDictMemoizer()
+
+        class Foo:
+            _state = [1, 22, 333]
+
+            def __init__(self):
+                self.x = self._state.pop()
+
+        res = cache.get_or_call(key="data", callback=Foo)
+        assert isinstance(res, Foo) and res.x == 333
+        assert "failed to memoize" in caplog.text
+        assert "Foo is not JSON serializable" in caplog.text
+
+        res = cache.get_or_call(key="data", callback=Foo)
+        assert isinstance(res, Foo) and res.x == 22
+
+
 class TestChainedMemoizer(_TestMemoizer):
 
     def test_simple(self):
@@ -182,34 +242,60 @@ class TestChainedMemoizer(_TestMemoizer):
             assert cache.get_or_call(key="count", callback=callback) == 101
 
     def test_levels(self):
-        callback = self._build_callback()
+        callback = self._build_callback(start=11, step=11)
         dm1 = DictMemoizer(default_ttl=10)
-        dm2 = DictMemoizer(default_ttl=100)
+        dm2 = DictMemoizer(default_ttl=200)
+        dm3 = DictMemoizer(default_ttl=3000)
 
         # Prime caches differently
-        with clock_mock(1000):
-            assert dm1.get_or_call(key="count", callback=callback) == 100
-            assert dm2.get_or_call(key="count", callback=callback) == 101
+        with clock_mock(10000):
+            assert dm1.get_or_call(key="count", callback=callback) == 11
+            assert dm2.get_or_call(key="count", callback=callback) == 22
+            assert dm3.get_or_call(key="count", callback=callback) == 33
 
-        chained = ChainedMemoizer(memoizers=[dm1, dm2])
+        chained = ChainedMemoizer(memoizers=[dm1, dm2, dm3])
 
         # Cache hit in first level
-        with clock_mock(1005):
-            assert chained.get_or_call(key="count", callback=callback) == 100
-            assert dm1.get_or_call(key="count", callback=callback) == 100
-            assert dm2.get_or_call(key="count", callback=callback) == 101
+        with clock_mock(10005):
+            assert chained.get_or_call(key="count", callback=callback) == 11
+            assert dm1.get_or_call(key="count", callback=callback) == 11
+            assert dm2.get_or_call(key="count", callback=callback) == 22
+            assert dm3.get_or_call(key="count", callback=callback) == 33
 
         # First level expired
-        with clock_mock(1015):
-            assert chained.get_or_call(key="count", callback=callback) == 101
-            assert dm1.get_or_call(key="count", callback=callback) == 101
-            assert dm2.get_or_call(key="count", callback=callback) == 101
-
+        with clock_mock(10015):
+            assert chained.get_or_call(key="count", callback=callback) == 22
+            assert dm1.get_or_call(key="count", callback=callback) == 22
+            assert dm2.get_or_call(key="count", callback=callback) == 22
+            assert dm3.get_or_call(key="count", callback=callback) == 33
         # Second level expired
-        with clock_mock(1150):
-            assert chained.get_or_call(key="count", callback=callback) == 102
-            assert dm1.get_or_call(key="count", callback=callback) == 102
-            assert dm2.get_or_call(key="count", callback=callback) == 102
+        with clock_mock(10250):
+            assert chained.get_or_call(key="count", callback=callback) == 33
+            assert dm1.get_or_call(key="count", callback=callback) == 33
+            assert dm2.get_or_call(key="count", callback=callback) == 33
+            assert dm3.get_or_call(key="count", callback=callback) == 33
+        # All level expired
+        with clock_mock(13500):
+            assert chained.get_or_call(key="count", callback=callback) == 44
+            assert dm1.get_or_call(key="count", callback=callback) == 44
+            assert dm2.get_or_call(key="count", callback=callback) == 44
+            assert dm3.get_or_call(key="count", callback=callback) == 44
+
+    def test_invalidate(self):
+        dm1 = DictMemoizer(default_ttl=10)
+        dm2 = DictMemoizer(default_ttl=100)
+        cache = ChainedMemoizer(memoizers=[dm1, dm2])
+        callback = self._build_callback()
+
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        cache.invalidate()
+        assert cache.get_or_call(key="count", callback=callback) == 101
+        assert dm1.get_or_call(key="count", callback=callback) == 101
+        assert dm2.get_or_call(key="count", callback=callback) == 101
+
+
+DummyZnodeStat = collections.namedtuple("DummyZnodeStat", ["last_modified"])
 
 
 class TestZkMemoizer(_TestMemoizer):
@@ -220,8 +306,6 @@ class TestZkMemoizer(_TestMemoizer):
         zk_client = mock.Mock()
         db = {}
 
-        ZnodeStat = collections.namedtuple("ZnodeStat", ["last_modified"])
-
         def get(path):
             if path not in db:
                 raise kazoo.exceptions.NoNodeError
@@ -231,13 +315,13 @@ class TestZkMemoizer(_TestMemoizer):
             if path in db:
                 raise kazoo.exceptions.NodeExistsError
             assert isinstance(value, bytes)
-            db[path] = (value, ZnodeStat(last_modified=Clock.time()))
+            db[path] = (value, DummyZnodeStat(last_modified=Clock.time()))
 
         def set(path, value):
             if path not in db:
                 raise kazoo.exceptions.NoNodeError
             assert isinstance(value, bytes)
-            db[path] = (value, ZnodeStat(last_modified=Clock.time()))
+            db[path] = (value, DummyZnodeStat(last_modified=Clock.time()))
 
         zk_client.get.side_effect = get
         zk_client.create.side_effect = create
@@ -251,14 +335,44 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
         zk_client.get.assert_called_once_with(path='/test/count')
 
-    def test_broken_client(self):
+    @pytest.mark.parametrize(["side_effects", "expected_error"], [
+        ({"start": RuntimeError}, "failed to start connection"),
+        ({"start": kazoo.exceptions.KazooException}, "failed to start connection"),
+        ({"get": RuntimeError}, "unexpected get failure"),
+        ({"get": kazoo.exceptions.KazooException}, "unexpected get failure"),
+        ({"create": RuntimeError}, "failed to create '/test/count'"),
+        ({"create": kazoo.exceptions.KazooException}, "failed to create '/test/count'"),
+        ({
+             "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
+             "set": RuntimeError,
+         }, "failed to set '/test/count'"),
+        ({
+             "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
+             "set": kazoo.exceptions.KazooException,
+         }, "failed to set '/test/count'"),
+        ({"stop": RuntimeError}, "failed to stop connection"),
+        ({"stop": kazoo.exceptions.KazooException}, "failed to stop connection"),
+    ])
+    def test_broken_client(self, caplog, side_effects, expected_error):
         """Test that callback keeps working if ZooKeeper client is broken"""
-        # Create useless client
-        zk_client = object()
+        caplog.set_level(logging.ERROR)
+
+        zk_client = mock.Mock()
+        zk_client.start = mock.Mock(side_effect=side_effects.get("start"))
+        zk_client.get = mock.Mock(side_effect=side_effects.get("get", kazoo.exceptions.NoNodeError))
+        zk_client.create = mock.Mock(side_effect=side_effects.get("create"))
+        zk_client.set = mock.Mock(side_effect=side_effects.get("set"))
+        zk_client.stop = mock.Mock(side_effect=side_effects.get("stop"))
+
         zk_cache = ZkMemoizer(client=zk_client, prefix="test")
 
         callback = self._build_callback()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
+
+        if expected_error:
+            assert expected_error in caplog.text
+
+        # No caching, but still getting results from callback
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_cache.get_or_call(key="count", callback=callback) == 102
 
@@ -270,10 +384,22 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
 
+    def test_failing_callback(self, zk_client):
+        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=66)
+        callback = self._build_failing_callback(start=999, fail_mod=2)
+        with clock_mock(100):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 999
+        with clock_mock(200):
+            # Second call fails
+            with pytest.raises(ValueError, match="1000"):
+                zk_cache.get_or_call(key="count", callback=callback)
+            # Third call works again
+            assert zk_cache.get_or_call(key="count", callback=callback) == 1001
+
+    @clock_mock(0)
     def test_caching_expiry(self, zk_client):
-        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=1000)
         callback = self._build_callback()
-        zk_client.get.assert_not_called()
+        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=1000)
         with clock_mock(1000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
         with clock_mock(1999):
@@ -285,6 +411,22 @@ class TestZkMemoizer(_TestMemoizer):
         with clock_mock(3500):
             assert zk_cache.get_or_call(key="count", callback=callback) == 102
             assert zk_cache.get_or_call(key="count", callback=callback, ttl=60) == 103
+
+    @clock_mock(0)
+    def test_invalidate(self, zk_client):
+        callback = self._build_callback()
+        zk_cache = ZkMemoizer(client=zk_client, prefix="test", default_ttl=1000)
+        with clock_mock(1000):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+        with clock_mock(1500):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 100
+            zk_cache.invalidate()
+            assert zk_cache.get_or_call(key="count", callback=callback) == 101
+        with clock_mock(2000):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 101
+        with clock_mock(3000):
+            assert zk_cache.get_or_call(key="count", callback=callback) == 102
 
     @pytest.mark.parametrize(["prefix", "key", "path"], [
         ("test", "count", "/test/count"),
@@ -353,6 +495,7 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"
 
+    @clock_mock(0)
     def test_from_config(self, config, zk_client):
         config.memoizer = {
             "type": "zookeeper",

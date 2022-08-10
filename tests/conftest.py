@@ -56,8 +56,23 @@ def zk_client() -> DummyKazooClient:
     return DummyKazooClient()
 
 
+DEFAULT_MEMOIZER_CONFIG = {
+    "type": "dict",
+    "config": {"default_ttl": 66},
+}
+
+
 @pytest.fixture
-def base_config(configured_oidc_providers, zk_client) -> AggregatorConfig:
+def memoizer_config() -> dict:
+    """
+    Fixture for global memoizer config, to allow overriding/parameterizing it for certain tests.
+    Also see https://docs.pytest.org/en/7.1.x/how-to/fixtures.html#override-a-fixture-with-direct-test-parametrization
+    """
+    return DEFAULT_MEMOIZER_CONFIG
+
+
+@pytest.fixture
+def base_config(configured_oidc_providers, zk_client, memoizer_config) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
@@ -65,6 +80,8 @@ def base_config(configured_oidc_providers, zk_client) -> AggregatorConfig:
     conf.configured_oidc_providers = configured_oidc_providers
     # Disable OIDC/EGI entitlement check by default.
     conf.auth_entitlement_check = False
+
+    conf.memoizer = memoizer_config
 
     conf.zookeeper_prefix = "/o-a/"
     conf.partitioned_job_tracking = {
