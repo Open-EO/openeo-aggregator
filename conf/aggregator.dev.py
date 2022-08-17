@@ -17,13 +17,25 @@ DEFAULT_OIDC_CLIENT_EGI = {
 configured_oidc_providers = [
     OidcProvider(
         id="egi",
-        issuer="https://aai.egi.eu/oidc/",
+        issuer="https://aai.egi.eu/auth/realms/egi/",
         scopes=[
             "openid", "email",
             "eduperson_entitlement",
             "eduperson_scoped_affiliation",
         ],
         title="EGI Check-in",
+        default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
+        default_clients=[DEFAULT_OIDC_CLIENT_EGI],
+    ),
+    OidcProvider(
+        id="egi-old",
+        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
+        scopes=[
+            "openid", "email",
+            "eduperson_entitlement",
+            "eduperson_scoped_affiliation",
+        ],
+        title="EGI Check-in (legacy)",
         default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
         default_clients=[DEFAULT_OIDC_CLIENT_EGI],
     ),
@@ -49,7 +61,10 @@ config = AggregatorConfig(
         "creo": "https://openeo.creo.vgt.vito.be/openeo/1.0",  # internal version of https://openeo.creo.vito.be/openeo/1.0/
         "sentinelhub": "https://w0j9yieg9l.execute-api.eu-central-1.amazonaws.com/testing",  # Sentinel Hub OpenEO by Sinergise
     },
-    auth_entitlement_check={"oidc_issuer_whitelist": {"https://aai.egi.eu/oidc"}},
+    auth_entitlement_check={"oidc_issuer_whitelist": {
+        "https://aai.egi.eu/auth/realms/egi/",
+        "https://aai.egi.eu/oidc",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
+    }},
     configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={
         "zk_hosts": "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181",

@@ -715,7 +715,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:
             int_data = user.internal_auth_data
-            issuer_whitelist = self._auth_entitlement_check.get("oidc_issuer_whitelist", {"https://aai.egi.eu/oidc"})
+            issuer_whitelist = self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
             if not (
                     int_data["authentication_method"] == "OIDC"
                     and int_data["oidc_issuer"].rstrip("/").lower() in issuer_whitelist

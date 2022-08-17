@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make sure user id (prefix) is logged in JSON logs
 - Updated (generous fallback) "FreeTier" user role to 30DayTrial (more strict)
 - Use EODC dev instance in aggregator dev config
+- Update EGI issuer URL to new Keycloak one (keep old provider under "egi-old")
 
 ### Fixed
 
