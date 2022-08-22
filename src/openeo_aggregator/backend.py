@@ -202,6 +202,14 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         # TODO: assets ? For now, take the union.
         result["assets"] = list(getter.union("assets"))
 
+        # crs
+        crs_list = getter.union("crs", skip_duplicates=True)
+        if crs_list:
+            result["crs"] = list(crs_list)
+        # datasource_type
+        data_source_type = getter.first("datasource_type", default=None)
+        if data_source_type:
+            result["datasource_type"] = data_source_type
         return result
 
     @staticmethod
