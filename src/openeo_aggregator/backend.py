@@ -210,6 +210,20 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         data_source_type = getter.first("datasource_type", default=None)
         if data_source_type:
             result["datasource_type"] = data_source_type
+
+        # Scientific extension.
+        # sci:citation
+        citation_list = getter.first("sci:citations", default=None)
+        if citation_list:
+            result["sci:citations"] = citation_list
+        # sci:doi
+        doi_list = getter.first("sci:dois", default=None)
+        if doi_list:
+            result["sci:dois"] = doi_list
+        # sci:publications
+        publications_list = getter.union("sci:publications", skip_duplicates=True)
+        if publications_list:
+            result["sci:publications"] = list(publications_list)
         return result
 
     @staticmethod
