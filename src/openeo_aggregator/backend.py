@@ -9,6 +9,7 @@ from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Calla
 import flask
 
 import openeo_driver.util.view_helpers
+from flask import url_for
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
@@ -153,11 +154,14 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         result["type"] = getter.first("type", default="Collection")
         # license
         licenses = set(getter.get("license"))
+        # Assume the license links are available.
         result["license"] = licenses.pop() if len(licenses) == 1 else ("various" if licenses else "proprietary")
-        # TODO: .. "various" if multiple licenses apply ... links to the license texts SHOULD be added,
+        # TODO: Log warning if Properierty or various and links are missing. 
+        # providers
         providers = getter.union("providers", skip_duplicates=True)
         if providers:
             result["providers"] = list(providers)
+        # extent
         result["extent"] = {
             "spatial": {
                 "bbox": getter.select("extent").select("spatial").union("bbox", skip_duplicates=True) \
@@ -168,7 +172,21 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                             or [[None, None]],
             },
         }
-        result["links"] = list(getter.union("links"))
+        # links
+        result["links"] = [l for l in list(getter.union("links")) if l["rel"] not in ("self", "parent", "root")]
+        result["links"].append({
+            "href": url_for("openeo.collections", _external=True),
+            "rel": "root"
+        })
+        result["links"].append({
+            "href": url_for("openeo.collections", _external=True),
+            "rel": "parent"
+        })
+        result["links"].append({
+            "href": url_for("openeo.collection_by_id", collection_id=result["id"], _external=True),
+            "rel": "self"
+        })
+        # cube_dimensions
         # TODO: combine cube:dimensions smarter?
         cube_dimensions = getter.first("cube:dimensions")
         if cube_dimensions:
