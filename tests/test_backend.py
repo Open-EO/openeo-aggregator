@@ -495,6 +495,64 @@ class TestAggregatorCollectionCatalog:
                 'assets': []
             }
 
+    def test_get_collection_metadata_merging_cubedimensions(
+            self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
+    ):
+        with flask_app.app_context():
+            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend1 + "/collections/S2", json={
+                "id": "S2", "cube:dimensions": {
+                    "bands": {
+                        "type": "bands", "values": ["VV", "VH", "HV", "HH"]
+                    }, "t": {
+                        "extent": ["2013-10-03T04:14:15Z", None], "step": 1, "type": "temporal"
+                    }, "x": {
+                        "axis": "x", "extent": [-180, 180], "reference_system": { "name": "PROJJSON object." },
+                        "step": 10, "type": "spatial"
+                    }, "y": {
+                        "axis": "y", "extent": [-10, 20], "reference_system": { "name": "PROJJSON object." },
+                        "step": 10, "type": "spatial"
+                    }
+                }
+            })
+            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend2 + "/collections/S2", json={
+                "id": "S2", "cube:dimensions": {
+                    "bands": {
+                        "type": "bands", "values": ["HH", "VV", "HH+HV", "VV+VH"]
+                    }, "t": {
+                        "extent": ["2013-04-03T00:00:00Z", "None"], "step": 1, "type": "temporal"
+                    }, "x": {
+                        "axis": "x", "extent": [-40, 120], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
+                    }, "y": {
+                        "axis": "y", "extent": [-90, 90], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
+                    }
+                },
+            })
+
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+            metadata = catalog.get_collection_metadata("S2")
+            assert metadata == {
+                'id': 'S2',
+                'stac_version': '0.9.0',
+                'title': 'S2',
+                'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
+                "cube:dimensions": {
+                    "type": "bands", "values": ["VV", "VH", "HV", "HH", "HH+HV", "VV+VH"],
+                    "t": {
+                        "extent": ["2013-04-03T00:00:00Z", None], "step": 1, "type": "temporal"
+                    }, "x": {
+                        "axis": "x", "extent": [-180, 180], "reference_system": { "name": "PROJJSON object." },
+                        "step": 10, "type": "spatial"
+                    }, "y": {
+                        "axis": "y", "extent": [-90, 90], "reference_system": { "name": "PROJJSON object." },
+                        "step": 10, "type": "spatial"
+                    }
+                },
+                'summaries': {'provider:backend': ['b1', 'b2']},
+                'assets': []
+            }
+
     def test_get_collection_metadata_merging_with_error(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
