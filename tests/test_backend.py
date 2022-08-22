@@ -404,6 +404,42 @@ class TestAggregatorCollectionCatalog:
                 'assets': []
             }
 
+    def test_get_collection_metadata_merging_extent(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
+        with flask_app.app_context():
+            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend1 + "/collections/S2", json={
+                "id": "S2", "extent": {
+                    "spatial": {
+                        "bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]
+                    }, "temporal": {
+                        "interval": [["2014-10-03T04:14:15Z", None]]
+                    }
+                },
+            })
+            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend2 + "/collections/S2", json={
+                "id": "S2", "extent": {
+                    "spatial": {
+                        "bbox": [[-180, -90, 180, 90]]
+                    }, "temporal": {
+                        "interval": [["2014-10-03T04:14:15Z", None], [None, None, ]]
+                    }
+                },
+            })
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+            metadata = catalog.get_collection_metadata("S2")
+            assert metadata =={
+                'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
+                'license': 'proprietary', 'extent': {
+                    'spatial': {'bbox': [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
+                    'temporal': {'interval': [['2014-10-03T04:14:15Z', None], [None, None]]}
+                },
+                'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                             {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                             {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}],
+                'summaries': {'provider:backend': ['b1', 'b2']}, 'assets': []
+            }
+
     def test_get_collection_metadata_merging_with_error(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
