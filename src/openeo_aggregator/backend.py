@@ -191,12 +191,16 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         cube_dimensions = getter.first("cube:dimensions")
         if cube_dimensions:
             result["cube:dimensions"] = cube_dimensions
-        # TODO merge existing summaries?
-        result["summaries"] = {
-            # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
-            self.STAC_PROPERTY_PROVIDER_BACKEND: list(by_backend.keys())
-        }
-        # TODO: assets ?
+        # summaries
+        # TODO: Better merging for summaries?
+        for summary in getter.get("summaries"):
+            print(summary)
+        result["summaries"] = {}
+        # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
+        result["summaries"][self.STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
+        # assets
+        # TODO: assets ? For now, take the union.
+        result["assets"] = list(getter.union("assets"))
 
         return result
 
