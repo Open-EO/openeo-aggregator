@@ -126,24 +126,32 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         result = {
             "id": cid,
         }
-
+        # stac_version
         result["stac_version"] = max(list(getter.get("stac_version")) + ["0.9.0"])
+        # stac_extensions
         stac_extensions = sorted(getter.union("stac_extensions", skip_duplicates=True))
         if stac_extensions:
             result["stac_extensions"] = stac_extensions
-        # TODO: better merging of title and description?
+        # title
         result["title"] = getter.first("title", default=result["id"])
+        # description
         result["description"] = getter.first("description", default=result["id"])
+        # keywords
         keywords = getter.union("keywords", skip_duplicates=True)
         if keywords:
             result["keywords"] = keywords
+        # version
         versions = set(getter.get("version"))
         if versions:
-            # TODO: smarter version maximum?
+            # TODO: smarter version maximum? Low priority, versions key is not used in most backends.
             result["version"] = max(versions)
+        # deprecated
         deprecateds = list(getter.get("deprecated"))
         if deprecateds:
             result["deprecated"] = all(deprecateds)
+        # type (TODO Test)
+        result["type"] = getter.first("type", default="Collection")
+        # license
         licenses = set(getter.get("license"))
         result["license"] = licenses.pop() if len(licenses) == 1 else ("various" if licenses else "proprietary")
         # TODO: .. "various" if multiple licenses apply ... links to the license texts SHOULD be added,
