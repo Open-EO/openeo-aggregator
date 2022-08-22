@@ -440,6 +440,61 @@ class TestAggregatorCollectionCatalog:
                 'summaries': {'provider:backend': ['b1', 'b2']}, 'assets': []
             }
 
+    def test_get_collection_metadata_merging_links(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
+        flask_app.config['SERVER_NAME'] = 'openeocloud.vito.be'
+        with flask_app.app_context():
+            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend1 + "/collections/S2", json={
+                "id": "S2", "links": [
+                    {
+                        "href": "https://openeo.eodc.eu/v1.0/collections",
+                        "rel": "root"
+                    },
+                    {
+                        "href": "https://openeo.eodc.eu/v1.0/collections",
+                        "rel": "parent"
+                    },
+                    {
+                        "href": "https://openeo.eodc.eu/v1.0/collections/SENTINEL1_GRD",
+                        "rel": "self"
+                    }
+                ],
+            })
+            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+            requests_mock.get(backend2 + "/collections/S2", json={
+                "id": "S2", "links": [
+                    {
+                    "href": "https://openeo.vito.be/openeo/collections/SENTINEL1_GRD",
+                    "rel": "self"
+                    },
+                    {
+                    "href": "https://openeo.vito.be/openeo/collections",
+                    "rel": "parent"
+                    },
+                    {
+                    "href": "https://openeo.vito.be/openeo/collections",
+                    "rel": "root"
+                    }
+                ],
+            })
+
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+            metadata = catalog.get_collection_metadata("S2")
+            assert metadata == {
+                'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
+                'license': 'proprietary',
+                'extent': {
+                    'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}
+                },
+                'links': [
+                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections', 'rel': 'root'},
+                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections', 'rel': 'parent'},
+                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections/S2', 'rel': 'self'}
+                ],
+                'summaries': {'provider:backend': ['b1', 'b2']},
+                'assets': []
+            }
+
     def test_get_collection_metadata_merging_with_error(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
