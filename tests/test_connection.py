@@ -286,6 +286,32 @@ class TestMultiBackendConnection:
             {"ya": "y2", "za": "z2"},
         ]
 
+    def test_build_oidc_handling_intersection_empty(
+            self, config, requests_mock, backend1, backend2
+    ):
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "x1", "issuer": "https://x.test", "title": "X1"},
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "y2", "issuer": "https://y.test", "title": "YY2"},
+        ]})
+
+        multi_backend_connection = MultiBackendConnection(
+            backends=config.aggregator_backends,
+            configured_oidc_providers=[
+                OidcProvider("ya", "https://y.test", "A-Y"),
+                OidcProvider("za", "https://z.test", "A-Z"),
+            ])
+
+        assert multi_backend_connection.get_oidc_providers() == [
+            OidcProvider(id="ya", issuer="https://y.test", title="A-Y", scopes=["openid"]),
+            OidcProvider(id="za", issuer="https://z.test", title="A-Z", scopes=["openid"]),
+        ]
+        assert [con._oidc_provider_map for con in multi_backend_connection] == [
+            {},
+            {"ya": "y2"},
+        ]
+
     def test_build_oidc_handling_order(self, config, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
             {"id": "d1", "issuer": "https://d.test", "title": "D1"},

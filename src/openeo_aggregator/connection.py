@@ -303,6 +303,8 @@ class MultiBackendConnection:
         _log.debug(f"OIDC provider intersection: {intersection}")
         if len(intersection) == 0:
             _log.error(f"Emtpy OIDC provider intersection. Issuers per backend: {agg_pids_per_backend}")
+            intersection = set(p.id for p in self._configured_oidc_providers)
+            _log.warning(f"Emtpy OIDC provider intersection. Falling back on {intersection} from config")
 
         # Take configured providers for common issuers.
         agg_providers = [p for p in self._configured_oidc_providers if p.id in intersection]
