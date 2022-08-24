@@ -24,7 +24,6 @@ configured_oidc_providers = [
             "eduperson_scoped_affiliation",
         ],
         title="EGI Check-in",
-        default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
         default_clients=[DEFAULT_OIDC_CLIENT_EGI],
     ),
     OidcProvider(
@@ -36,7 +35,6 @@ configured_oidc_providers = [
             "eduperson_scoped_affiliation",
         ],
         title="EGI Check-in (legacy)",
-        default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
         default_clients=[DEFAULT_OIDC_CLIENT_EGI],
     ),
     # OidcProvider(
@@ -48,7 +46,6 @@ configured_oidc_providers = [
     #         "eduperson_scoped_affiliation",
     #     ],
     #     title="EGI Check-in (dev)",
-    #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
     #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     # ),
 ]
