@@ -28,7 +28,7 @@ configured_oidc_providers = [
         default_clients=[DEFAULT_OIDC_CLIENT_EGI],
     ),
     OidcProvider(
-        id="egi-old",
+        id="egi-legacy",
         issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
         scopes=[
             "openid", "email",
