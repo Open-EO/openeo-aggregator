@@ -152,7 +152,7 @@ class TestAggregatorCollectionCatalog:
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}]
             },
             {
-                "id": "S4", "description": "S4", "title": "S4",
+                "id": "S4", "description": "S4", "title": "S4",  "type": "Collection",
                 "stac_version": "0.9.0",
                 "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
                 "license": "proprietary",
@@ -162,7 +162,6 @@ class TestAggregatorCollectionCatalog:
                     {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
                     {'href': 'http://oeoa.test/openeo/1.1.0/collections/S4', 'rel': 'self'}
                 ],
-                "assets": [], "description": "S4", "type": "Collection"
             },
             {
                 "id": "S5", 'links': [
@@ -244,7 +243,7 @@ class TestAggregatorCollectionCatalog:
                     {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
                     {"href": "http://oeoa.test/openeo/1.1.0/collections/S4", "rel": "self"},
                 ],
-                "assets": [], "type": "Collection"
+                "type": "Collection"
             },
         ]
 
@@ -341,12 +340,12 @@ class TestAggregatorCollectionCatalog:
             "stac_version": "1.0.0",
             "stac_extensions": [
                 "datacube",
+                "sar",
                 "https://stac-extensions.github.io/datacube/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/raster/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/sar/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
                 "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
-                "sar"
+                "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
+                "https://stac-extensions.github.io/sar/v1.0.0/schema.json",
+                "https://stac-extensions.github.io/raster/v1.0.0/schema.json"
             ],
             "crs": ["http://www.opengis.net/def/crs/OGC/1.3/CRS84", "http://www.opengis.net/def/crs/EPSG/0/2154"],
             "keywords": ["S2", "Sentinel Hub", "xcube", "SAR"],
@@ -363,7 +362,6 @@ class TestAggregatorCollectionCatalog:
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
             ],
             "providers": [{"name": "provider1"}, {"name": "provider2"}],
-            "assets": [],
             "type": "Collection",
             "sci:citation": "Modified Copernicus Sentinel data [Year]/Sentinel Hub",
         }
@@ -423,7 +421,7 @@ class TestAggregatorCollectionCatalog:
                 'sar:looks_azimuth': [1], 'sar:looks_equivalent_number': [4.4], 'sar:looks_range': [5],
                 'sar:pixel_spacing_azimuth': [10], 'sar:pixel_spacing_range': [10], 'sar:resolution_azimuth': [22],
                 "sar:resolution_range": [20]
-            }, 'assets': []
+            }
         }
 
     def test_get_collection_metadata_merging_extent(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
