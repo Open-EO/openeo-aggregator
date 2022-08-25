@@ -113,11 +113,11 @@ class TestMultiDictGetter:
 
     def test_union(self):
         getter = MultiDictGetter([{"a": [1, 11], "b": [2, 22], "c": [33]}, {"b": [222, 2222], "c": [33, 3333]}])
-        assert getter.union("a") == [1, 11]
-        assert getter.union("b") == [2, 22, 222, 2222]
-        assert getter.union("c") == [33, 33, 3333]
-        assert getter.union("c", skip_duplicates=True) == [33, 3333]
-        assert getter.union("d") == []
+        assert getter.merge_arrays("a")==[1,11]
+        assert getter.merge_arrays("b")==[2,22,222,2222]
+        assert getter.merge_arrays("c")==[33,33,3333]
+        assert getter.merge_arrays("c", skip_duplicates=True)==[33,3333]
+        assert getter.merge_arrays("d")==[]
 
     def test_first(self):
         getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])

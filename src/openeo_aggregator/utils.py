@@ -97,10 +97,10 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
-    def union(self, key: str, skip_duplicates=False) -> list:
+    def merge_arrays(self, key: str,skip_duplicates=False) -> list:
         """
-        Simple list based union of the items
-        (each of which must be an iterable itself, such as list or set) at given key.
+        This method assumes that for all dicts, dict[key] is of type iterable (list, set, ...).
+        It merges all iterables into a single list, with or without duplicates.
         """
         result = []
         for items in self.get(key):
