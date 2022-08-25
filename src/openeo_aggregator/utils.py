@@ -110,7 +110,7 @@ class MultiDictGetter:
                 result.append(item)
         return result
 
-    def simple_merge(self) -> dict:
+    def simple_merge(self, included_keys=None) -> dict:
         """
         All dictionaries are merged following simple rules:
         For list or sets: all elements are merged into a single list, without duplicates.
@@ -118,6 +118,9 @@ class MultiDictGetter:
         For all other types: the first value is returned.
 
         It assumes that all duplicate keys in a dictionary have items of the same type.
+
+        Args:
+            included_keys: If given, only these top level keys are merged into the final dict.
         """
         if len(self.dictionaries) == 0:
             return {}
@@ -127,6 +130,8 @@ class MultiDictGetter:
         result = {}
         for dictionary in self.dictionaries:
             for key, item in dictionary.items():
+                if included_keys is not None and key not in included_keys:
+                    continue
                 if key in result:
                     if isinstance(item, list) or isinstance(item, set):
                         result[key] = self.merge_arrays(key, skip_duplicates=True)
