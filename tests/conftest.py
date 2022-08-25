@@ -89,8 +89,9 @@ def get_flask_app(config: AggregatorConfig) -> flask.Flask:
 
 @pytest.fixture
 def flask_app(config: AggregatorConfig) -> flask.Flask:
-    return get_flask_app(config)
-
+    app = get_flask_app(config)
+    with app.app_context():
+        yield app
 
 @pytest.fixture
 def backend_implementation(flask_app) -> AggregatorBackendImplementation:
