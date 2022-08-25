@@ -151,12 +151,21 @@ class TestInternalCollectionMetadata:
 
 class TestAggregatorCollectionCatalog:
 
-    def test_get_all_metadata_simple(self, multi_backend_connection, backend1, backend2, requests_mock):
+    def test_get_all_metadata_simple(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_all_metadata()
-        assert metadata == [{"id": "S2"}, {"id": "S3"}]
+        assert metadata == [
+        {
+             'id': 'S2', 'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                                   {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                                   {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}]
+         }, {
+             'id': 'S3', 'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                                   {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                                   {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}]
+         }]
 
     def test_get_all_metadata_common_collections_minimal(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
@@ -164,15 +173,14 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with flask_app.app_context():
-            metadata = catalog.get_all_metadata()
+        metadata = catalog.get_all_metadata()
         assert metadata == [
-            {"id": "S3", 'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections',
-             'rel': 'root'},
-            {'href': 'http://oeoa.test/openeo/1.1.0/collections',
-             'rel': 'parent'},
-            {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3',
-             'rel': 'self'}]},
+            {
+                "id": "S3", 'links': [
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}]
+            },
             {
                 "id": "S4", "description": "S4", "title": "S4",
                 "stac_version": "0.9.0",
@@ -186,12 +194,12 @@ class TestAggregatorCollectionCatalog:
                 ],
                 "assets": [], "description": "S4", "type": "Collection"
             },
-            {"id": "S5", 'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections',
-             'rel': 'root'},
-            {'href': 'http://oeoa.test/openeo/1.1.0/collections',
-             'rel': 'parent'},
-            {'href': 'http://oeoa.test/openeo/1.1.0/collections/S5',
-             'rel': 'self'}]},
+            {
+                "id": "S5", 'links': [
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S5', 'rel': 'self'}]
+            },
         ]
 
     def test_get_all_metadata_common_collections_merging(
@@ -238,8 +246,7 @@ class TestAggregatorCollectionCatalog:
             ],
         }]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with flask_app.app_context():
-            metadata = catalog.get_all_metadata()
+        metadata = catalog.get_all_metadata()
         assert metadata == [
             {
                 "id": "S4",
@@ -275,9 +282,8 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with flask_app.app_context():
-            with pytest.raises(OpenEOApiException, match="Empty collection set given"):
-                catalog.get_backend_candidates_for_collections([])
+        with pytest.raises(OpenEOApiException, match="Empty collection set given"):
+            catalog.get_backend_candidates_for_collections([])
         assert catalog.get_backend_candidates_for_collections(["S3"]) == ["b1"]
         assert catalog.get_backend_candidates_for_collections(["S4"]) == ["b1", "b2"]
         assert catalog.get_backend_candidates_for_collections(["S5"]) == ["b2"]
@@ -287,7 +293,7 @@ class TestAggregatorCollectionCatalog:
         with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
             catalog.get_backend_candidates_for_collections(["S3", "S4", "S5"])
 
-    def test_get_collection_metadata_basic(self, multi_backend_connection, backend1, backend2, requests_mock):
+    def test_get_collection_metadata_basic(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
@@ -295,9 +301,21 @@ class TestAggregatorCollectionCatalog:
 
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         metadata = catalog.get_collection_metadata("S2")
-        assert metadata == {"id": "S2", "title": "b1's S2"}
+        assert metadata == {
+            'id': 'S2', 'title': "b1's S2",
+            'links': [
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}]
+        }
         metadata = catalog.get_collection_metadata("S3")
-        assert metadata == {"id": "S3", "title": "b2's S3"}
+        assert metadata == {
+            "id": "S3", "title": "b2's S3",
+            'links': [
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+               {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}]
+        }
 
         with pytest.raises(CollectionNotFoundException):
             catalog.get_collection_metadata("S5")
@@ -345,8 +363,7 @@ class TestAggregatorCollectionCatalog:
         })
 
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with flask_app.app_context():
-            metadata = catalog.get_collection_metadata("S2")
+        metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
             "id": "S2",
             "description": "S2",
@@ -413,8 +430,7 @@ class TestAggregatorCollectionCatalog:
             }
         })
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-        with flask_app.app_context():
-            metadata = catalog.get_collection_metadata("S2")
+        metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
             'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
             'license': 'proprietary',
@@ -441,171 +457,163 @@ class TestAggregatorCollectionCatalog:
         }
 
     def test_get_collection_metadata_merging_extent(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
-        with flask_app.app_context():
-            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend1 + "/collections/S2", json={
-                "id": "S2", "extent": {
-                    "spatial": {
-                        "bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]
-                    }, "temporal": {
-                        "interval": [["2014-10-03T04:14:15Z", None]]
-                    }
-                },
-            })
-            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend2 + "/collections/S2", json={
-                "id": "S2", "extent": {
-                    "spatial": {
-                        "bbox": [[-180, -90, 180, 90]]
-                    }, "temporal": {
-                        "interval": [["2014-10-03T04:14:15Z", None], [None, None, ]]
-                    }
-                },
-            })
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-            metadata = catalog.get_collection_metadata("S2")
-            assert metadata =={
-                'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-                'license': 'proprietary', 'extent': {
-                    'spatial': {'bbox': [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
-                    'temporal': {'interval': [['2014-10-03T04:14:15Z', None], [None, None]]}
-                },
-                'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                             {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                             {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}],
-                'summaries': {'provider:backend': ['b1', 'b2']}, 'assets': []
-            }
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={
+            "id": "S2", "extent": {
+                "spatial": {
+                    "bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]
+                }, "temporal": {
+                    "interval": [["2014-10-03T04:14:15Z", None]]
+                }
+            },
+        })
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={
+            "id": "S2", "extent": {
+                "spatial": {
+                    "bbox": [[-180, -90, 180, 90]]
+                }, "temporal": {
+                    "interval": [["2014-10-03T04:14:15Z", None], [None, None, ]]
+                }
+            },
+        })
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata =={
+            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
+            'license': 'proprietary', 'extent': {
+                'spatial': {'bbox': [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
+                'temporal': {'interval': [['2014-10-03T04:14:15Z', None], [None, None]]}
+            },
+            'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                         {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                         {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}],
+            'summaries': {'provider:backend': ['b1', 'b2']}
+        }
 
     def test_get_collection_metadata_merging_links(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
-        flask_app.config['SERVER_NAME'] = 'openeocloud.vito.be'
-        with flask_app.app_context():
-            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend1 + "/collections/S2", json={
-                "id": "S2", "links": [
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-                    {"href": "http://some.license", "rel": "license"}
-                ],
-            })
-            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend2 + "/collections/S2", json={
-                "id": "S2", "links": [
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                ],
-            })
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={
+            "id": "S2", "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+                {"href": "http://some.license", "rel": "license"}
+            ],
+        })
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={
+            "id": "S2", "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+            ],
+        })
 
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-            metadata = catalog.get_collection_metadata("S2")
-            assert metadata == {
-                'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-                'license': 'proprietary',
-                'extent': {
-                    'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}
-                },
-                'links': [
-                    {'href': 'http://some.license', 'rel': 'license'},
-                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections', 'rel': 'root'},
-                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections', 'rel': 'parent'},
-                    {'href': 'http://openeocloud.vito.be/openeo/1.1.0/collections/S2', 'rel': 'self'},
-                ],
-                'summaries': {'provider:backend': ['b1', 'b2']},
-                'assets': []
-            }
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
+            'license': 'proprietary',
+            'extent': {
+                'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}
+            },
+            'links': [
+                {'href': 'http://some.license', 'rel': 'license'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
+            ],
+            'summaries': {'provider:backend': ['b1', 'b2']},
+        }
 
     def test_get_collection_metadata_merging_cubedimensions(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
-        with flask_app.app_context():
-            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend1 + "/collections/S2", json={
-                "id": "S2", "cube:dimensions": {
-                    "bands": {
-                        "type": "bands", "values": ["VV", "VH", "HV", "HH"]
-                    }, "t": {
-                        "extent": ["2013-10-03T04:14:15Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                    }, "x": {
-                        "axis": "x", "extent": [-20, 130], "reference_system": { "name": "PROJJSON object." },
-                        "step": 10, "type": "spatial"
-                    }, "y": {
-                        "axis": "y", "extent": [-10, 20], "reference_system": { "name": "PROJJSON object." },
-                        "step": 10, "type": "spatial"
-                    }
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={
+            "id": "S2", "cube:dimensions": {
+                "bands": {
+                    "type": "bands", "values": ["VV", "VH", "HV", "HH"]
+                }, "t": {
+                    "extent": ["2013-10-03T04:14:15Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
+                }, "x": {
+                    "axis": "x", "extent": [-20, 130], "reference_system": { "name": "PROJJSON object." },
+                    "step": 10, "type": "spatial"
+                }, "y": {
+                    "axis": "y", "extent": [-10, 20], "reference_system": { "name": "PROJJSON object." },
+                    "step": 10, "type": "spatial"
                 }
-            })
-            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend2 + "/collections/S2", json={
-                "id": "S2", "cube:dimensions": {
-                    "bands": {
-                        "type": "bands", "values": ["HH", "VV", "HH+HV", "VV+VH"]
-                    }, "t": {
-                        "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                    }, "x": {
-                        "axis": "x", "extent": [-40, 120], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
-                    }, "y": {
-                        "axis": "y", "extent": [0, 45], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
-                    }
-                },
-            })
-
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-            metadata = catalog.get_collection_metadata("S2")
-            assert metadata == {
-                'id': 'S2',
-                'stac_version': '0.9.0',
-                'title': 'S2',
-                'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
-                "cube:dimensions": {
-                    "bands": {
-                        "type": "bands", "values": ["VV", "VH", "HV", "HH", "HH+HV", "VV+VH"],
-                    },
-                    "t": {
-                        "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                    }, "x": {
-                        "axis": "x", "extent": [-40, 130], "reference_system": { "name": "PROJJSON object." },
-                        "step": 10, "type": "spatial"
-                    }, "y": {
-                        "axis": "y", "extent": [-10, 45], "reference_system": { "name": "PROJJSON object." },
-                        "step": 10, "type": "spatial"
-                    }
-                },
-                'summaries': {'provider:backend': ['b1', 'b2']},
-                'assets': [],
-                'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
-                'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections','rel': 'root'},
-                          {'href': 'http://oeoa.test/openeo/1.1.0/collections','rel': 'parent'},
-                          {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2','rel': 'self'}]
             }
+        })
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={
+            "id": "S2", "cube:dimensions": {
+                "bands": {
+                    "type": "bands", "values": ["HH", "VV", "HH+HV", "VV+VH"]
+                }, "t": {
+                    "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"], "step": 1, "type": "temporal"
+                }, "x": {
+                    "axis": "x", "extent": [-40, 120], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
+                }, "y": {
+                    "axis": "y", "extent": [0, 45], "type": "spatial", "reference_system": { "name": "PROJJSON object." }
+                }
+            },
+        })
+
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            'id': 'S2',
+            'stac_version': '0.9.0',
+            'title': 'S2',
+            'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
+            "cube:dimensions": {
+                "bands": {
+                    "type": "bands", "values": ["VV", "VH", "HV", "HH", "HH+HV", "VV+VH"],
+                },
+                "t": {
+                    "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
+                }, "x": {
+                    "axis": "x", "extent": [-40, 130], "reference_system": { "name": "PROJJSON object." },
+                    "step": 10, "type": "spatial"
+                }, "y": {
+                    "axis": "y", "extent": [-10, 45], "reference_system": { "name": "PROJJSON object." },
+                    "step": 10, "type": "spatial"
+                }
+            },
+            'summaries': {'provider:backend': ['b1', 'b2']},
+            'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
+            'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections','rel': 'root'},
+                      {'href': 'http://oeoa.test/openeo/1.1.0/collections','rel': 'parent'},
+                      {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2','rel': 'self'}]
+        }
 
     def test_get_collection_metadata_merging_with_error(
             self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
-        with flask_app.app_context():
-            requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend1 + "/collections/S2", status_code=500)
-            requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-            requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", status_code=500)
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
 
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
-            metadata = catalog.get_collection_metadata("S2")
-            assert metadata == {
-                "id": "S2",
-                "title": "b2's S2",
-                'links': [{
-                    'href': 'http://oeoa.test/openeo/1.1.0/collections',
-                    'rel': 'root'
-                }, {
-                    'href': 'http://oeoa.test/openeo/1.1.0/collections',
-                    'rel': 'parent'
-                }, {
-                    'href': 'http://oeoa.test/openeo/1.1.0/collections/S2',
-                    'rel': 'self'
-                }]
-            }
-            # TODO: test that caching of result is different from merging without error? (#2)
-
+        catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            "id": "S2",
+            "title": "b2's S2",
+            'links': [{
+                'href': 'http://oeoa.test/openeo/1.1.0/collections',
+                'rel': 'root'
+            }, {
+                'href': 'http://oeoa.test/openeo/1.1.0/collections',
+                'rel': 'parent'
+            }, {
+                'href': 'http://oeoa.test/openeo/1.1.0/collections/S2',
+                'rel': 'self'
+            }]
+        }
+        # TODO: test that caching of result is different from merging without error? (#2)
     # TODO tests for caching of collection metadata
 
     def test_generate_backend_constraint_callables(self):

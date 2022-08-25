@@ -118,22 +118,21 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         cid = metadata.get("id", None)
         if cid is None:
             raise OpenEOApiException("Missing collection id in metadata")
-        if has_app_context():
-            if "links" not in metadata:
-                metadata["links"] = []
-            metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
-            metadata["links"].append({
-                "href": url_for("openeo.collections", _external=True),
-                "rel": "root"
-            })
-            metadata["links"].append({
-                "href": url_for("openeo.collections", _external=True),
-                "rel": "parent"
-            })
-            metadata["links"].append({
-                "href": url_for("openeo.collection_by_id", collection_id=cid, _external=True),
-                "rel": "self"
-            })
+        if "links" not in metadata:
+            metadata["links"] = []
+        metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
+        metadata["links"].append({
+            "href": url_for("openeo.collections", _external=True),
+            "rel": "root"
+        })
+        metadata["links"].append({
+            "href": url_for("openeo.collections", _external=True),
+            "rel": "parent"
+        })
+        metadata["links"].append({
+            "href": url_for("openeo.collection_by_id", collection_id=cid, _external=True),
+            "rel": "self"
+        })
         return metadata
 
     def _merge_collection_metadata(self, by_backend: Dict[str, dict]) -> dict:
