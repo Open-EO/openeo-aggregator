@@ -110,6 +110,32 @@ class MultiDictGetter:
                 result.append(item)
         return result
 
+    def simple_merge(self) -> dict:
+        """
+        All dictionaries are merged following simple rules:
+        For list or sets: all elements are merged into a single list, without duplicates.
+        For dictionaries: all keys are added to a single dict, duplicate keys are merged recursively.
+        For all other types: the first value is returned.
+
+        It assumes that all duplicate keys in a dictionary have items of the same type.
+        """
+        if len(self.dictionaries) == 0:
+            return {}
+        if len(self.dictionaries) == 1:
+            return self.dictionaries[0]
+
+        result = {}
+        for dictionary in self.dictionaries:
+            for key, item in dictionary.items():
+                if key in result:
+                    if isinstance(item, list) or isinstance(item, set):
+                        result[key] = self.merge_arrays(key, skip_duplicates=True)
+                    elif isinstance(item, dict):
+                        result[key] = self.select(key).simple_merge()
+                else:
+                    result[key] = item
+        return result
+
     def first(self, key, default=None):
         return next(self.get(key), default)
 
