@@ -163,7 +163,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             "sci:citation", "sci:doi", "sci:publications"
         ]))
 
-        # All keys with special merge handling.
+        ## All keys with special merge handling.
         versions = set(getter.get("version"))
         if versions:
             # TODO: smarter version maximum? Low priority, versions key is not used in most backends.
@@ -184,48 +184,56 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         cube_dimensions = getter.first("cube:dimensions")
         if cube_dimensions:
-            cube_dimension_bands = list(getter.select("cube:dimensions").select("bands").merge_arrays('values', skip_duplicates=True))
-            t_extents = list(getter.select("cube:dimensions").select("t").get("extent"))
-            t_extents_flat_without_none: [datetime.datetime] = [dateutil.parser.isoparse(ex) for subex in t_extents for ex in subex if ex is not None]
-            t_extent = [None, None]
-            if t_extents_flat_without_none:
-                t_extent[0] = None if [ex for ex in t_extents if ex[0] is None] else min(t_extents_flat_without_none).strftime('%Y-%m-%dT%H:%M:%SZ')
-                t_extent[1] = None if [ex for ex in t_extents if ex[1] is None] else max(t_extents_flat_without_none).strftime('%Y-%m-%dT%H:%M:%SZ')
-            x_extents = getter.select("cube:dimensions").select("x").get("extent")
-            x_extents_flat = [ex for subex in x_extents for ex in subex if ex is not None]
-            x_extent = [min(x_extents_flat), max(x_extents_flat)] if x_extents_flat else [None, None]
-            y_extents = getter.select("cube:dimensions").select("y").get("extent")
-            y_extents_flat = [ex for subex in y_extents for ex in subex if ex is not None]
-            y_extent = [min(y_extents_flat), max(y_extents_flat)] if y_extents_flat else [None, None]
-
-            # Assert step size and reference_system equal.
-            for dim in ['t', 'x', 'y']:
-                if len(getter.select("cube:dimensions").select(dim).merge_arrays("step_size", skip_duplicates=True)) > 1:
-                    _log.warning(f"Step sizes are not equal among all backends "
-                                 f"for cube:dimensions.{dim} dimension in collection: {cid}")
-                if dim == 't': continue
-                if len(getter.select("cube:dimensions").select(dim).merge_arrays("reference_system", skip_duplicates=True)) > 1:
-                    _log.warning(f"Reference systems are not equal among all backends "
-                                 f"for cube:dimensions.{dim} dimension in collection: {cid}")
-
             result["cube:dimensions"] = cube_dimensions
             cube_band_value = getter.select("cube:dimensions").first("bands", None)
+            # Bands
             if cube_band_value is not None:
                 result["cube:dimensions"]["bands"] = cube_band_value
+                cube_dimension_bands = list(getter.select("cube:dimensions").select("bands").merge_arrays('values', skip_duplicates=True))
                 result["cube:dimensions"]["bands"]["values"] = cube_dimension_bands
-            for dim, extent in zip(['t', 'x', 'y'], [t_extent, x_extent, y_extent]):
+            # Temporal dimension
+            cube_time_value = getter.select("cube:dimensions").first("t", None)
+            if cube_time_value is not None:
+                result["cube:dimensions"]["t"] = cube_time_value
+                t_extents = list(getter.select("cube:dimensions").select("t").get("extent"))
+                t_extents_as_datetime: [datetime.datetime] = [
+                    dateutil.parser.isoparse(ex) for subex in t_extents for ex in subex if ex is not None
+                ]
+                t_extent = [
+                    None if any([ex[0] is None for ex in t_extents]) else min(t_extents_as_datetime),
+                    None if any([ex[1] is None for ex in t_extents]) else max(t_extents_as_datetime)
+                ]
+                t_extent = [ex.strftime('%Y-%m-%dT%H:%M:%SZ') or None for ex in t_extent]
+                result["cube:dimensions"]["t"]["extent"] = t_extent
+            # Spatial dimensions
+            for dim in ["x", "y"]:
                 cube_dim_value = getter.select("cube:dimensions").first(dim, None)
                 if cube_dim_value is not None:
                     result["cube:dimensions"][dim] = cube_dim_value
-                    result["cube:dimensions"][dim]["extent"] = extent
+                    extents = getter.select("cube:dimensions").select(dim).get("extent")
+                    extents_flat = [ex for subex in extents for ex in subex if ex is not None]
+                    spatial_extent = [min(extents_flat), max(extents_flat)] if extents_flat else [None, None]
+                    result["cube:dimensions"][dim]["extent"] = spatial_extent
 
         # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
         result["summaries"][self.STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
 
-        # Log warning for collections without license links.
+        ## Log warnings for improper metadata.
+        # license => Log warning for collections without license links.
         license_links = [l for l in list(getter.merge_arrays("links")) if l.get("rel") == "license"]
         if result["license"] in ["various", "proprietary"] and not license_links:
             _log.warning(f"Missing license links for collection: {cid}")
+
+        # cube:dimensions => Assert step size and reference_system equal.
+        for dim in ['t', 'x', 'y']:
+            if len(getter.select("cube:dimensions").select(dim).merge_arrays("step_size", skip_duplicates = True)) > 1:
+                _log.warning(f"Step sizes are not equal among all backends "
+                             f"for cube:dimensions.{dim} dimension in collection: {cid}")
+            if dim=='t': continue
+            if len(getter.select("cube:dimensions").select(dim).merge_arrays("reference_system",
+                    skip_duplicates = True)) > 1:
+                _log.warning(f"Reference systems are not equal among all backends "
+                             f"for cube:dimensions.{dim} dimension in collection: {cid}")
         return result
 
     @staticmethod
