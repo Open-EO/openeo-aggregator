@@ -149,41 +149,28 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         result = {
             "id": cid,
+            "stac_version": max(list(getter.get("stac_version")) + ["0.9.0"]),
+            "title": getter.first("title", default=cid),
+            "description": getter.first("description", default=cid),
+            "type": getter.first("type", default="Collection"),
+            "links": [l for l in list(getter.merge_arrays("links")) if l.get("rel") not in ("self","parent","root")],
+            "summaries": getter.select("summaries").simple_merge()
         }
-        # stac_version
-        result["stac_version"] = max(list(getter.get("stac_version")) + ["0.9.0"])
-        # stac_extensions
-        stac_extensions = sorted(getter.merge_arrays("stac_extensions", skip_duplicates=True))
-        if stac_extensions:
-            result["stac_extensions"] = stac_extensions
+        # Note: CRS is required by OGC API: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
+        result.update(getter.simple_merge([
+            "stac_extensions", "keywords", "deprecated", "providers", "assets",
+            "crs",
+            "sci:citation", "sci:doi", "sci:publications"
+        ]))
 
-        result["title"] = getter.first("title", default=cid)
-        result["description"] = getter.first("description", default=cid)
-
-        # keywords
-        keywords = getter.merge_arrays("keywords", skip_duplicates=True)
-        if keywords:
-            result["keywords"] = keywords
-        # version
+        # All keys with special merge handling.
         versions = set(getter.get("version"))
         if versions:
             # TODO: smarter version maximum? Low priority, versions key is not used in most backends.
             result["version"] = max(versions)
-        # deprecated
-        deprecateds = list(getter.get("deprecated"))
-        if deprecateds:
-            result["deprecated"] = all(deprecateds)
-
-        result["type"] = getter.first("type", default="Collection")
-        # Assume the license links are available.
         licenses = set(getter.get("license"))
         result["license"] = licenses.pop() if len(licenses) == 1 else ("various" if licenses else "proprietary")
 
-        # providers
-        providers = getter.merge_arrays("providers", skip_duplicates=True)
-        if providers:
-            result["providers"] = list(providers)
-        # extent
         result["extent"] = {
             "spatial": {
                 "bbox": getter.select("extent").select("spatial").merge_arrays("bbox", skip_duplicates=True) \
@@ -194,10 +181,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                             or [[None, None]],
             },
         }
-        # links
-        result["links"] = [l for l in list(getter.merge_arrays("links")) if l.get("rel") not in ("self","parent","root")]
 
-        # cube_dimensions
         cube_dimensions = getter.first("cube:dimensions")
         if cube_dimensions:
             cube_dimension_bands = list(getter.select("cube:dimensions").select("bands").merge_arrays('values', skip_duplicates=True))
@@ -235,35 +219,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     result["cube:dimensions"][dim] = cube_dim_value
                     result["cube:dimensions"][dim]["extent"] = extent
 
-        # summaries
-        result["summaries"] = getter.select("summaries").simple_merge()
         # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
         result["summaries"][self.STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
-        # assets
-        result["assets"] = list(getter.merge_arrays("assets"))
-
-        # crs
-        # Required by OGC API - Features: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
-        crs_list = getter.merge_arrays("crs", skip_duplicates=True)
-        if crs_list:
-            result["crs"] = list(crs_list)
-
-        # Scientific extension.
-        # sci:citation
-        citation_list = getter.first("sci:citation", default=None)
-        if citation_list:
-            result["sci:citation"] = citation_list
-        # sci:doi
-        doi_list = getter.first("sci:doi", default=None)
-        if doi_list:
-            result["sci:doi"] = doi_list
-        # sci:publications
-        publications_list = getter.merge_arrays("sci:publications", skip_duplicates=True)
-        if publications_list:
-            result["sci:publications"] = list(publications_list)
 
         # Log warning for collections without license links.
-        license_links = [l for l in list(getter.merge_arrays("links")) if l.get("rel")=="license"]
+        license_links = [l for l in list(getter.merge_arrays("links")) if l.get("rel") == "license"]
         if result["license"] in ["various", "proprietary"] and not license_links:
             _log.warning(f"Missing license links for collection: {cid}")
         return result
