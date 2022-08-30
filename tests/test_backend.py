@@ -369,9 +369,9 @@ class TestAggregatorProcessing:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
+            {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b1', 'b2']},
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
         ]
 
     def test_get_process_registry_parameter_differences(
@@ -390,7 +390,7 @@ class TestAggregatorProcessing:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "array"}]},
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
+            {"id": "mean", "parameters": [{"name": "array"}], 'supported_by': ['b1', 'b2']},
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
         ]
