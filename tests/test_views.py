@@ -185,27 +185,10 @@ class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):
         res = api100.get("/credentials/oidc").assert_status_code(200).json
         assert res == {"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]}
-        ]}
-
-    def test_credentials_oidc_intersection(self, requests_mock, config, backend1, backend2):
-        # When mocking `/credentials/oidc` we have to do that before build flask app
-        # because it's requested during app building (through `HttpAuthHandler`),
-        # so unlike other tests we can not use fixtures that build the app/client/api automatically
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "x", "issuer": "https://x.test", "title": "X"},
-            {"id": "y", "issuer": "https://y.test", "title": "YY"},
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "y", "issuer": "https://y.test", "title": "YY"},
-            {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
-        ]})
-        # Manually creating app and api100 (which we do with fixtures elsewhere)
-        api100 = get_api100(get_flask_app(config))
-
-        res = api100.get("/credentials/oidc").assert_status_code(200).json
-        assert res == {"providers": [
-            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]}
+            {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]},
+            {"id": "x-agg", "issuer": "https://x.test", "title": "X (agg)", "scopes": ["openid"]},
+            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]},
+            {"id": "z-agg", "issuer": "https://z.test", "title": "Z (agg)", "scopes": ["openid"]},
         ]}
 
     def test_me_unauthorized(self, api100):
@@ -1189,9 +1172,6 @@ class TestResilience:
         requests_mock.get(backend1 + "/health", text="OK")
         backend2, config, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
-
-        assert "Failed to create backend 'b2' connection" in caplog.text
-        assert b2_root.call_count == 1
 
         api100.get("/").assert_status_code(200)
 

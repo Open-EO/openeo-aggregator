@@ -673,6 +673,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="General")
         self._backends.on_connections_change.add(self._cache.flush_all)
+        self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations
@@ -681,11 +682,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
-        # TODO: openeo-python-driver (HttpAuthHandler) currently does support changes in
-        #       the set of oidc_providers ids (id mapping is statically established at startup time)
-        return self._cache.get_or_call(
-            key="oidc_providers", callback=self._backends.get_oidc_providers, log_on_miss=True,
-        )
+        return self._configured_oidc_providers
 
     def file_formats(self) -> dict:
         return self._cache.get_or_call(key="file_formats", callback=self._file_formats, log_on_miss=True)
