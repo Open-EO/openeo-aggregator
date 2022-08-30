@@ -383,7 +383,7 @@ class AggregatorProcessing(Processing):
                                 for path in paths_to_remove:
                                     del values_changed[path]
                                 if not values_changed:
-                                    del values_changed
+                                    del diff['values_changed']
                             # If there are still differences in the diff dict, log them.
                             if diff:
                                 _log.warning(f"{process_id}: schema of {parameter_name} parameter is different on "
