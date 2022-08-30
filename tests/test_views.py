@@ -6,6 +6,7 @@ from typing import Tuple, List
 import pytest
 import requests
 
+from openeo.rest.connection import url_join
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
@@ -336,6 +337,52 @@ class TestAuthEntitlementCheck:
         assert data["user_id"] == "john"
         assert data["info"]["roles"] == expected_roles
         assert data["default_plan"] == expected_plan
+
+    @pytest.mark.parametrize(["whitelist", "main_test_oidc_issuer", "success"], [
+        (["https://egi.test"], "https://egi.test", True),
+        (["https://egi.test"], "https://egi.test/", True),
+        (["https://egi.test/"], "https://egi.test", True),
+        (["https://egi.test/"], "https://egi.test/", True),
+        (["https://egi.test/oidc"], "https://egi.test/oidc/", True),
+        (["https://egi.test/oidc/"], "https://egi.test/oidc", True),
+        (["https://egi.test/foo"], "https://egi.test/bar", False),
+    ])
+    def test_issuer_url_normalization(
+            self, config, requests_mock, backend1, backend2, whitelist,
+            main_test_oidc_issuer, success, caplog,
+    ):
+        config.auth_entitlement_check = {"oidc_issuer_whitelist": whitelist}
+
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
+        ]})
+        oidc_url_ui = url_join(main_test_oidc_issuer, "/userinfo")
+        oidc_url_conf = url_join(main_test_oidc_issuer, "/.well-known/openid-configuration")
+        requests_mock.get(oidc_url_conf, json={"userinfo_endpoint": oidc_url_ui})
+        requests_mock.get(
+            oidc_url_ui,
+            json=self._get_userifo_handler(eduperson_entitlement=[
+                "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+            ])
+        )
+        api100 = get_api100(get_flask_app(config))
+        api100.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
+
+        if success:
+            res = api100.get("/me").assert_status_code(200)
+            data = res.json
+            assert data["user_id"] == "john"
+            assert data["info"]["roles"] == ["EarlyAdopter"]
+        else:
+            res = api100.get("/me")
+            res.assert_error(403, "PermissionsInsufficient")
+            assert re.search(
+                "user_access_validation failure.*oidc_issuer.*https://egi.test/bar.*issuer_whitelist.*https://egi.test/foo",
+                caplog.text
+            )
 
 
 class TestProcessing:

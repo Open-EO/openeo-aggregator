@@ -233,3 +233,7 @@ def timestamp_to_rfc3339(timestamp: float) -> str:
     """Convert unix epoch timestamp to RFC3339 datetime string"""
     dt = datetime.datetime.utcfromtimestamp(timestamp)
     return rfc3339.datetime(dt)
+
+
+def normalize_issuer_url(url: str) -> str:
+    return url.rstrip("/").lower()

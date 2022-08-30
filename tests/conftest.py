@@ -33,9 +33,18 @@ def backend2(requests_mock) -> str:
 
 
 @pytest.fixture
-def configured_oidc_providers() -> List[OidcProvider]:
+def main_test_oidc_issuer() -> str:
+    """
+    Main OIDC issuer URL.
+    As a fixture to make it overridable with `pytest.mark.parametrize` for certain tests.
+    """
+    return "https://egi.test"
+
+
+@pytest.fixture
+def configured_oidc_providers(main_test_oidc_issuer: str) -> List[OidcProvider]:
     return [
-        OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
+        OidcProvider(id="egi", issuer=main_test_oidc_issuer, title="EGI"),
         OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
         OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
         OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),

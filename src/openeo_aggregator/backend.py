@@ -20,7 +20,7 @@ from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
-from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge
+from openeo_aggregator.utils import TtlCache, MultiDictGetter, subdict, dict_merge, normalize_issuer_url
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
     OidcProvider, BatchJobs, BatchJobMetadata
@@ -715,10 +715,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:
             int_data = user.internal_auth_data
-            issuer_whitelist = self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
+            issuer_whitelist = [
+                normalize_issuer_url(u)
+                for u in self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
+            ]
             if not (
                     int_data["authentication_method"] == "OIDC"
-                    and int_data["oidc_issuer"].rstrip("/").lower() in issuer_whitelist
+                    and normalize_issuer_url(int_data["oidc_issuer"]) in issuer_whitelist
             ):
                 user_message = "An EGI account is required for using openEO Platform."
                 _log.warning(f"user_access_validation failure: %r %r", user_message, {
