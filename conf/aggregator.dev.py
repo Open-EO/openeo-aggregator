@@ -37,17 +37,17 @@ configured_oidc_providers = [
         title="EGI Check-in (legacy)",
         default_clients=[DEFAULT_OIDC_CLIENT_EGI],
     ),
-    # OidcProvider(
-    #     id="egi-dev",
-    #     issuer="https://aai-dev.egi.eu/oidc/",
-    #     scopes=[
-    #         "openid", "email",
-    #         "eduperson_entitlement",
-    #         "eduperson_scoped_affiliation",
-    #     ],
-    #     title="EGI Check-in (dev)",
-    #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    # ),
+    OidcProvider(
+        id="egi-dev",
+        issuer="https://aai-dev.egi.eu/oidc/",
+        scopes=[
+            "openid", "email",
+            "eduperson_entitlement",
+            "eduperson_scoped_affiliation",
+        ],
+        title="EGI Check-in (dev)",
+        default_clients=[DEFAULT_OIDC_CLIENT_EGI],
+    ),
 ]
 
 config = AggregatorConfig(
