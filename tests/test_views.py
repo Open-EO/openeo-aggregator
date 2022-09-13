@@ -670,10 +670,43 @@ class TestProcessing:
         pg = {
             "lr": {"process_id": "load_result", "arguments": {"id": job_id}},
             "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "merge": {"process_id": "merge_cubes", "arguments": {
-                "cube1": {"from_node": "lr"},
-                "cube2": {"from_node": "lc"}
-            }}
+        }
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        request = {"process": {"process_graph": pg}}
+        if expected_success:
+            api100.post("/result", json=request).assert_status_code(200)
+            assert (b1_mock.call_count, b2_mock.call_count) == {1: (1, 0), 2: (0, 1)}[s2_backend]
+        else:
+            api100.post("/result", json=request).assert_error(400, "BackendLookupFailure")
+            assert (b1_mock.call_count, b2_mock.call_count) == (0, 0)
+
+    @pytest.mark.parametrize(["job_id", "s2_backend", "expected_success"], [
+        ("b1-b6tch-j08", 1, True),
+        ("b2-b6tch-j08", 1, False),
+        ("b1-b6tch-j08", 2, False),
+        ("b2-b6tch-j08", 2, True),
+        ("https://example.com/ml_model_metadata.json", 1, True),  # In this case it picks the first backend.
+        ("https://example.com/ml_model_metadata.json", 2, True),
+    ])
+    def test_load_result_job_id_parsing_with_load_ml_model(
+            self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
+    ):
+        """Issue #70: random forest: providing training job with aggregator job id fails"""
+
+        backend_root = {1: backend1, 2: backend2}[s2_backend]
+        requests_mock.get(backend_root + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_result(request: requests.Request, context):
+            pg = request.json()["process"]["process_graph"]
+            assert pg["lmm"]["arguments"]["id"] in ["b6tch-j08", "https://example.com/ml_model_metadata.json"]
+            context.headers["Content-Type"] = "application/json"
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+
+        pg = {
+            "lmm": {"process_id": "load_ml_model", "arguments": {"id": job_id}},
+            "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}},
         }
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         request = {"process": {"process_graph": pg}}
