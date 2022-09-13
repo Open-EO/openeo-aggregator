@@ -370,6 +370,14 @@ class AggregatorProcessing(Processing):
                         aggregator_job_id=arguments["id"]
                     )
                     backend_candidates = [b for b in backend_candidates if b == job_backend_id]
+                elif process_id == "load_ml_model":
+                    if not arguments["id"].startswith("http"):
+                        # Extract backend id that can load this ML model.
+                        _, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                            backends=self.backends,
+                            aggregator_job_id=arguments["id"]
+                        )
+                        backend_candidates = [b for b in backend_candidates if b == job_backend_id]
         except Exception as e:
             _log.error(f"Failed to parse process graph: {e!r}", exc_info=True)
             raise ProcessGraphInvalidException()
@@ -435,6 +443,15 @@ class AggregatorProcessing(Processing):
                         assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
                         # Create new load_result node dict with updated job id
                         return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
+                    if process_id == "load_ml_model" and "id" in arguments:
+                        if not arguments["id"].startswith("http"):
+                            job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                                backends=self.backends,
+                                aggregator_job_id=arguments["id"]
+                            )
+                            assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
+                            # Create new load_ml_model node dict with updated job id
+                            return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
                 return {k: preprocess(v) for k, v in node.items()}
             elif isinstance(node, list):
                 return [preprocess(x) for x in node]
