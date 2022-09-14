@@ -24,16 +24,16 @@ _DEFAULT_EGI_SCOPES = [
 
 configured_oidc_providers = [
     OidcProvider(
-        id="egi-legacy",
-        title="EGI Check-in (legacy)",
-        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
+        id="egi",
+        title="EGI Check-in",
+        issuer="https://aai.egi.eu/auth/realms/egi/",
         scopes=_DEFAULT_EGI_SCOPES,
         default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
     OidcProvider(
-        id="egi",
-        title="EGI Check-in",
-        issuer="https://aai.egi.eu/auth/realms/egi/",
+        id="egi-legacy",
+        title="EGI Check-in (legacy)",
+        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
         scopes=_DEFAULT_EGI_SCOPES,
         default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
