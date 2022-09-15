@@ -371,13 +371,9 @@ class AggregatorProcessing(Processing):
                     )
                     backend_candidates = [b for b in backend_candidates if b == job_backend_id]
                 elif process_id == "load_ml_model":
-                    if not arguments["id"].startswith("http"):
-                        # Extract backend id that can load this ML model.
-                        _, job_backend_id = JobIdMapping.parse_aggregator_job_id(
-                            backends=self.backends,
-                            aggregator_job_id=arguments["id"]
-                        )
-                        backend_candidates = [b for b in backend_candidates if b == job_backend_id]
+                    model_backend_id = self._process_load_ml_model(arguments)[0]
+                    if model_backend_id:
+                        backend_candidates = [b for b in backend_candidates if b == model_backend_id]
         except Exception as e:
             _log.error(f"Failed to parse process graph: {e!r}", exc_info=True)
             raise ProcessGraphInvalidException()
@@ -443,21 +439,32 @@ class AggregatorProcessing(Processing):
                         assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
                         # Create new load_result node dict with updated job id
                         return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
-                    if process_id == "load_ml_model" and "id" in arguments:
-                        if not arguments["id"].startswith("http"):
-                            job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
-                                backends=self.backends,
-                                aggregator_job_id=arguments["id"]
-                            )
-                            assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
-                            # Create new load_ml_model node dict with updated job id
-                            return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
+                    if process_id == "load_ml_model":
+                        model_id = self._process_load_ml_model(arguments, expected_backend=backend_id)[1]
+                        if model_id:
+                            return dict_merge(node, arguments=dict_merge(arguments, id=model_id))
                 return {k: preprocess(v) for k, v in node.items()}
             elif isinstance(node, list):
                 return [preprocess(x) for x in node]
             return node
 
         return preprocess(process_graph)
+
+    def _process_load_ml_model(
+            self, arguments: dict, expected_backend: Optional[str] = None
+    ) -> Tuple[Union[str, None], str]:
+        """Handle load_ml_model: detect/strip backend_id from model_id if it is a job_id"""
+        model_id = arguments.get("id")
+        if model_id and not model_id.startswith("http"):
+            # TODO: load_ml_model's `id` could also be file path (see https://github.com/Open-EO/openeo-processes/issues/384)
+            job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                backends=self.backends,
+                aggregator_job_id=model_id
+            )
+            if expected_backend and job_backend_id != expected_backend:
+                raise BackendLookupFailureException(f"{job_backend_id} != {expected_backend}")
+            return job_backend_id, job_id
+        return None, model_id
 
 
 class AggregatorBatchJobs(BatchJobs):
