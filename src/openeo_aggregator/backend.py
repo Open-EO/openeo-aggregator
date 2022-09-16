@@ -106,7 +106,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 (bid, metadata), = by_backend.items()
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
-                metadata = self._merge_collection_metadata(by_backend)
+                try:
+                    metadata = self._merge_collection_metadata(by_backend)
+                except Exception as e:
+                    _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
+                    continue
             metadata = self._normalize_metadata(metadata)
             collections_metadata.append(metadata)
             internal_data.set_backends_for_collection(cid, by_backend.keys())
