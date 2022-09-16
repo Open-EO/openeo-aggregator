@@ -6,11 +6,10 @@ import time
 from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
 
-import dateutil
+import dateutil.parser
 import flask
 
 import openeo_driver.util.view_helpers
-from flask import url_for, has_app_context
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get
@@ -123,15 +122,15 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
         if flask.has_app_context():
             metadata["links"].append({
-                "href": url_for("openeo.collections", _external=True),
+                "href": flask.url_for("openeo.collections", _external=True),
                 "rel": "root"
             })
             metadata["links"].append({
-                "href": url_for("openeo.collections", _external=True),
+                "href": flask.url_for("openeo.collections", _external=True),
                 "rel": "parent"
             })
             metadata["links"].append({
-                "href": url_for("openeo.collection_by_id", collection_id=cid, _external=True),
+                "href": flask.url_for("openeo.collection_by_id", collection_id=cid, _external=True),
                 "rel": "self"
             })
         else:
@@ -156,7 +155,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             "title": getter.first("title", default=cid),
             "description": getter.first("description", default=cid),
             "type": getter.first("type", default="Collection"),
-            "links": [l for l in list(getter.merge_arrays("links")) if l.get("rel") not in ("self", "parent", "root")],
+            "links": [l for l in list(getter.concat("links")) if l.get("rel") not in ("self", "parent", "root")],
             "summaries": getter.select("summaries").simple_merge()
         }
         # Note: CRS is required by OGC API: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
@@ -176,11 +175,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         result["extent"] = {
             "spatial": {
-                "bbox": getter.select("extent").select("spatial").merge_arrays("bbox", skip_duplicates=True) \
+                "bbox": getter.select("extent").select("spatial").concat("bbox", skip_duplicates=True) \
                         or [[-180, -90, 180, 90]],
             },
             "temporal": {
-                "interval": getter.select("extent").select("temporal").merge_arrays("interval", skip_duplicates=True) \
+                "interval": getter.select("extent").select("temporal").concat("interval", skip_duplicates=True) \
                             or [[None, None]],
             },
         }
@@ -192,7 +191,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             # Bands
             if cube_band_value is not None:
                 result["cube:dimensions"]["bands"] = cube_band_value
-                cube_dimension_bands = list(getter.select("cube:dimensions").select("bands").merge_arrays('values', skip_duplicates=True))
+                # TODO: concatenating band values is going to give weird results (because band indices change)
+                cube_dimension_bands = getter.select("cube:dimensions").select("bands").concat('values', skip_duplicates=True)
                 result["cube:dimensions"]["bands"]["values"] = cube_dimension_bands
             # Temporal dimension
             cube_time_value = getter.select("cube:dimensions").first("t", None)
@@ -223,20 +223,24 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         ## Log warnings for improper metadata.
         # license => Log warning for collections without license links.
-        license_links = [l for l in list(getter.merge_arrays("links")) if l.get("rel") == "license"]
+        license_links = [l for l in getter.concat("links") if l.get("rel") == "license"]
         if result["license"] in ["various", "proprietary"] and not license_links:
             _log.warning(f"Missing license links for collection: {cid}")
 
         # cube:dimensions => Assert step size and reference_system equal.
         for dim in ['t', 'x', 'y']:
-            if len(getter.select("cube:dimensions").select(dim).merge_arrays("step_size", skip_duplicates = True)) > 1:
-                _log.warning(f"Step sizes are not equal among all backends "
-                             f"for cube:dimensions.{dim} dimension in collection: {cid}")
-            if dim=='t': continue
-            if len(getter.select("cube:dimensions").select(dim).merge_arrays("reference_system",
-                    skip_duplicates = True)) > 1:
-                _log.warning(f"Reference systems are not equal among all backends "
-                             f"for cube:dimensions.{dim} dimension in collection: {cid}")
+            step_sizes = getter.select("cube:dimensions").select(dim).union("step_size")
+            if len(step_sizes) > 1:
+                _log.warning(
+                    f"Multiple cube:dimensions.{dim}.step_size values across backends for in collection: {cid}: {step_sizes}"
+                )
+            if dim in ["x", "y"]:
+                reference_systems = getter.select("cube:dimensions").select(dim).union("reference_system")
+                if len(reference_systems) > 1:
+                    _log.warning(
+                        f"Multiple cube:dimension.{dim}.reference_system values across backends for collection {cid}: {reference_systems}"
+                    )
+
         return result
 
     @staticmethod

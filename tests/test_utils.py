@@ -111,13 +111,49 @@ class TestMultiDictGetter:
         assert list(getter.get("c")) == [333]
         assert list(getter.get("d")) == []
 
+    def test_concat(self):
+        getter = MultiDictGetter([
+            {"a": [1, 11], "b": [2, 22], "c": [33]},
+            {"b": [222, 2222], "c": (33, 3333)}
+        ])
+        assert getter.concat("a") == [1, 11]
+        assert getter.concat("b") == [2, 22, 222, 2222]
+        assert getter.concat("c") == [33, 33, 3333]
+        assert getter.concat("c", skip_duplicates=True) == [33, 3333]
+        assert getter.concat("d") == []
+
+    @pytest.mark.parametrize(["data", "expected", "expect_warning"], [
+        ([4, 5], [1, 2, 3, 4, 5, 100], False),
+        ((4, 5), [1, 2, 3, 4, 5, 100], False),
+        (45, [1, 2, 3, 100], True),
+        ("45", [1, 2, 3, 100], True),
+        ({4: "foo", 5: "bar"}, [1, 2, 3, 100], True),
+        ({"foo": 4, "bar": 5}, [1, 2, 3, 100], True),
+        (range(4, 6), [1, 2, 3, 100], True),
+        ((x for x in [4, 5]), [1, 2, 3, 100], True),
+    ])
+    def test_concat_type_handling(self, data, expected, expect_warning, caplog):
+        getter = MultiDictGetter([
+            {"a": [1, 2, 3], },
+            {"a": data},
+            {"a": [100]},
+        ])
+        assert getter.concat("a") == expected
+
+        if expect_warning:
+            assert "Skipping unexpected type in MultiDictGetter.concat" in caplog.text
+        else:
+            assert not caplog.text
+
     def test_union(self):
-        getter = MultiDictGetter([{"a": [1, 11], "b": [2, 22], "c": [33]}, {"b": [222, 2222], "c": [33, 3333]}])
-        assert getter.merge_arrays("a")==[1,11]
-        assert getter.merge_arrays("b")==[2,22,222,2222]
-        assert getter.merge_arrays("c")==[33,33,3333]
-        assert getter.merge_arrays("c", skip_duplicates=True)==[33,3333]
-        assert getter.merge_arrays("d")==[]
+        getter = MultiDictGetter([
+            {"a": [1, 11], "b": [2, 22], "c": [33]},
+            {"b": [222, 2222], "c": (33, 3333)}
+        ])
+        assert getter.union("a") == {1, 11}
+        assert getter.union("b") == {2, 22, 222, 2222}
+        assert getter.union("c") == {33, 3333}
+        assert getter.union("d") == set()
 
     def test_first(self):
         getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])

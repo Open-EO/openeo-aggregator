@@ -1,5 +1,7 @@
 import datetime
 import logging
+import types
+
 import shapely.geometry
 import time
 from typing import Callable, Iterable, Iterator, List, NamedTuple
@@ -97,18 +99,24 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
-    def merge_arrays(self, key: str,skip_duplicates=False) -> list:
+    def concat(self, key: str, skip_duplicates=False) -> list:
         """
-        This method assumes that for all dicts, dict[key] is of type iterable (list, set, ...).
-        It merges all iterables into a single list, with or without duplicates.
+        Concatenate all lists/tuples at given `key (optionally skipping duplicate items in the process)
         """
         result = []
         for items in self.get(key):
-            for item in items:
-                if skip_duplicates and item in result:
-                    continue
-                result.append(item)
+            if isinstance(items, (list, tuple)):
+                for item in items:
+                    if skip_duplicates and item in result:
+                        continue
+                    result.append(item)
+            else:
+                _log.warning(f"Skipping unexpected type in MultiDictGetter.concat: {items}")
         return result
+
+    def union(self, key:str) -> set:
+        """Like `concat` but with set-wise union (removing duplicates)."""
+        return set(self.concat(key=key, skip_duplicates=True))
 
     def simple_merge(self, included_keys=None) -> dict:
         """
@@ -134,7 +142,7 @@ class MultiDictGetter:
                     continue
                 if key in result:
                     if isinstance(item, list) or isinstance(item, set):
-                        result[key] = self.merge_arrays(key, skip_duplicates=True)
+                        result[key] = self.concat(key, skip_duplicates=True)
                     elif isinstance(item, dict):
                         result[key] = self.select(key).simple_merge()
                 else:
