@@ -111,6 +111,22 @@ class TestMultiDictGetter:
         assert list(getter.get("c")) == [333]
         assert list(getter.get("d")) == []
 
+    def test_keys(self):
+        assert MultiDictGetter([]).keys() == set()
+        assert MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}]).keys() == {"a", "b", "c"}
+        assert MultiDictGetter([{"a": 1}, {"bb": 2}, {"ccc": 222}]).keys() == {"a", "bb", "ccc"}
+
+    def test_has_key(self):
+        getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
+        assert getter.has_key("a")
+        assert getter.has_key("b")
+        assert getter.has_key("c")
+        assert not getter.has_key("d")
+
+    def test_available_keys(self):
+        getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
+        assert getter.available_keys(["a", "c", "d"]) == ["a", "c"]
+
     def test_concat(self):
         getter = MultiDictGetter([
             {"a": [1, 11], "b": [2, 22], "c": [33]},
@@ -144,16 +160,6 @@ class TestMultiDictGetter:
             assert "Skipping unexpected type in MultiDictGetter.concat" in caplog.text
         else:
             assert not caplog.text
-
-    def test_union(self):
-        getter = MultiDictGetter([
-            {"a": [1, 11], "b": [2, 22], "c": [33]},
-            {"b": [222, 2222], "c": (33, 3333)}
-        ])
-        assert getter.union("a") == {1, 11}
-        assert getter.union("b") == {2, 22, 222, 2222}
-        assert getter.union("c") == {33, 3333}
-        assert getter.union("d") == set()
 
     def test_first(self):
         getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
