@@ -1,7 +1,7 @@
 from openeo_aggregator.config import AggregatorConfig
 from openeo_driver.users.oidc import OidcProvider
 
-DEFAULT_OIDC_CLIENT_EGI = {
+_DEFAULT_OIDC_CLIENT_EGI = {
     "id": "openeo-platform-default-client",
     "grant_types": [
         "authorization_code+pkce",
@@ -14,43 +14,36 @@ DEFAULT_OIDC_CLIENT_EGI = {
         "https://editor.openeo.org",
     ]
 }
+
+_DEFAULT_EGI_SCOPES = [
+    "openid",
+    "email",
+    "eduperson_entitlement",
+    "eduperson_scoped_affiliation",
+]
+
 configured_oidc_providers = [
     OidcProvider(
         id="egi",
-        issuer="https://aai.egi.eu/auth/realms/egi/",
-        scopes=[
-            "openid", "email",
-            "eduperson_entitlement",
-            "eduperson_scoped_affiliation",
-        ],
         title="EGI Check-in",
-        default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-        default_clients=[DEFAULT_OIDC_CLIENT_EGI],
+        issuer="https://aai.egi.eu/auth/realms/egi/",
+        scopes=_DEFAULT_EGI_SCOPES,
+        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
     OidcProvider(
-        id="egi-old",
-        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
-        scopes=[
-            "openid", "email",
-            "eduperson_entitlement",
-            "eduperson_scoped_affiliation",
-        ],
+        id="egi-legacy",
         title="EGI Check-in (legacy)",
-        default_client=DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-        default_clients=[DEFAULT_OIDC_CLIENT_EGI],
+        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
+        scopes=_DEFAULT_EGI_SCOPES,
+        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
-    # OidcProvider(
-    #     id="egi-dev",
-    #     issuer="https://aai-dev.egi.eu/oidc/",
-    #     scopes=[
-    #         "openid", "email",
-    #         "eduperson_entitlement",
-    #         "eduperson_scoped_affiliation",
-    #     ],
-    #     title="EGI Check-in (dev)",
-    #     default_client=_DEFAULT_OIDC_CLIENT_EGI,  # TODO: remove this legacy experimental field
-    #     default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    # ),
+    OidcProvider(
+        id="egi-dev",
+        title="EGI Check-in (dev)",
+        issuer="https://aai-dev.egi.eu/auth/realms/egi/",
+        scopes=_DEFAULT_EGI_SCOPES,
+        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
+    ),
 ]
 
 config = AggregatorConfig(
@@ -59,9 +52,9 @@ config = AggregatorConfig(
         "vito": "https://openeo-dev.vito.be/openeo/1.0/",
         "eodc": "https://openeo-dev.eodc.eu/v1.0/",
         # internal version of https://openeo.creo.vito.be/openeo/1.0/
-        "creo": "https://openeo.creo.vgt.vito.be/openeo/1.0",
+        "creo": "https://openeo-dev.creo.vito.be/openeo/1.0",
         # Sentinel Hub OpenEO by Sinergise
-        "sentinelhub": "https://w0j9yieg9l.execute-api.eu-central-1.amazonaws.com/testing",
+        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {
         "https://aai.egi.eu/auth/realms/egi/",

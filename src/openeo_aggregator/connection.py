@@ -68,6 +68,9 @@ class BackendConnection(Connection):
 
         self.default_timeout = default_timeout
 
+    def __repr__(self):
+        return f"<{type(self).__name__} {self.id}: {self._root_url}>"
+
     def _get_auth(self) -> Union[None, OpenEoApiAuthBase]:
         return None if self._auth_locked else self._auth
 
@@ -92,8 +95,7 @@ class BackendConnection(Connection):
                     pid_map[agg_provider.id] = targets[0]
         return pid_map
 
-    @property
-    def oidc_provider_map(self) -> Dict[str, str]:
+    def get_oidc_provider_map(self) -> Dict[str, str]:
         return self._oidc_provider_map
 
     def _get_bearer(self, request: flask.Request) -> str:
@@ -106,9 +108,13 @@ class BackendConnection(Connection):
             return auth.partition("Bearer ")[2]
         elif auth.startswith("Bearer oidc/"):
             _, pid, token = auth.split("/")
-            if pid not in self._oidc_provider_map:
-                _log.warning(f"OIDC provider mapping failure: {pid} not in {self._oidc_provider_map}.")
-            backend_pid = self._oidc_provider_map.get(pid, pid)
+            try:
+                backend_pid = self._oidc_provider_map[pid]
+            except KeyError:
+                _log.error(f"Back-end {self} lacks OIDC provider support: {pid!r} not in {self._oidc_provider_map}.")
+                raise OpenEOApiException(
+                    code="OidcSupportError", message=f"Back-end {self.id!r} does not support OIDC provider {pid!r}."
+                )
             return f"oidc/{backend_pid}/{token}"
         else:
             raise AuthenticationSchemeInvalidException
@@ -288,27 +294,6 @@ class MultiBackendConnection:
             res = callback(con)
             # TODO: customizable exception handling: skip, warn, re-raise?
             yield con.id, res
-
-    def get_oidc_providers(self) -> List[OidcProvider]:
-        """
-        Determine OIDC providers to use in aggregator (based on OIDC issuers supported by all backends)
-        and set up provider id mapping in the backend connections
-
-        :param configured_providers: OIDC providers dedicated/configured for the aggregator
-        :return: list of actual OIDC providers to use (configured for aggregator and supported by all backends)
-        """
-        # Get intersection of aggregator OIDC provider ids
-        agg_pids_per_backend = [set(c.oidc_provider_map.keys()) for c in self.get_connections()]
-        intersection: Set[str] = functools.reduce((lambda x, y: x.intersection(y)), agg_pids_per_backend)
-        _log.debug(f"OIDC provider intersection: {intersection}")
-        if len(intersection) == 0:
-            _log.error(f"Emtpy OIDC provider intersection. Issuers per backend: {agg_pids_per_backend}")
-
-        # Take configured providers for common issuers.
-        agg_providers = [p for p in self._configured_oidc_providers if p.id in intersection]
-        _log.info(f"Actual aggregator OIDC providers: {agg_providers}")
-
-        return agg_providers
 
 
 def streaming_flask_response(

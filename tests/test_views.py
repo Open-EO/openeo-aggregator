@@ -6,6 +6,7 @@ from typing import Tuple, List
 import pytest
 import requests
 
+from openeo.rest.connection import url_join
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
@@ -184,27 +185,10 @@ class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):
         res = api100.get("/credentials/oidc").assert_status_code(200).json
         assert res == {"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]}
-        ]}
-
-    def test_credentials_oidc_intersection(self, requests_mock, config, backend1, backend2):
-        # When mocking `/credentials/oidc` we have to do that before build flask app
-        # because it's requested during app building (through `HttpAuthHandler`),
-        # so unlike other tests we can not use fixtures that build the app/client/api automatically
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "x", "issuer": "https://x.test", "title": "X"},
-            {"id": "y", "issuer": "https://y.test", "title": "YY"},
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "y", "issuer": "https://y.test", "title": "YY"},
-            {"id": "z", "issuer": "https://z.test", "title": "ZZZ"},
-        ]})
-        # Manually creating app and api100 (which we do with fixtures elsewhere)
-        api100 = get_api100(get_flask_app(config))
-
-        res = api100.get("/credentials/oidc").assert_status_code(200).json
-        assert res == {"providers": [
-            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]}
+            {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]},
+            {"id": "x-agg", "issuer": "https://x.test", "title": "X (agg)", "scopes": ["openid"]},
+            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]},
+            {"id": "z-agg", "issuer": "https://z.test", "title": "Z (agg)", "scopes": ["openid"]},
         ]}
 
     def test_me_unauthorized(self, api100):
@@ -336,6 +320,52 @@ class TestAuthEntitlementCheck:
         assert data["user_id"] == "john"
         assert data["info"]["roles"] == expected_roles
         assert data["default_plan"] == expected_plan
+
+    @pytest.mark.parametrize(["whitelist", "main_test_oidc_issuer", "success"], [
+        (["https://egi.test"], "https://egi.test", True),
+        (["https://egi.test"], "https://egi.test/", True),
+        (["https://egi.test/"], "https://egi.test", True),
+        (["https://egi.test/"], "https://egi.test/", True),
+        (["https://egi.test/oidc"], "https://egi.test/oidc/", True),
+        (["https://egi.test/oidc/"], "https://egi.test/oidc", True),
+        (["https://egi.test/foo"], "https://egi.test/bar", False),
+    ])
+    def test_issuer_url_normalization(
+            self, config, requests_mock, backend1, backend2, whitelist,
+            main_test_oidc_issuer, success, caplog,
+    ):
+        config.auth_entitlement_check = {"oidc_issuer_whitelist": whitelist}
+
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
+        ]})
+        oidc_url_ui = url_join(main_test_oidc_issuer, "/userinfo")
+        oidc_url_conf = url_join(main_test_oidc_issuer, "/.well-known/openid-configuration")
+        requests_mock.get(oidc_url_conf, json={"userinfo_endpoint": oidc_url_ui})
+        requests_mock.get(
+            oidc_url_ui,
+            json=self._get_userifo_handler(eduperson_entitlement=[
+                "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+            ])
+        )
+        api100 = get_api100(get_flask_app(config))
+        api100.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
+
+        if success:
+            res = api100.get("/me").assert_status_code(200)
+            data = res.json
+            assert data["user_id"] == "john"
+            assert data["info"]["roles"] == ["EarlyAdopter"]
+        else:
+            res = api100.get("/me")
+            res.assert_error(403, "PermissionsInsufficient")
+            assert re.search(
+                "user_access_validation failure.*oidc_issuer.*https://egi.test/bar.*issuer_whitelist.*https://egi.test/foo",
+                caplog.text
+            )
 
 
 class TestProcessing:
@@ -640,10 +670,43 @@ class TestProcessing:
         pg = {
             "lr": {"process_id": "load_result", "arguments": {"id": job_id}},
             "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "merge": {"process_id": "merge_cubes", "arguments": {
-                "cube1": {"from_node": "lr"},
-                "cube2": {"from_node": "lc"}
-            }}
+        }
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        request = {"process": {"process_graph": pg}}
+        if expected_success:
+            api100.post("/result", json=request).assert_status_code(200)
+            assert (b1_mock.call_count, b2_mock.call_count) == {1: (1, 0), 2: (0, 1)}[s2_backend]
+        else:
+            api100.post("/result", json=request).assert_error(400, "BackendLookupFailure")
+            assert (b1_mock.call_count, b2_mock.call_count) == (0, 0)
+
+    @pytest.mark.parametrize(["job_id", "s2_backend", "expected_success"], [
+        ("b1-b6tch-j08", 1, True),
+        ("b2-b6tch-j08", 1, False),
+        ("b1-b6tch-j08", 2, False),
+        ("b2-b6tch-j08", 2, True),
+        ("https://example.com/ml_model_metadata.json", 1, True),  # In this case it picks the first backend.
+        ("https://example.com/ml_model_metadata.json", 2, True),
+    ])
+    def test_load_result_job_id_parsing_with_load_ml_model(
+            self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
+    ):
+        """Issue #70: random forest: providing training job with aggregator job id fails"""
+
+        backend_root = {1: backend1, 2: backend2}[s2_backend]
+        requests_mock.get(backend_root + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_result(request: requests.Request, context):
+            pg = request.json()["process"]["process_graph"]
+            assert pg["lmm"]["arguments"]["id"] in ["b6tch-j08", "https://example.com/ml_model_metadata.json"]
+            context.headers["Content-Type"] = "application/json"
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+
+        pg = {
+            "lmm": {"process_id": "load_ml_model", "arguments": {"id": job_id}},
+            "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}},
         }
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         request = {"process": {"process_graph": pg}}
@@ -1142,9 +1205,6 @@ class TestResilience:
         requests_mock.get(backend1 + "/health", text="OK")
         backend2, config, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
-
-        assert "Failed to create backend 'b2' connection" in caplog.text
-        assert b2_root.call_count == 1
 
         api100.get("/").assert_status_code(200)
 

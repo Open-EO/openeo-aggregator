@@ -13,7 +13,7 @@ from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
 from openeo_aggregator.connection import BackendConnection, MultiBackendConnection, LockedAuthException, \
     InvalidatedConnection
 from openeo_driver.backend import OidcProvider
-from openeo_driver.errors import AuthenticationRequiredException
+from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
 
 
 class TestBackendConnection:
@@ -246,12 +246,9 @@ class TestMultiBackendConnection:
                 OidcProvider(id=pid, issuer=issuer, title=title),
                 OidcProvider(id="egi-dev", issuer="https://egi-dev.test", title="EGI dev"),
             ])
-        assert multi_backend_connection.get_oidc_providers() == [
-            OidcProvider(id=pid, issuer=issuer, title=title, scopes=["openid"]),
-        ]
 
         for con in multi_backend_connection:
-            assert con._oidc_provider_map == {pid: "egi"}
+            assert con.get_oidc_provider_map() == {pid: "egi"}
 
     @pytest.mark.parametrize(["issuer_y1", "issuer_y2"], [
         ("https://y.test", "https://y.test"),
@@ -278,12 +275,31 @@ class TestMultiBackendConnection:
                 OidcProvider("za", "https://z.test", "A-Z"),
             ])
 
-        assert multi_backend_connection.get_oidc_providers() == [
-            OidcProvider(id="ya", issuer="https://y.test", title="A-Y", scopes=["openid"]),
-        ]
-        assert [con._oidc_provider_map for con in multi_backend_connection] == [
+        assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
             {"xa": "x1", "ya": "y1"},
             {"ya": "y2", "za": "z2"},
+        ]
+
+    def test_build_oidc_handling_intersection_empty(
+            self, config, requests_mock, backend1, backend2
+    ):
+        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
+            {"id": "x1", "issuer": "https://x.test", "title": "X1"},
+        ]})
+        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
+            {"id": "y2", "issuer": "https://y.test", "title": "YY2"},
+        ]})
+
+        multi_backend_connection = MultiBackendConnection(
+            backends=config.aggregator_backends,
+            configured_oidc_providers=[
+                OidcProvider("ya", "https://y.test", "A-Y"),
+                OidcProvider("za", "https://z.test", "A-Z"),
+            ])
+
+        assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
+            {},
+            {"ya": "y2"},
         ]
 
     def test_build_oidc_handling_order(self, config, requests_mock, backend1, backend2):
@@ -312,11 +328,7 @@ class TestMultiBackendConnection:
                 OidcProvider("a-c", "https://c.test/", "A-C"),
             ])
 
-        providers = multi_backend_connection.get_oidc_providers()
-        assert [p.issuer for p in providers] == [
-            "https://b.test", "https://e.test/", "https://a.test", "https://d.test", "https://c.test/"
-        ]
-        assert [con._oidc_provider_map for con in multi_backend_connection] == [
+        assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
             {'a-a': 'a1', 'a-b': 'b1', 'a-c': 'c1', 'a-d': 'd1', 'a-e': 'e1'},
             {'a-a': 'a2', 'a-b': 'b2', 'a-c': 'c2', 'a-d': 'd2', 'a-e': 'e2'},
         ]
@@ -350,11 +362,6 @@ class TestMultiBackendConnection:
                 OidcProvider("ax", "https://x.test", "A-X"),
                 OidcProvider("ay", "https://y.test", "A-Y"),
             ])
-
-        assert multi_backend_connection.get_oidc_providers() == [
-            OidcProvider(id="ax", issuer="https://x.test", title="A-X", scopes=["openid"]),
-            OidcProvider(id="ay", issuer="https://y.test", title="A-Y", scopes=["openid"]),
-        ]
 
         def get_me(request: requests.Request, context):
             auth = request.headers.get("Authorization")
@@ -405,9 +412,7 @@ class TestMultiBackendConnection:
             configured_oidc_providers=configured_oidc_providers
         )
 
-        agg_providers = multi_backend_connection.get_oidc_providers()
-        assert agg_providers == [OidcProvider(id="ax", issuer="https://x.test", title="A-X", scopes=["openid"])]
-        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING)
         assert warnings == ""
 
         # Fake aggregator request containing bearer token for aggregator providers
@@ -420,16 +425,16 @@ class TestMultiBackendConnection:
         requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
             {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
         ]})
-        agg_providers = multi_backend_connection.get_oidc_providers()
-        assert agg_providers == [OidcProvider(id="ay", issuer="https://y.test", title="A-Y", scopes=["openid"])]
 
         # Try old auth headers
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
-        with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request) as con:
-            assert con.get("/me").json() == {"user_id": "Bearer oidc/ax/yadayadayada"}
 
-        warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
-        assert "OIDC provider mapping failure" in warnings
+        with pytest.raises(OpenEOApiException, match="Back-end 'b1' does not support OIDC provider 'ax'"):
+            with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request) as con:
+                pass
+
+        errors = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR)
+        assert "lacks OIDC provider support: 'ax' not in {'ay': 'y1'}." in errors
 
         # New headers
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ay/yadayadayada"})
