@@ -158,7 +158,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             "title": getter.first("title", default=cid),
             "description": getter.first("description", default=cid),
             "type": getter.first("type", default="Collection"),
-            "links": [l for l in list(getter.concat("links")) if l.get("rel") not in ("self", "parent", "root")],
+            "links": [
+                k for k in getter.concat("links")
+                # TODO: report invalid links (e.g. string instead of dict)
+                if isinstance(k, dict) and k.get("rel") not in ("self", "parent", "root")
+            ],
         }
 
         # Generic field merging
