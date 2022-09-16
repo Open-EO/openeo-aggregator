@@ -5,7 +5,7 @@ import types
 
 import shapely.geometry
 import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple
+from typing import Callable, Iterable, Iterator, List, NamedTuple, Set
 
 from openeo.util import TimingLogger, rfc3339
 
@@ -100,7 +100,7 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
-    def keys(self) -> set[str]:
+    def keys(self) -> Set[str]:
         return functools.reduce(lambda a, b: a.union(b), (d.keys() for d in self.dictionaries), set())
 
     def has_key(self, key: str) -> bool:
