@@ -33,7 +33,7 @@ class TestTileGridSplitter:
     @pytest.fixture
     def aggregator_processing(self, multi_backend_connection, requests_mock, backend1) -> AggregatorProcessing:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2"})
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
         return AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
 

@@ -1,8 +1,11 @@
 import datetime
+import functools
 import logging
+import types
+
 import shapely.geometry
 import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple
+from typing import Callable, Iterable, Iterator, List, NamedTuple, Set
 
 from openeo.util import TimingLogger, rfc3339
 
@@ -97,17 +100,28 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
-    def union(self, key: str, skip_duplicates=False) -> list:
+    def keys(self) -> Set[str]:
+        return functools.reduce(lambda a, b: a.union(b), (d.keys() for d in self.dictionaries), set())
+
+    def has_key(self, key: str) -> bool:
+        return any(key in d for d in self.dictionaries)
+
+    def available_keys(self, keys: List[str]) -> List[str]:
+        return [k for k in keys if self.has_key(k)]
+
+    def concat(self, key: str, skip_duplicates=False) -> list:
         """
-        Simple list based union of the items
-        (each of which must be an iterable itself, such as list or set) at given key.
+        Concatenate all lists/tuples at given `key (optionally skipping duplicate items in the process)
         """
         result = []
         for items in self.get(key):
-            for item in items:
-                if skip_duplicates and item in result:
-                    continue
-                result.append(item)
+            if isinstance(items, (list, tuple)):
+                for item in items:
+                    if skip_duplicates and item in result:
+                        continue
+                    result.append(item)
+            else:
+                _log.warning(f"Skipping unexpected type in MultiDictGetter.concat: {items}")
         return result
 
     def first(self, key, default=None):

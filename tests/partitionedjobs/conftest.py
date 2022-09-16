@@ -80,7 +80,7 @@ class DummyBackend:
     def setup_basic_requests_mocks(self):
         # Basic collections
         self.requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
-        self.requests_mock.get(self.backend_url + "/collections/S2", json={})
+        self.requests_mock.get(self.backend_url + "/collections/S2", json={"id": "S2"})
         # Batch job handling: list jobs
         self.requests_mock.get(self.backend_url + "/jobs", json=self._handle_get_jobs)
         # Batch job handling: create job
