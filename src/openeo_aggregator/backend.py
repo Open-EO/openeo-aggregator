@@ -121,18 +121,21 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         if "links" not in metadata:
             metadata["links"] = []
         metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
-        metadata["links"].append({
-            "href": url_for("openeo.collections", _external=True),
-            "rel": "root"
-        })
-        metadata["links"].append({
-            "href": url_for("openeo.collections", _external=True),
-            "rel": "parent"
-        })
-        metadata["links"].append({
-            "href": url_for("openeo.collection_by_id", collection_id=cid, _external=True),
-            "rel": "self"
-        })
+        if flask.has_app_context():
+            metadata["links"].append({
+                "href": url_for("openeo.collections", _external=True),
+                "rel": "root"
+            })
+            metadata["links"].append({
+                "href": url_for("openeo.collections", _external=True),
+                "rel": "parent"
+            })
+            metadata["links"].append({
+                "href": url_for("openeo.collection_by_id", collection_id=cid, _external=True),
+                "rel": "self"
+            })
+        else:
+            _log.warning("Unable to provide root/parent/self links in collection metadata outside flask app context")
         return metadata
 
     def _merge_collection_metadata(self, by_backend: Dict[str, dict]) -> dict:
@@ -153,7 +156,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             "title": getter.first("title", default=cid),
             "description": getter.first("description", default=cid),
             "type": getter.first("type", default="Collection"),
-            "links": [l for l in list(getter.merge_arrays("links")) if l.get("rel") not in ("self","parent","root")],
+            "links": [l for l in list(getter.merge_arrays("links")) if l.get("rel") not in ("self", "parent", "root")],
             "summaries": getter.select("summaries").simple_merge()
         }
         # Note: CRS is required by OGC API: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
