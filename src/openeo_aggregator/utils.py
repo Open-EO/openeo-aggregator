@@ -1,4 +1,5 @@
 import datetime
+import functools
 import logging
 import types
 
@@ -99,6 +100,15 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
+    def keys(self) -> set[str]:
+        return functools.reduce(lambda a, b: a.union(b), (d.keys() for d in self.dictionaries), set())
+
+    def has_key(self, key: str) -> bool:
+        return any(key in d for d in self.dictionaries)
+
+    def available_keys(self, keys: List[str]) -> List[str]:
+        return [k for k in keys if self.has_key(k)]
+
     def concat(self, key: str, skip_duplicates=False) -> list:
         """
         Concatenate all lists/tuples at given `key (optionally skipping duplicate items in the process)
@@ -112,41 +122,6 @@ class MultiDictGetter:
                     result.append(item)
             else:
                 _log.warning(f"Skipping unexpected type in MultiDictGetter.concat: {items}")
-        return result
-
-    def union(self, key:str) -> set:
-        """Like `concat` but with set-wise union (removing duplicates)."""
-        return set(self.concat(key=key, skip_duplicates=True))
-
-    def simple_merge(self, included_keys=None) -> dict:
-        """
-        All dictionaries are merged following simple rules:
-        For list or sets: all elements are merged into a single list, without duplicates.
-        For dictionaries: all keys are added to a single dict, duplicate keys are merged recursively.
-        For all other types: the first value is returned.
-
-        It assumes that all duplicate keys in a dictionary have items of the same type.
-
-        Args:
-            included_keys: If given, only these top level keys are merged into the final dict.
-        """
-        if len(self.dictionaries) == 0:
-            return {}
-        if len(self.dictionaries) == 1:
-            return self.dictionaries[0]
-
-        result = {}
-        for dictionary in self.dictionaries:
-            for key, item in dictionary.items():
-                if included_keys is not None and key not in included_keys:
-                    continue
-                if key in result:
-                    if isinstance(item, list) or isinstance(item, set):
-                        result[key] = self.concat(key, skip_duplicates=True)
-                    elif isinstance(item, dict):
-                        result[key] = self.select(key).simple_merge()
-                else:
-                    result[key] = item
         return result
 
     def first(self, key, default=None):

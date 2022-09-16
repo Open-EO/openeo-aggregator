@@ -188,7 +188,7 @@ class TestAggregatorCollectionCatalog:
             },
             "cube:dimensions": {
                 "bands": {"type": "bands", "values": ["B01", "B02"]},
-                "x": {"type": "spatial", "axis": "x"}
+                "x": {"type": "spatial", "axis": "x", "extent": [3, 4]},
             },
             "links": [
                 {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
@@ -230,8 +230,8 @@ class TestAggregatorCollectionCatalog:
                                               ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}},
                 "cube:dimensions": {
                     "bands": {"type": "bands", "values": ["B01", "B02"]},
-                    "x": {"type": "spatial", "extent": [None, None], "axis": "x"},
-                    "y": {"type": "spatial", "extent": [None, None], "axis": "y"}
+                    "x": {"type": "spatial", "extent": [3, 4], "axis": "x"},
+                    "y": {"type": "spatial", "axis": "y"}
                 },
                 "license": "various",
                 "providers": [{"name": "ESA", "roles": ["producer"]}, {"name": "ESA", "roles": ["licensor"]}],
@@ -367,34 +367,43 @@ class TestAggregatorCollectionCatalog:
         }
 
     def test_get_collection_metadata_merging_summaries(
-        self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
+            self, multi_backend_connection, backend1, backend2, requests_mock, flask_app
     ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={
-            "id": "S2", "summaries": {
-                "constellation": ["sentinel-1"], "instruments": ["c-sar"], "platform": ["sentinel-1a", "sentinel-1b"],
-                "raster:bands": [{
-                    "description": "Single co-polarization, vertical transmit/vertical receive", "name": "VV",
-                    "openeo:gsd": {
-                        "unit": "°", "value": [[0.00009259259, 0.00009259259], [0.00023148147, 0.00023148147],
-                                               [0.00037037037, 0.00037037037]]
-                    }
-                }],
-                "sar:center_frequency": [5.405], "sar:frequency_band": ["C"],
+            "id": "S2",
+            "summaries": {
+                "constellation": ["sentinel-1"],
+                "instruments": ["c-sar"],
+                "platform": ["sentinel-1a", "sentinel-1b"],
+                "sar:center_frequency": [5.405],
+                "sar:frequency_band": ["C"],
                 "sar:instrument_mode": ["SM", "IW", "EW", "WV"],
-                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH"], "sar:product_type": ["GRD"],
-                "sar:resolution": [10, 25, 40], "sat:orbit_state": ["ascending", "descending"]
+                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH"],
+                "sar:product_type": ["GRD"],
+                "sar:resolution": [10, 25, 40],
+                "sat:orbit_state": ["ascending", "descending"],
             },
         })
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2", "summaries": {
-                "constellation": ["sentinel-1"], "instruments": ["c-sar"], "platform": ["sentinel-1"],
-                "sar:center_frequency": [5.405], "sar:frequency_band": ["C"], "sar:instrument_mode": ["IW"],
-                "sar:looks_azimuth": [1], "sar:looks_equivalent_number": [4.4], "sar:looks_range": [5],
-                "sar:pixel_spacing_azimuth": [10], "sar:pixel_spacing_range": [10],
-                "sar:polarizations": ["HH", "VV", "VV+VH", "HH+HV"], "sar:product_type": ["GRD"],
-                "sar:resolution_azimuth": [22], "sar:resolution_range": [20]
+            "id": "S2",
+            "summaries": {
+                "constellation": ["sentinel-1"],
+                "instruments": ["c-sar"],
+                "platform": ["sentinel-1"],
+                "sar:center_frequency": [5.405],
+                "sar:frequency_band": ["C"],
+                "sar:instrument_mode": ["IW"],
+                "sar:looks_azimuth": [1],
+                "sar:looks_equivalent_number": [4.4],
+                "sar:looks_range": [5],
+                "sar:pixel_spacing_azimuth": [10],
+                "sar:pixel_spacing_range": [10],
+                "sar:polarizations": ["HH", "VV", "VV+VH", "HH+HV"],
+                "sar:product_type": ["GRD"],
+                "sar:resolution_azimuth": [22],
+                "sar:resolution_range": [20],
             }
         })
         catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
@@ -403,28 +412,35 @@ class TestAggregatorCollectionCatalog:
             'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
             'license': 'proprietary',
             'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
-            'links': [{'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                      {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                      {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}],
+            'links': [
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
+                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
+            ],
             'summaries': {
-                'provider:backend': ['b1', 'b2'], "constellation": ["sentinel-1"], "instruments": ["c-sar"],
-                "platform": ["sentinel-1a", "sentinel-1b", "sentinel-1"], "raster:bands": [{
-                    "description": "Single co-polarization, vertical transmit/vertical receive", "name": "VV",
-                    "openeo:gsd": {
-                        "unit": "°", "value": [[0.00009259259, 0.00009259259], [0.00023148147, 0.00023148147],
-                                               [0.00037037037, 0.00037037037]]
-                    }
-                }], "sar:center_frequency": [5.405], "sar:frequency_band": ["C"],
+                'provider:backend': ['b1', 'b2'],
+                "constellation": ["sentinel-1"],
+                "instruments": ["c-sar"],
+                "platform": ["sentinel-1a", "sentinel-1b", "sentinel-1"],
+                "sar:center_frequency": [5.405],
+                "sar:frequency_band": ["C"],
                 "sar:instrument_mode": ["SM", "IW", "EW", "WV"],
-                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH", "VV+VH", "HH+HV"], "sar:product_type": ["GRD"],
-                "sar:resolution": [10, 25, 40], "sat:orbit_state": ["ascending", "descending"],
-                'sar:looks_azimuth': [1], 'sar:looks_equivalent_number': [4.4], 'sar:looks_range': [5],
-                'sar:pixel_spacing_azimuth': [10], 'sar:pixel_spacing_range': [10], 'sar:resolution_azimuth': [22],
+                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH", "VV+VH", "HH+HV"],
+                "sar:product_type": ["GRD"],
+                "sar:resolution": [10, 25, 40],
+                "sat:orbit_state": ["ascending", "descending"],
+                'sar:looks_azimuth': [1],
+                'sar:looks_equivalent_number': [4.4],
+                'sar:looks_range': [5],
+                'sar:pixel_spacing_azimuth': [10],
+                'sar:pixel_spacing_range': [10],
+                'sar:resolution_azimuth': [22],
                 "sar:resolution_range": [20]
             }
         }
 
-    def test_get_collection_metadata_merging_extent(self, multi_backend_connection, backend1, backend2, requests_mock, flask_app):
+    def test_get_collection_metadata_merging_extent(self, multi_backend_connection, backend1, backend2, requests_mock,
+                                                    flask_app):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={
             "id": "S2", "extent": {
@@ -518,7 +534,7 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(backend2 + "/collections/S2", json={
             "id": "S2", "cube:dimensions": {
                 "bands": {
-                    "type": "bands", "values": ["HH", "VV", "HH+HV", "VV+VH"]
+                    "type": "bands", "values": ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"]
                 }, "t": {
                     "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"], "step": 1, "type": "temporal"
                 }, "x": {
@@ -538,7 +554,7 @@ class TestAggregatorCollectionCatalog:
             'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
             "cube:dimensions": {
                 "bands": {
-                    "type": "bands", "values": ["VV", "VH", "HV", "HH", "HH+HV", "VV+VH"],
+                    "type": "bands", "values": ["VV", "VH"],
                 },
                 "t": {
                     "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
