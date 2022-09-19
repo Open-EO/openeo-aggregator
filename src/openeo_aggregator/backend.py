@@ -409,9 +409,8 @@ class AggregatorProcessing(Processing):
 
     def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
         if api_version != self.backends.api_version:
-            raise OpenEOApiException(
-                message=f"Requested API version {api_version} != expected {self.backends.api_version}"
-            )
+            # TODO: only check for mismatch in major version?
+            _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
         return self._cache.get_or_call(key=str(api_version), callback=self._get_process_registry, log_on_miss=True)
 
     def _get_process_registry(self) -> ProcessRegistry:
