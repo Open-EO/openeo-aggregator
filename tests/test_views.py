@@ -10,6 +10,7 @@ from openeo.rest.connection import url_join
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
+from openeo_aggregator.testing import clock_mock
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
     ProcessGraphInvalidException
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
@@ -814,20 +815,19 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Wait for connections cache to expire
-        MultiBackendConnection._clock = itertools.count(MultiBackendConnection._clock() + 1000).__next__
+        with clock_mock(offset=1000):
+            res = api100.get("/jobs").assert_status_code(200).json
+            assert res == {
+                "jobs": [
+                    {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ],
+                "links": [],
+                "federation:missing": ["b2"],
+            }
 
-        res = api100.get("/jobs").assert_status_code(200).json
-        assert res == {
-            "jobs": [
-                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-            ],
-            "links": [],
-            "federation:missing": ["b2"],
-        }
-
-        warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
-        assert "Failed to create backend 'b2' connection" in warnings
+            warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
+            assert "Failed to create backend 'b2' connection" in warnings
 
     def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -1217,9 +1217,6 @@ class TestResilience:
         }
 
     def test_startup_during_backend_downtime_and_recover(self, backend1, broken_backend2, requests_mock):
-        # Set up fake clock
-        MultiBackendConnection._clock = itertools.count(1).__next__
-
         # Initial backend setup with broken backend2
         requests_mock.get(backend1 + "/health", text="OK")
         backend2, config, b2_root = broken_backend2
@@ -1240,17 +1237,14 @@ class TestResilience:
         }
 
         # Wait a bit so that cache is flushed
-        MultiBackendConnection._clock = itertools.count(1000).__next__
-        assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
-            "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
-            "b2": {"status_code": 200, "text": "ok again", "response_time": pytest.approx(0.1, abs=0.1)},
-        }
+        with clock_mock(offset=1000):
+            assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
+                "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
+                "b2": {"status_code": 200, "text": "ok again", "response_time": pytest.approx(0.1, abs=0.1)},
+            }
 
     @pytest.mark.parametrize("b2_oidc_provider_id", ["egi", "aho"])
     def test_oidc_mapping_after_recover(self, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
-        # Set up fake clock
-        MultiBackendConnection._clock = itertools.count(1).__next__
-
         # Initial backend setup with broken backend2
         backend2, config, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
@@ -1297,9 +1291,9 @@ class TestResilience:
         ]
 
         # Skip time so that connection cache is cleared
-        MultiBackendConnection._clock = itertools.count(1000).__next__
-        jobs = api100.get("/jobs").assert_status_code(200).json
-        assert jobs["jobs"] == [
-            {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"},
-            {"id": "b2-j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"},
-        ]
+        with clock_mock(offset=1000):
+            jobs = api100.get("/jobs").assert_status_code(200).json
+            assert jobs["jobs"] == [
+                {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"},
+                {"id": "b2-j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"},
+            ]

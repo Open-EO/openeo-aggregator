@@ -118,9 +118,24 @@ def approx_str_suffix(suffix: str) -> ApproxStr:
     return ApproxStr(suffix=suffix)
 
 
-def clock_mock(start: Union[int, float, str, datetime.datetime] = 1500000000, step: float = 0):
-    """Mock the `time()` calls in `Clock` with a given start date/time and increment."""
-    if isinstance(start, str):
+def clock_mock(
+        start: Union[None, int, float, str, datetime.datetime] = None,
+        step: float = 0,
+        offset: Optional[float] = None,
+):
+    """
+    Mock the `time()` calls in `Clock` with a given start date/time and increment.
+
+    :param start: change "now" to this value (given as unix epoch timestamp, or date)
+    :param step: increment time with this amount each call
+    :param offset: shift time forward (or backward) with this amount of seconds
+    """
+    if start is None:
+        if offset:
+            start = Clock.time() + offset
+        else:
+            start = 1500000000
+    elif isinstance(start, str):
         start = rfc3339.parse_date_or_datetime(start)
     if isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
         start = datetime.datetime.combine(start, datetime.time())

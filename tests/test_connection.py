@@ -1,4 +1,4 @@
-import itertools
+import logging
 import logging
 import types
 
@@ -12,6 +12,7 @@ from openeo.rest.auth.auth import BearerAuth
 from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
 from openeo_aggregator.connection import BackendConnection, MultiBackendConnection, LockedAuthException, \
     InvalidatedConnection
+from openeo_aggregator.testing import clock_mock
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
 
@@ -232,8 +233,19 @@ class TestMultiBackendConnection:
             "b2": {"orig_url": "https://b2.test/v1", "root_url": "https://b2.test/v1"},
         }
 
-    def test_api_version(self, multi_backend_connection):
+    def test_api_version(self, multi_backend_connection, requests_mock, backend1):
+        m = requests_mock.get(backend1 + "/", json={"api_version": "1.0.0"})
+        assert m.call_count == 0
         assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+        assert m.call_count == 1
+        assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+        assert m.call_count == 1
+        # There is an additional caching layer (`openeo.Connection._capabilities_cache`)
+        # to invalidate, which we do now through `multi_backend_connection._CONNECTIONS_CACHING_TTL`
+        # TODO: is there a better way?
+        with clock_mock(offset=multi_backend_connection._CONNECTIONS_CACHING_TTL + 1):
+            assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
+            assert m.call_count == 2
 
     @pytest.mark.parametrize(["pid", "issuer", "title"], [
         ("egi", "https://egi.test", "EGI"),
@@ -387,9 +399,6 @@ class TestMultiBackendConnection:
             assert con3.get("/me").json() == {"user_id": "Bearer oidc/x3/yadayadayada"}
 
     def test_oidc_provider_mapping_changes(self, requests_mock, caplog):
-        # Set up fake clock
-        MultiBackendConnection._clock = itertools.count(1).__next__
-
         domain1 = "https://b1.test/v1"
         requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})
         requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
@@ -421,30 +430,24 @@ class TestMultiBackendConnection:
             assert con.get("/me").json() == {"user_id": "Bearer oidc/x1/yadayadayada"}
 
         # Change backend's oidc config, wait for connections cache to expire
-        MultiBackendConnection._clock = itertools.count(1000).__next__
-        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
-            {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
-        ]})
+        with clock_mock(offset=1000):
+            requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
+                {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
+            ]})
+            # Try old auth headers
+            request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
+            with pytest.raises(OpenEOApiException, match="Back-end 'b1' does not support OIDC provider 'ax'"):
+                with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request):
+                    pass
+                errors = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR)
+                assert "lacks OIDC provider support: 'ax' not in {'ay': 'y1'}." in errors
 
-        # Try old auth headers
-        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
-
-        with pytest.raises(OpenEOApiException, match="Back-end 'b1' does not support OIDC provider 'ax'"):
+            # New headers
+            request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ay/yadayadayada"})
             with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request) as con:
-                pass
-
-        errors = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR)
-        assert "lacks OIDC provider support: 'ax' not in {'ay': 'y1'}." in errors
-
-        # New headers
-        request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ay/yadayadayada"})
-        with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request) as con:
-            assert con.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}
+                assert con.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}
 
     def test_connection_invalidate(self, backend1):
-        # Set up fake clock
-        MultiBackendConnection._clock = itertools.count(1).__next__
-
         multi_backend_connection = MultiBackendConnection(
             backends={"b1": backend1},
             configured_oidc_providers=[]
@@ -454,17 +457,14 @@ class TestMultiBackendConnection:
         assert con1.get("/").json() == {"api_version": "1.0.0"}
 
         # Wait for connections cache to expire
-        MultiBackendConnection._clock = itertools.count(1000).__next__
-        con2 = multi_backend_connection.get_connection("b1")
+        with clock_mock(offset=1000):
+            con2 = multi_backend_connection.get_connection("b1")
 
-        with pytest.raises(InvalidatedConnection):
-            con1.get("/")
-        assert con2.get("/").json() == {"api_version": "1.0.0"}
+            with pytest.raises(InvalidatedConnection):
+                con1.get("/")
+            assert con2.get("/").json() == {"api_version": "1.0.0"}
 
     def test_get_connections(self, requests_mock, backend1, backend2):
-        # Set up fake clock
-        MultiBackendConnection._clock = itertools.count(1).__next__
-
         multi_backend_connection = MultiBackendConnection(
             backends={"b1": backend1, "b2": backend2},
             configured_oidc_providers=[]
@@ -474,8 +474,8 @@ class TestMultiBackendConnection:
         assert multi_backend_connection.get_disabled_connection_ids() == set()
 
         # Wait for connections cache to expire
-        MultiBackendConnection._clock = itertools.count(1000).__next__
-        requests_mock.get(backend1 + "/", status_code=500, json={"error": "nope"})
+        with clock_mock(offset=1000):
+            requests_mock.get(backend1 + "/", status_code=500, json={"error": "nope"})
 
-        assert set(b.id for b in multi_backend_connection.get_connections()) == {"b2"}
-        assert multi_backend_connection.get_disabled_connection_ids() == {"b1"}
+            assert set(b.id for b in multi_backend_connection.get_connections()) == {"b2"}
+            assert multi_backend_connection.get_disabled_connection_ids() == {"b1"}

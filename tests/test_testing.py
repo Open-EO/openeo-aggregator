@@ -43,6 +43,14 @@ def test_clock_mock_step(step):
         assert Clock.time() == 1000 + 2 * step
 
 
+def test_clock_mock_offset():
+    with clock_mock(start=10000):
+        assert Clock.time() == 10000
+        with clock_mock(offset=11):
+            assert Clock.time() == 10011
+        assert Clock.time() == 10000
+
+
 def test_approx_str_prefix():
     assert "foobar" == approx_str_prefix("foo")
     assert "foobar" != approx_str_prefix("bar")

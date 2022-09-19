@@ -46,6 +46,10 @@ class AggregatorConfig(dict):
     partitioned_job_tracking = dict_item(default=None)
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
+    # See `memoizer_from_config` for details.
+    memoizer = dict_item(default={"type": "dict"})
+
+
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
         """Load config from Python file."""

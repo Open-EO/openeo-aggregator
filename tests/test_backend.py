@@ -1,13 +1,12 @@
-import itertools
-import time
-
 import pytest
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
     AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping
-from openeo_aggregator.connection import MultiBackendConnection
+from openeo_aggregator.caching import DictMemoizer
+from openeo_aggregator.testing import clock_mock
 from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException
 from openeo_driver.users.oidc import OidcProvider
+from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 
 class TestAggregatorBackendImplementation:
@@ -33,7 +32,14 @@ class TestAggregatorBackendImplementation:
         file_formats = implementation.file_formats()
         assert file_formats == just_geotiff
 
-    def test_file_formats_caching(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    @pytest.mark.parametrize("memoizer_config", [
+        DEFAULT_MEMOIZER_CONFIG,
+        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
+    ])
+    def test_file_formats_caching(
+            self,
+            multi_backend_connection, config, backend1, backend2, requests_mock, memoizer_config,
+    ):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
             "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
@@ -48,10 +54,16 @@ class TestAggregatorBackendImplementation:
         _ = implementation.file_formats()
         assert mock1.call_count == 1
         assert mock2.call_count == 1
-        implementation._cache.flush_all()
-        _ = implementation.file_formats()
+        with clock_mock(offset=100):
+            _ = implementation.file_formats()
         assert mock1.call_count == 2
         assert mock2.call_count == 2
+
+        assert isinstance(implementation._memoizer, DictMemoizer)
+        cache_dump = implementation._memoizer.dump(values_only=True)
+        assert len(cache_dump) == 1
+        expected_type = {"dict": dict, "jsondict": bytes}[memoizer_config["type"]]
+        assert all(isinstance(x, expected_type) for x in cache_dump)
 
     def test_file_formats_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/file_formats", json={

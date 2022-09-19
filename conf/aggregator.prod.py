@@ -39,6 +39,8 @@ configured_oidc_providers = [
     ),
 ]
 
+ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181"
+
 config = AggregatorConfig(
     config_source=__file__,
     aggregator_backends={
@@ -51,7 +53,13 @@ config = AggregatorConfig(
     }},
     configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={
-        "zk_hosts": "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181",
+        "zk_hosts": ZK_HOSTS,
     },
     zookeeper_prefix="/openeo/aggregator/",
+    memoizer={
+        # See `memoizer_from_config` for more details
+        "type": "zookeeper",
+        "config": {"zk_hosts": ZK_HOSTS}
+    },
+
 )
