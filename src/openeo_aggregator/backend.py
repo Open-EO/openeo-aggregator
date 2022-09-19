@@ -13,7 +13,7 @@ import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get, rfc3339
-from openeo_aggregator.caching import TtlCache, memoizer_from_config
+from openeo_aggregator.caching import TtlCache, memoizer_from_config, Memoizer
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
@@ -793,7 +793,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
 
-        self._memoizer = memoizer_from_config(config=config, namespace="general")
+        self._memoizer: Memoizer = memoizer_from_config(config=config, namespace="general")
         self._backends.on_connections_change.add(self._memoizer.invalidate)
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations

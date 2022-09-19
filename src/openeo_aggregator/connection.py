@@ -191,7 +191,7 @@ class MultiBackendConnection:
         self._configured_oidc_providers = configured_oidc_providers
 
         # General (metadata/status) caching
-        self._memoizer = memoizer or NullMemoizer()
+        self._memoizer: Memoizer = memoizer or NullMemoizer()
 
         # Caching of connection objects
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])

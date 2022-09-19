@@ -104,7 +104,13 @@ CacheKey = Union[str, Sequence[str]]
 
 class Memoizer(metaclass=abc.ABCMeta):
     """
-    (Abstract) base class for function call caching (memoization).
+    (Abstract) base class for function call caching (memoization)
+    with this usage pattern (get from cache or calculate and cache that result):
+
+        value = memoizer.get_or_call(
+            key="foo",
+            callback=calculate_foo
+        )
 
     Concrete classes should just implement `get_or_call` and `invalidate`.
     """
