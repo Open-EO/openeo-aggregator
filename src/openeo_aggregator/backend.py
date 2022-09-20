@@ -266,7 +266,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
         ## Log warnings for improper metadata.
         # license => Log warning for collections without license links.
-        license_links = [l for l in getter.concat("links") if l.get("rel") == "license"]
+        # TODO: report invalid links
+        license_links = [k for k in getter.concat("links") if isinstance(k, dict) and k.get("rel") == "license"]
         if result["license"] in ["various", "proprietary"] and not license_links:
             _log.warning(f"Missing license links for collection: {cid}")
 
