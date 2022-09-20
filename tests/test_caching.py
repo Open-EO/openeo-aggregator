@@ -373,16 +373,16 @@ class TestZkMemoizer(_TestMemoizer):
         ({"start": kazoo.exceptions.KazooException}, "failed to start connection"),
         ({"get": RuntimeError}, "unexpected get failure"),
         ({"get": kazoo.exceptions.KazooException}, "unexpected get failure"),
-        ({"create": RuntimeError}, "failed to create '/test/count'"),
-        ({"create": kazoo.exceptions.KazooException}, "failed to create '/test/count'"),
+        ({"create": RuntimeError}, "failed to create path '/test/count'"),
+        ({"create": kazoo.exceptions.KazooException}, "failed to create path '/test/count'"),
         ({
              "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
              "set": RuntimeError,
-         }, "failed to set '/test/count'"),
+         }, "failed to set path '/test/count'"),
         ({
              "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
              "set": kazoo.exceptions.KazooException,
-         }, "failed to set '/test/count'"),
+         }, "failed to set path '/test/count'"),
         ({"stop": RuntimeError}, "failed to stop connection"),
         ({"stop": kazoo.exceptions.KazooException}, "failed to stop connection"),
     ])
@@ -457,7 +457,7 @@ class TestZkMemoizer(_TestMemoizer):
             assert zk_cache.get_or_call(key="count", callback=callback) == 100
             zk_cache.invalidate()
             assert zk_cache.get_or_call(key="count", callback=callback) == 101
-            assert "invalidated '/test/count'" in caplog.text
+            assert "invalidated path '/test/count'" in caplog.text
         with clock_mock(2000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 101
         with clock_mock(3000):
@@ -538,7 +538,7 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 101
         assert zk_client.get("/test/count")[0] == b"101"
 
-        assert "corrupt data on '/test/count'" in caplog.text
+        assert "corrupt data path '/test/count'" in caplog.text
 
     @clock_mock(0)
     def test_from_config(self, config, zk_client):
