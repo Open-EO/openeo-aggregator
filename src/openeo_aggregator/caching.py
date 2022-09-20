@@ -297,6 +297,7 @@ class ZkMemoizer(Memoizer):
         self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
         # Minimum timestamp for valid entries
         self._valid_threshold = Clock.time()
+        _log.info(f"Created {self!r} with prefix={self._prefix!r} default_ttl={self._default_ttl}")
 
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         """
