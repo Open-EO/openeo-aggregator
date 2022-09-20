@@ -4,7 +4,8 @@ import flask
 import pytest
 
 from openeo_aggregator.app import create_app
-from openeo_aggregator.backend import MultiBackendConnection, AggregatorBackendImplementation
+from openeo_aggregator.backend import MultiBackendConnection, AggregatorBackendImplementation, \
+    AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import DummyKazooClient
 from openeo_driver.testing import ApiTester
@@ -119,6 +120,7 @@ def flask_app(config: AggregatorConfig) -> flask.Flask:
     with app.app_context():
         yield app
 
+
 @pytest.fixture
 def backend_implementation(flask_app) -> AggregatorBackendImplementation:
     """Get AggregatorBackendImplementation from flask app"""
@@ -143,3 +145,11 @@ def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
 def assert_dict_subset(d1: dict, d2: dict):
     """Check whether dictionary `d1` is a subset of `d2`"""
     assert d1 == {k: v for (k, v) in d2.items() if k in d1}
+
+
+@pytest.fixture
+def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
+    return AggregatorCollectionCatalog(
+        backends=multi_backend_connection,
+        config=config
+    )

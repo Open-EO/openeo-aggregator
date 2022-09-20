@@ -60,9 +60,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     # TODO: is this the proper standard field to use? Also see https://github.com/openEOPlatform/architecture-docs/issues/268
     STAC_PROPERTY_PROVIDER_BACKEND = "provider:backend"
 
-    def __init__(self, backends: MultiBackendConnection):
+    def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self.backends = backends
         self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="CollectionCatalog")
+        self._memoizer = memoizer_from_config(config=config, namespace="collections")
         self.backends.on_connections_change.add(self._cache.flush_all)
 
     def get_all_metadata(self) -> List[dict]:
@@ -323,10 +324,9 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         return backend_candidates
 
     def get_collection_metadata(self, collection_id: str) -> dict:
-        return self._cache.get_or_call(
+        return self._memoizer.get_or_call(
             key=("collection", collection_id),
             callback=lambda: self._get_collection_metadata(collection_id),
-            log_on_miss=True,
         )
 
     def _get_collection_metadata(self, collection_id: str) -> dict:
@@ -768,7 +768,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self._backends = backends
-        catalog = AggregatorCollectionCatalog(backends=backends)
+        catalog = AggregatorCollectionCatalog(backends=backends, config=config)
         processing = AggregatorProcessing(
             backends=backends, catalog=catalog,
             stream_chunk_size=config.streaming_chunk_size,
