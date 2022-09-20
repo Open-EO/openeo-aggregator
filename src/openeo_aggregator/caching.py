@@ -145,7 +145,7 @@ class Memoizer(metaclass=abc.ABCMeta):
     def _wrap_logging(self, callback: Callable[[], Any], key) -> Callable:
         """Wrap given callable with (timing) logging"""
         if self.log_on_miss:
-            title = f"Cache miss {self!r} key {key!r}: calling {callback!r}"
+            title = f"{self!r} cache miss on key {key!r}. Calling {callback!r}"
             logger = self.log_on_miss if isinstance(self.log_on_miss, logging.Logger) else _log.debug
             timing_logger = TimingLogger(title=title, logger=logger)
             # Use decorator functionality of TimingLogger to wrap the callback:
@@ -334,7 +334,7 @@ class ZkMemoizer(Memoizer):
                         # When creating node that already exists: another worker probably set cache in the meantime
                         _log.warning(f"{self!r} failed to create node {path!r}: already exists.")
                     except Exception as e:
-                        _log.error(f"{self!r} failed to {store} {path!r}: {e!r}")
+                        _log.error(f"{self!r} failed to {store} path {path!r}: {e!r}")
 
                 return value
 
@@ -345,25 +345,25 @@ class ZkMemoizer(Memoizer):
                 zk_value, zk_stat = connected_client.get(path=path)
             except kazoo.exceptions.NoNodeError:
                 # Simple cache miss: no zookeeper node, so we'll have to create it.
-                return handle(store="create", debug=f"cache miss {path!r}")
+                return handle(store="create", debug=f"cache miss path {path!r}")
             except Exception as e:
                 return handle(store=None, error=f"unexpected get failure: {e!r}")
 
             # We found something, check expiry and validity
             if zk_stat.last_modified < self._valid_threshold:
-                return handle(store="set", debug=f"invalidated {path!r}")
+                return handle(store="set", debug=f"invalidated path {path!r}")
             if zk_stat.last_modified + ttl <= Clock.time():
                 # Note that we evaluate the TTL at "get time",
                 # instead of storing an expiry threshold at "set time" along with the data
-                return handle(store="set", debug=f"expired {path!r}")
+                return handle(store="set", debug=f"expired path {path!r}")
             try:
                 # Can we read it?
                 value = self._serde.deserialize(zk_value)
             except json.JSONDecodeError as e:
                 # Cache hit, but corrupt data: update it
-                return handle(store="set", error=f"corrupt data on {path!r}: {e!r}")
+                return handle(store="set", error=f"corrupt data path {path!r}: {e!r}")
 
-            return handle(found=value, store=None, debug=f"cache hit {path!r}")
+            return handle(found=value, store=None, debug=f"cache hit path {path!r}")
 
     def invalidate(self):
         # TODO: this invalidates zk cache data for current ZkMemoizer only
