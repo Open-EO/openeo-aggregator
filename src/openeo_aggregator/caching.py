@@ -443,16 +443,19 @@ class ZkMemoizer(Memoizer):
         Helper context manager to robustly start and stop ZooKeeper connection.
         Swallows start/stop failures (just returns None instead of connected client on start failure).
         """
+        # Do nothing if already connected (e.g. an inner context)
+        do_start_stop = not self._client.connected
         client = self._client
         try:
-            client.start(timeout=self._zk_timeout)
+            if do_start_stop:
+                client.start(timeout=self._zk_timeout)
         except Exception as e:
             _log.error(f"{self!r} failed to start connection: {e!r}")
             client = None
         try:
             yield client
         finally:
-            if client:
+            if client and do_start_stop:
                 try:
                     client.stop()
                 except Exception as e:

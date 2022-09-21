@@ -394,27 +394,44 @@ class TestZkMemoizer(_TestMemoizer):
         """Simple ad-hoc ZooKeeper client fixture using a dictionary for storage."""
         zk_client = mock.Mock()
         db = {}
+        zk_client.connected = False
+
+        def start(*args, **kwargs):
+            zk_client.connected = True
+
+        def stop():
+            zk_client.connected = False
+
+        def assert_connected():
+            if not zk_client.connected:
+                raise kazoo.exceptions.ConnectionClosedError("Connection has been closed")
 
         def get(path):
+            assert_connected()
             if path not in db:
                 raise kazoo.exceptions.NoNodeError
             return db[path]
 
         def create(path, value, makepath=False):
+            assert_connected()
             if path in db:
                 raise kazoo.exceptions.NodeExistsError
             assert isinstance(value, bytes)
             db[path] = (value, DummyZnodeStat(last_modified=Clock.time()))
 
         def set(path, value):
+            assert_connected()
             if path not in db:
                 raise kazoo.exceptions.NoNodeError
             assert isinstance(value, bytes)
             db[path] = (value, DummyZnodeStat(last_modified=Clock.time()))
 
+        zk_client.start.side_effect = start
+        zk_client.stop.side_effect = stop
         zk_client.get.side_effect = get
         zk_client.create.side_effect = create
         zk_client.set.side_effect = set
+
         return zk_client
 
     def test_basic(self, zk_client):
@@ -625,3 +642,27 @@ class TestZkMemoizer(_TestMemoizer):
 
         paths = set(c[2]["path"] for c in zk_client.mock_calls if c[0] in {"get", "set"})
         assert paths == {"/o-a/cache/tezt/count"}
+
+    def test_connect_context_nesting(self, zk_client):
+        zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
+
+        counter = self._build_callback(start=100)
+
+        def fun1():
+            return f"fun1:{counter()}"
+
+        def fun1_cached():
+            return zk_cache.get_or_call("fun1", fun1)
+
+        def fun2():
+            return fun1_cached() + f"+fun2:{counter()}"
+
+        def fun2_cached():
+            return zk_cache.get_or_call("fun2", fun2)
+
+        zk_client.get.assert_not_called()
+
+        assert fun2_cached() == "fun1:100+fun2:101"
+        zk_client.start.assert_called_once()
+        zk_client.stop.assert_called_once()
+        assert fun2_cached() == "fun1:100+fun2:101"
