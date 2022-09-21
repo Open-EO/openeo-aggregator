@@ -631,6 +631,28 @@ class TestAggregatorCollectionCatalog:
         DEFAULT_MEMOIZER_CONFIG,
         {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
     ])
+    def test_get_all_metadata_caching(self, catalog, backend1, backend2, requests_mock, memoizer_config):
+        b1am = requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        b2am = requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        metadata = catalog.get_all_metadata()
+        assert metadata == [DictSubSet({"id": "S2"})]
+        assert (b1am.call_count, b2am.call_count) == (1, 1)
+
+        with clock_mock(offset=10):
+            metadata = catalog.get_all_metadata()
+            assert metadata == [DictSubSet({"id": "S2"})]
+            assert (b1am.call_count, b2am.call_count) == (1, 1)
+
+        with clock_mock(offset=100):
+            metadata = catalog.get_all_metadata()
+            assert metadata == [DictSubSet({"id": "S2"})]
+            assert (b1am.call_count, b2am.call_count) == (2, 2)
+
+    @pytest.mark.parametrize("memoizer_config", [
+        DEFAULT_MEMOIZER_CONFIG,
+        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
+    ])
     def test_get_collection_metadata_caching(self, catalog, backend1, backend2, requests_mock, memoizer_config):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b1s2 = requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
@@ -650,6 +672,7 @@ class TestAggregatorCollectionCatalog:
             metadata = catalog.get_collection_metadata("S2")
             assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
             assert (b1s2.call_count, b2s2.call_count) == (2, 2)
+
 
 
 class TestJobIdMapping:

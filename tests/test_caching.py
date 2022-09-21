@@ -8,8 +8,9 @@ import kazoo.exceptions
 import pytest
 
 import openeo_aggregator.caching
+from openeo_aggregator.backend import _InternalCollectionMetadata
 from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer, memoizer_from_config, NullMemoizer, \
-    DictMemoizer, ChainedMemoizer, JsonDictMemoizer
+    DictMemoizer, ChainedMemoizer, JsonDictMemoizer, JsonSerDe, json_serde
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock
 
@@ -133,6 +134,61 @@ class TestNullMemoizer(_TestMemoizer):
         callback = self._build_callback()
         assert cache.get_or_call(key="count", callback=callback) == 100
         assert cache.get_or_call(key="count", callback=callback) == 101
+
+
+class TestJsonSerde:
+
+    @pytest.mark.parametrize(["value", "serialized"], [
+        ({"foo": 123}, b'{"foo":123}'),
+        ({"foo": [1, 2, 3]}, b'{"foo":[1,2,3]}'),
+    ])
+    def test_default(self, value, serialized):
+        serde = JsonSerDe()
+        assert serde.serialize(value) == serialized
+        assert serde.deserialize(serialized) == value
+
+    def test_custom_serialization_basic(self):
+        serde = JsonSerDe()
+
+        @serde.register_custom_codec
+        class Balloon:
+            def __init__(self, color: str):
+                self._color = color
+
+            def describe(self):
+                return f"a {self._color} balloon"
+
+            def __jsonserde_prepare__(self):
+                return {"color": self._color}
+
+            @classmethod
+            def __jsonserde_load__(cls, data: dict):
+                return cls(**data)
+
+        data = {"alice": Balloon("red")}
+        serialized = serde.serialize(data)
+        assert isinstance(serialized, bytes)
+
+        result = serde.deserialize(serialized)
+        assert isinstance(result["alice"], Balloon)
+        assert result["alice"].describe() == "a red balloon"
+
+    def test_global_json_serde(self):
+        icm = _InternalCollectionMetadata()
+        icm.set_backends_for_collection(cid="S2", backends=["b5", "b9"])
+        data = {
+            "color": "green",
+            "icm": icm
+        }
+
+        serialized = json_serde.serialize(data)
+        assert isinstance(serialized, bytes)
+        assert b'"color":"green"' in serialized
+        assert b'"backends":["b5","b9"]' in serialized
+
+        decoded = json_serde.deserialize(serialized)
+        assert isinstance(decoded["icm"], _InternalCollectionMetadata)
+        assert decoded["icm"].get_backends_for_collection("S2") == ["b5", "b9"]
 
 
 class TestDictMemoizer(_TestMemoizer):

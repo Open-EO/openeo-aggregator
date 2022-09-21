@@ -4,7 +4,7 @@ import functools
 import json
 import logging
 import time
-from typing import Callable, Union, Optional, Sequence, Any, Tuple, List
+from typing import Callable, Union, Optional, Sequence, Any, Tuple, List, Dict, Set
 
 import kazoo.exceptions
 import kazoo.protocol.paths
@@ -185,13 +185,71 @@ class JsonSerDe:
     # TODO: support other serialization (pickle, json+gzip, ...)?
     # TODO: JSON serialization converts tuples to lists: is that a problem somewhere?
 
-    @staticmethod
-    def serialize(value: dict) -> bytes:
-        return json.dumps(value, indent=None, separators=(',', ':')).encode("utf8")
+    def __init__(self):
+        # Supported types with custom encoding
+        self._custom_types: Set[type] = set()
+        # Mapping of type identifier to load callable
+        self._decode_map: Dict[str, Callable] = {}
 
-    @staticmethod
-    def deserialize(value: bytes) -> dict:
-        return json.loads(value.decode("utf8"))
+    def register_custom_codec(self, tp: type):
+        """
+        Register a class for custom JSON encoding/decoding.
+
+        class must have:
+
+            - `__jsonserde_prepare__(self)` method to export data to JSON encodable format (e.g. a dict)
+            - `__jsonserde_load__(data: dict)` class method to load an instance from a dict (decoded JSON data)
+
+        Can be used as decorator.
+
+        :param tp: class with  `__jsonserde_prepare__(self)` method and `__jsonserde_load__(data: dict)` class method
+        :return: the class
+        """
+        if hasattr(tp, "__jsonserde_prepare__") and hasattr(tp, "__jsonserde_load__"):
+            self._custom_types.add(tp)
+            self._decode_map[self._type_id(tp)] = tp.__jsonserde_load__
+        else:
+            raise ValueError(f"{tp!r} must have `__jsonserde_prepare__` method and `__jsonserde_load__` classmethod.")
+        return tp
+
+    def _type_id(self, tp: type) -> str:
+        """Class identifier as string."""
+        return f"{tp.__module__}.{tp.__qualname__}"
+
+    def _default(self, o: Any) -> dict:
+        """Implementation of `default` parameter of `json.dump` and related"""
+        if o.__class__ in self._custom_types:
+            # TODO: also add signing with a secret?
+            return {"_jsonserde": {
+                "type": self._type_id(o.__class__),
+                "data": o.__jsonserde_prepare__()
+            }}
+        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
+
+    def _object_hook(self, d: dict) -> Any:
+        """Implementation of `object_hook` parameter of `json.load` and related"""
+        decode_data = d.get("_jsonserde")
+        if decode_data and "type" in decode_data and "data" in decode_data:
+            return self._decode_map[decode_data["type"]](decode_data["data"])
+        return d
+
+    def serialize(self, value: dict) -> bytes:
+        return json.dumps(
+            obj=value,
+            indent=None,
+            separators=(',', ':'),
+            default=self._default if self._custom_types else None,
+        ).encode("utf8")
+
+    def deserialize(self, value: bytes) -> dict:
+        return json.loads(
+            s=value.decode("utf8"),
+            object_hook=self._object_hook if self._decode_map else None
+        )
+
+
+# Global JSON SerDe instance
+json_serde = JsonSerDe()
 
 
 class DictMemoizer(Memoizer):
@@ -248,7 +306,8 @@ class DictMemoizer(Memoizer):
 
 class JsonDictMemoizer(DictMemoizer):
     """In-memory dict memoizer, but with JSON serialization (mainly for testing serialization flows)"""
-    _serde = JsonSerDe
+
+    _serde = json_serde
 
 
 class ChainedMemoizer(Memoizer):
@@ -282,7 +341,7 @@ class ZkMemoizer(Memoizer):
     DEFAULT_TTL = 5 * 60
     DEFAULT_ZK_TIMEOUT = 5
 
-    _serde = JsonSerDe
+    _serde = json_serde
 
     def __init__(
             self,

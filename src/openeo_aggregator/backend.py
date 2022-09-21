@@ -13,7 +13,7 @@ import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get, rfc3339
-from openeo_aggregator.caching import TtlCache, memoizer_from_config, Memoizer
+from openeo_aggregator.caching import TtlCache, memoizer_from_config, Memoizer, json_serde
 from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
     CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
@@ -37,9 +37,10 @@ from openeo_driver.utils import EvalEnv
 _log = logging.getLogger(__name__)
 
 
+@json_serde.register_custom_codec
 class _InternalCollectionMetadata:
-    def __init__(self):
-        self._data = {}
+    def __init__(self, data: Optional[Dict[str, dict]] = None):
+        self._data = data or {}
 
     def set_backends_for_collection(self, cid: str, backends: Iterable[str]):
         self._data.setdefault(cid, {})
@@ -54,6 +55,13 @@ class _InternalCollectionMetadata:
         for cid, data in self._data.items():
             yield cid, data.get("backends", [])
 
+    def __jsonserde_prepare__(self) -> dict:
+        return self._data
+
+    @classmethod
+    def __jsonserde_load__(cls, data: dict):
+        return cls(data=data)
+
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     # STAC property to use in collection "summaries" and user defined backend selection
@@ -62,16 +70,15 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
         self.backends = backends
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="CollectionCatalog")
-        self._memoizer = memoizer_from_config(config=config, namespace="collections")
-        self.backends.on_connections_change.add(self._cache.flush_all)
+        self._memoizer = memoizer_from_config(config=config, namespace="CollectionCatalog")
+        self.backends.on_connections_change.add(self._memoizer.invalidate)
 
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
         return metadata
 
     def _get_all_metadata_cached(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
-        return self._cache.get_or_call(key=("all",), callback=self._get_all_metadata, log_on_miss=True)
+        return self._memoizer.get_or_call(key=("all",), callback=self._get_all_metadata)
 
     def _get_all_metadata(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
         """
