@@ -278,7 +278,8 @@ class DictMemoizer(Memoizer):
         key = self._normalize_key(key)
         ttl = ttl or self._default_ttl
 
-        def _calculate_and_cache() -> Any:
+        def _calculate_and_cache(reason:str) -> Any:
+            _log.debug(f"{self!r} cache miss: {reason} key {key}")
             value = self._wrap_logging(callback=callback, key=key)()
             try:
                 self._cache[key] = (self._serde.serialize(value), Clock.time())
@@ -290,16 +291,17 @@ class DictMemoizer(Memoizer):
             value, ts = self._cache[key]
         except KeyError:
             # Cache miss
-            return _calculate_and_cache()
+            return _calculate_and_cache(reason="missing")
         try:
             value = self._serde.deserialize(value)
         except json.JSONDecodeError as e:
             _log.error(f"{self!r} key {key} corrupted data: {e!r}")
-            return _calculate_and_cache()
+            return _calculate_and_cache(reason="corrupt")
         if ts + ttl <= Clock.time():
             # Cache expired
             del self._cache[key]
-            return _calculate_and_cache()
+            return _calculate_and_cache(reason="expired")
+        _log.debug(f"{self!r} cache hit key {key}")
         return value
 
     def invalidate(self):
@@ -432,7 +434,7 @@ class ZkMemoizer(Memoizer):
             try:
                 # Can we read it?
                 value = self._serde.deserialize(zk_value)
-            except json.JSONDecodeError as e:
+            except Exception as e:
                 # Cache hit, but corrupt data: update it
                 return handle(store="set", error=f"corrupt data path {path!r}: {e!r}")
 
