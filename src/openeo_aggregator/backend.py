@@ -13,9 +13,8 @@ import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
 from openeo.util import dict_no_none, TimingLogger, deep_get, rfc3339
-from openeo_aggregator.caching import TtlCache, memoizer_from_config, Memoizer, json_serde
-from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, CACHE_TTL_DEFAULT, \
-    CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
+from openeo_aggregator.caching import memoizer_from_config, Memoizer, json_serde
+from openeo_aggregator.config import AggregatorConfig, CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
@@ -405,14 +404,14 @@ class AggregatorProcessing(Processing):
             self,
             backends: MultiBackendConnection,
             catalog: AggregatorCollectionCatalog,
-            stream_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
+            config: AggregatorConfig,
     ):
         self.backends = backends
         # TODO Cache per backend results instead of output?
-        self._cache = TtlCache(default_ttl=CACHE_TTL_DEFAULT, name="Processing")
-        self.backends.on_connections_change.add(self._cache.flush_all)
+        self._memoizer = memoizer_from_config(config=config, namespace="Processing")
+        self.backends.on_connections_change.add(self._memoizer.invalidate)
         self._catalog = catalog
-        self._stream_chunk_size = stream_chunk_size
+        self._stream_chunk_size = config.streaming_chunk_size
 
         # TODO #42 /validation support
         self.validate = None
@@ -421,9 +420,17 @@ class AggregatorProcessing(Processing):
         if api_version != self.backends.api_version:
             # TODO: only check for mismatch in major version?
             _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
-        return self._cache.get_or_call(key=str(api_version), callback=self._get_process_registry, log_on_miss=True)
 
-    def _get_process_registry(self) -> ProcessRegistry:
+        combined_processes = self._memoizer.get_or_call(
+            key=("all", str(api_version)),
+            callback=self._get_merged_process_meatadata
+        )
+        process_registry = ProcessRegistry()
+        for pid, spec in combined_processes.items():
+            process_registry.add_spec(spec=spec)
+        return process_registry
+
+    def _get_merged_process_meatadata(self) -> dict:
         processes_per_backend = {}
         for con in self.backends:
             try:
@@ -438,12 +445,7 @@ class AggregatorProcessing(Processing):
         for bid, backend_processes in processes_per_backend.items():
             # Combine by taking union (with higher preference for earlier backends)
             combined_processes = {**backend_processes, **combined_processes}
-
-        process_registry = ProcessRegistry()
-        for pid, spec in combined_processes.items():
-            process_registry.add_spec(spec=spec)
-
-        return process_registry
+        return combined_processes
 
     def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:
         """
@@ -779,7 +781,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         catalog = AggregatorCollectionCatalog(backends=backends, config=config)
         processing = AggregatorProcessing(
             backends=backends, catalog=catalog,
-            stream_chunk_size=config.streaming_chunk_size,
+            config=config,
         )
 
         if config.partitioned_job_tracking:

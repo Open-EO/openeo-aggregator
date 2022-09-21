@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import time
+import zlib
 from typing import Callable, Union, Optional, Sequence, Any, Tuple, List, Dict, Set
 
 import kazoo.exceptions
@@ -182,14 +183,14 @@ class NoSerDe:
 class JsonSerDe:
     """JSON serialization/deserialization"""
 
-    # TODO: support other serialization (pickle, json+gzip, ...)?
     # TODO: JSON serialization converts tuples to lists: is that a problem somewhere?
 
-    def __init__(self):
+    def __init__(self, gzip_threshold: int = 500_000):
         # Supported types with custom encoding
         self._custom_types: Set[type] = set()
         # Mapping of type identifier to load callable
         self._decode_map: Dict[str, Callable] = {}
+        self._gzip_threshold = gzip_threshold
 
     def register_custom_codec(self, tp: type):
         """
@@ -233,17 +234,25 @@ class JsonSerDe:
             return self._decode_map[decode_data["type"]](decode_data["data"])
         return d
 
-    def serialize(self, value: dict) -> bytes:
-        return json.dumps(
-            obj=value,
+    def serialize(self, data: dict) -> bytes:
+        data = json.dumps(
+            obj=data,
             indent=None,
             separators=(',', ':'),
             default=self._default if self._custom_types else None,
         ).encode("utf8")
+        if len(data) > self._gzip_threshold:
+            _log.debug(f"JsonSerDe.serialize: large data payload ({len(data)}): using additional zlib compression")
+            data = zlib.compress(data)
+        return data
 
-    def deserialize(self, value: bytes) -> dict:
+    def deserialize(self, data: bytes) -> dict:
+        if data[:1] == b'\x78':
+            # First byte of zlib data is practically almost always x78
+            _log.debug(f"JsonSerDe.deserialize: detected zlib compressed data")
+            data = zlib.decompress(data)
         return json.loads(
-            s=value.decode("utf8"),
+            s=data.decode("utf8"),
             object_hook=self._object_hook if self._decode_map else None
         )
 
@@ -387,9 +396,13 @@ class ZkMemoizer(Memoizer):
                     try:
                         # Try to store value (but skip any failure)
                         if store == "create":
-                            connected_client.create(path=path, value=self._serde.serialize(value), makepath=True)
+                            serialized = self._serde.serialize(value)
+                            _log.debug(f"{self!r} serialized size: {len(serialized)}")
+                            connected_client.create(path=path, value=serialized, makepath=True)
                         elif store == "set":
-                            connected_client.set(path=path, value=self._serde.serialize(value))
+                            serialized = self._serde.serialize(value)
+                            _log.debug(f"{self!r} serialized size: {len(serialized)}")
+                            connected_client.set(path=path, value=serialized)
                     except kazoo.exceptions.NodeExistsError:
                         # When creating node that already exists: another worker probably set cache in the meantime
                         _log.warning(f"{self!r} failed to create node {path!r}: already exists.")

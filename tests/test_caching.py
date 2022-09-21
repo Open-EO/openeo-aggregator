@@ -190,6 +190,14 @@ class TestJsonSerde:
         assert isinstance(decoded["icm"], _InternalCollectionMetadata)
         assert decoded["icm"].get_backends_for_collection("S2") == ["b5", "b9"]
 
+    def test_additional_gzip(self):
+        serde = JsonSerDe(gzip_threshold=1000)
+        data = {"data": "a" * 1000}
+        serialized = serde.serialize(data)
+        assert isinstance(serialized, bytes)
+        assert len(serialized) < 100
+        assert serde.deserialize(serialized) == data
+
 
 class TestDictMemoizer(_TestMemoizer):
     def test_basic(self):

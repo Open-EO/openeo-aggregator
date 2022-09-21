@@ -674,7 +674,6 @@ class TestAggregatorCollectionCatalog:
             assert (b1s2.call_count, b2s2.call_count) == (2, 2)
 
 
-
 class TestJobIdMapping:
 
     def test_get_aggregator_job_id(self):
@@ -699,7 +698,7 @@ class TestJobIdMapping:
 
 class TestAggregatorProcessing:
 
-    def test_get_process_registry(self, catalog, multi_backend_connection, backend1, backend2, requests_mock):
+    def test_get_process_registry(self, catalog, multi_backend_connection, config, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/processes", json={"processes": [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
@@ -708,7 +707,7 @@ class TestAggregatorProcessing:
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "data"}]},
         ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
@@ -716,9 +715,37 @@ class TestAggregatorProcessing:
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
         ]
 
+    @pytest.mark.parametrize("memoizer_config", [
+        DEFAULT_MEMOIZER_CONFIG,
+        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
+    ])
+    def test_get_process_registry_caching(
+            self, catalog, multi_backend_connection, config, backend1, backend2, requests_mock,
+            memoizer_config
+    ):
+        b1p = requests_mock.get(backend1 + "/processes", json={"processes": [
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+        ]})
+        b2p = requests_mock.get(backend2 + "/processes", json={"processes": [
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+        ]})
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        assert (b1p.call_count, b2p.call_count) == (0, 0)
+
+        _ = processing.get_process_registry(api_version="1.0.0")
+        assert (b1p.call_count, b2p.call_count) == (1, 1)
+
+        with clock_mock(offset=10):
+            _ = processing.get_process_registry(api_version="1.0.0")
+            assert (b1p.call_count, b2p.call_count) == (1, 1)
+
+        with clock_mock(offset=1000):
+            _ = processing.get_process_registry(api_version="1.0.0")
+            assert (b1p.call_count, b2p.call_count) == (2, 2)
+
     def test_get_process_registry_parameter_differences(
-            self, catalog, multi_backend_connection, backend1, backend2,
-            requests_mock
+            self, catalog, multi_backend_connection, config, backend1, backend2,
+            requests_mock,
     ):
         requests_mock.get(backend1 + "/processes", json={"processes": [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
@@ -728,7 +755,7 @@ class TestAggregatorProcessing:
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
             {"id": "mean", "parameters": [{"name": "values"}]},
         ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
