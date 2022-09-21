@@ -185,7 +185,7 @@ class JsonSerDe:
 
     # TODO: JSON serialization converts tuples to lists: is that a problem somewhere?
 
-    def __init__(self, gzip_threshold: int = 500_000):
+    def __init__(self, gzip_threshold: int = 100_000):
         # Supported types with custom encoding
         self._custom_types: Set[type] = set()
         # Mapping of type identifier to load callable
