@@ -464,6 +464,7 @@ class TestZkMemoizer(_TestMemoizer):
         caplog.set_level(logging.ERROR)
 
         zk_client = mock.Mock()
+        zk_client.connected = False
         zk_client.start = mock.Mock(side_effect=side_effects.get("start"))
         zk_client.get = mock.Mock(side_effect=side_effects.get("get", kazoo.exceptions.NoNodeError))
         zk_client.create = mock.Mock(side_effect=side_effects.get("create"))
@@ -603,6 +604,7 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
 
+        zk_client.start()
         assert zk_client.get("/test/count")[0] == b"100"
         zk_client.set("/test/count", value=b"(orrup[ JS0N d@ta !*")
         assert zk_client.get("/test/count")[0] == b"(orrup[ JS0N d@ta !*"
