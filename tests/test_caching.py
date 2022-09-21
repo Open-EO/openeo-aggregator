@@ -11,6 +11,7 @@ import openeo_aggregator.caching
 from openeo_aggregator.backend import _InternalCollectionMetadata
 from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer, memoizer_from_config, NullMemoizer, \
     DictMemoizer, ChainedMemoizer, JsonDictMemoizer, JsonSerDe, json_serde
+from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock
 
@@ -291,6 +292,13 @@ class TestJsonDictMemoizer(TestDictMemoizer):
 
 
 class TestChainedMemoizer(_TestMemoizer):
+
+    def test_empty(self):
+        cache = ChainedMemoizer(memoizers=[])
+        callback = self._build_callback()
+        assert cache.get_or_call(key="count", callback=callback) == 100
+        assert cache.get_or_call(key="count", callback=callback) == 101
+        assert cache.get_or_call(key="count", callback=callback) == 102
 
     def test_simple(self):
         dm1 = DictMemoizer(default_ttl=10)
@@ -676,3 +684,57 @@ class TestZkMemoizer(_TestMemoizer):
         zk_client.start.assert_called_once()
         zk_client.stop.assert_called_once()
         assert fun2_cached() == "fun1:100+fun2:101"
+
+
+class TestMemoizerFromConfig:
+
+    def test_null_memoizer(self):
+        config = AggregatorConfig()
+        config.memoizer = {"type": "null"}
+        memoizer = memoizer_from_config(config, namespace="test")
+        assert isinstance(memoizer, NullMemoizer)
+
+    def test_dict_memoizer(self):
+        config = AggregatorConfig()
+        config.memoizer = {"type": "dict", "config": {"default_ttl": 99}}
+        memoizer = memoizer_from_config(config, namespace="test")
+        assert isinstance(memoizer, DictMemoizer)
+        assert memoizer._default_ttl == 99
+
+    def test_jsondict_memoizer(self):
+        config = AggregatorConfig()
+        config.memoizer = {"type": "jsondict", "config": {"default_ttl": 99}}
+        memoizer = memoizer_from_config(config, namespace="test")
+        assert isinstance(memoizer, JsonDictMemoizer)
+        assert memoizer._default_ttl == 99
+
+    def test_zookeeper_memoizer(self):
+        config = AggregatorConfig()
+        config.memoizer = {
+            "type": "zookeeper",
+            "config": {"zk_hosts": "zk.test:2181", "default_ttl": 99, "zk_timeout": 88}
+        }
+        config.zookeeper_prefix = "/oea/test"
+        memoizer = memoizer_from_config(config, namespace="test-ns")
+        assert isinstance(memoizer, ZkMemoizer)
+        assert memoizer._default_ttl == 99
+        assert memoizer._prefix == "/oea/test/cache/test-ns"
+        assert memoizer._zk_timeout == 88
+
+    def test_chained_memoizer(self):
+        config = AggregatorConfig()
+        config.memoizer = {
+            "type": "chained",
+            "config": {"parts": [
+                {"type": "jsondict", "config": {"default_ttl": 99}},
+                {"type": "dict", "config": {"default_ttl": 333}},
+            ]}
+        }
+        config.zookeeper_prefix = "/oea/test"
+        memoizer = memoizer_from_config(config, namespace="test-ns")
+        assert isinstance(memoizer, ChainedMemoizer)
+        assert len(memoizer._memoizers) == 2
+        assert isinstance(memoizer._memoizers[0], JsonDictMemoizer)
+        assert memoizer._memoizers[0]._default_ttl == 99
+        assert isinstance(memoizer._memoizers[1], DictMemoizer)
+        assert memoizer._memoizers[1]._default_ttl == 333

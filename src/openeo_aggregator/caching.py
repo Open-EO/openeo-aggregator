@@ -480,20 +480,30 @@ def memoizer_from_config(
         namespace: str,
 ) -> Memoizer:
     """Factory to create `ZkMemoizer` instance from config values."""
-    memoizer_type = config.memoizer.get("type", "null")
-    memoizer_conf = config.memoizer.get("config", {})
-    if memoizer_type == "null":
-        return NullMemoizer()
-    elif memoizer_type == "dict":
-        return DictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
-    elif memoizer_type == "jsondict":
-        return JsonDictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
-    elif memoizer_type == "zookeeper":
-        return ZkMemoizer(
-            client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
-            path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
-            default_ttl=memoizer_conf.get("default_ttl"),
-            zk_timeout=memoizer_conf.get("zk_timeout"),
-        )
-    else:
-        raise ValueError(memoizer_type)
+
+    def get_memoizer(memoizer_type: str, memoizer_conf: dict) -> Memoizer:
+        if memoizer_type == "null":
+            return NullMemoizer()
+        elif memoizer_type == "dict":
+            return DictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+        elif memoizer_type == "jsondict":
+            return JsonDictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+        elif memoizer_type == "zookeeper":
+            return ZkMemoizer(
+                client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
+                path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
+                default_ttl=memoizer_conf.get("default_ttl"),
+                zk_timeout=memoizer_conf.get("zk_timeout"),
+            )
+        elif memoizer_type == "chained":
+            return ChainedMemoizer([
+                get_memoizer(memoizer_type=part["type"], memoizer_conf=part["config"])
+                for part in memoizer_conf["parts"]
+            ])
+        else:
+            raise ValueError(memoizer_type)
+
+    return get_memoizer(
+        memoizer_type=config.memoizer.get("type", "null"),
+        memoizer_conf=config.memoizer.get("config", {}),
+    )
