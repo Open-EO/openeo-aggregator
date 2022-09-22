@@ -305,6 +305,7 @@ class DictMemoizer(Memoizer):
         return value
 
     def invalidate(self):
+        _log.debug(f"{self!r} invalidate")
         self._cache = {}
 
     def dump(self, values_only=False) -> Union[dict, list]:
@@ -444,6 +445,7 @@ class ZkMemoizer(Memoizer):
         # TODO: this invalidates zk cache data for current ZkMemoizer only
         #   how to signal this to other workers?
         #   Remove zk subtree instead of just setting timestamp threshold?
+        _log.debug(f"{self!r} invalidate")
         self._valid_threshold = Clock.time()
 
     def _path(self, key: CacheKey) -> str:
