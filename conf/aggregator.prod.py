@@ -58,10 +58,21 @@ config = AggregatorConfig(
     zookeeper_prefix="/openeo/aggregator/",
     memoizer={
         # See `memoizer_from_config` for more details
-        "type": "zookeeper",
+        "type": "chained",
         "config": {
-            "zk_hosts": ZK_HOSTS,
-            "default_ttl": 60 * 60,
+            "parts": [
+                {
+                    "type": "dict",
+                    "config": {"default_ttl": 10 * 60}
+                },
+                {
+                    "type": "zookeeper",
+                    "config": {
+                        "zk_hosts": ZK_HOSTS,
+                        "default_ttl": 60 * 60,
+                    }
+                }
+            ]
         }
     },
 
