@@ -63,13 +63,13 @@ config = AggregatorConfig(
             "parts": [
                 {
                     "type": "dict",
-                    "config": {"default_ttl": 10 * 60}
+                    "config": {"default_ttl": 60 * 60}
                 },
                 {
                     "type": "zookeeper",
                     "config": {
                         "zk_hosts": ZK_HOSTS,
-                        "default_ttl": 60 * 60,
+                        "default_ttl": 24 * 60 * 60,
                     }
                 }
             ]
