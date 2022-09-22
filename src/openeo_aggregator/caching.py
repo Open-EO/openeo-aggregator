@@ -15,6 +15,8 @@ from openeo.util import TimingLogger
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.utils import strip_join, Clock
 
+DEFAULT_NAMESPACE = "_default"
+
 
 class CacheException(Exception):
     pass
@@ -117,6 +119,9 @@ class Memoizer(metaclass=abc.ABCMeta):
     """
     log_on_miss = True
 
+    def __init__(self, namespace: str = DEFAULT_NAMESPACE):
+        self._namespace = namespace
+
     @abc.abstractmethod
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         ...
@@ -154,7 +159,7 @@ class Memoizer(metaclass=abc.ABCMeta):
         return callback
 
     def __repr__(self):
-        return f"<{self.__class__.__name__}>"
+        return f"<{self.__class__.__name__} ns={self._namespace!r}>"
 
 
 class NullMemoizer(Memoizer):
@@ -270,7 +275,8 @@ class DictMemoizer(Memoizer):
 
     _serde = NoSerDe
 
-    def __init__(self, default_ttl: Optional[float] = None):
+    def __init__(self, namespace: str = DEFAULT_NAMESPACE, default_ttl: Optional[float] = None):
+        super().__init__(namespace=namespace)
         self._cache = {}
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
 
@@ -278,7 +284,7 @@ class DictMemoizer(Memoizer):
         key = self._normalize_key(key)
         ttl = ttl or self._default_ttl
 
-        def _calculate_and_cache(reason:str) -> Any:
+        def _calculate_and_cache(reason: str) -> Any:
             _log.debug(f"{self!r} cache miss: {reason} key {key}")
             value = self._wrap_logging(callback=callback, key=key)()
             try:
@@ -325,7 +331,8 @@ class JsonDictMemoizer(DictMemoizer):
 class ChainedMemoizer(Memoizer):
     """Chain multiple memoizers for multilevel caching."""
 
-    def __init__(self, memoizers: List[Memoizer]):
+    def __init__(self, memoizers: List[Memoizer], namespace: str = DEFAULT_NAMESPACE):
+        super().__init__(namespace=namespace)
         self._memoizers = memoizers
 
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
@@ -359,9 +366,11 @@ class ZkMemoizer(Memoizer):
             self,
             client: KazooClient,
             path_prefix: str,
+            namespace: str = DEFAULT_NAMESPACE,
             default_ttl: Optional[float] = None,
             zk_timeout: Optional[float] = None,
     ):
+        super().__init__(namespace=namespace)
         self._client = client
         self._prefix = kazoo.protocol.paths.normpath(path_prefix)
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
@@ -487,15 +496,16 @@ def memoizer_from_config(
 
     def get_memoizer(memoizer_type: str, memoizer_conf: dict) -> Memoizer:
         if memoizer_type == "null":
-            return NullMemoizer()
+            return NullMemoizer(namespace=namespace)
         elif memoizer_type == "dict":
-            return DictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+            return DictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "jsondict":
-            return JsonDictMemoizer(default_ttl=memoizer_conf.get("default_ttl"))
+            return JsonDictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "zookeeper":
             return ZkMemoizer(
                 client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
                 path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
+                namespace=namespace,
                 default_ttl=memoizer_conf.get("default_ttl"),
                 zk_timeout=memoizer_conf.get("zk_timeout"),
             )
@@ -503,7 +513,7 @@ def memoizer_from_config(
             return ChainedMemoizer([
                 get_memoizer(memoizer_type=part["type"], memoizer_conf=part["config"])
                 for part in memoizer_conf["parts"]
-            ])
+            ], namespace=namespace)
         else:
             raise ValueError(memoizer_type)
 
