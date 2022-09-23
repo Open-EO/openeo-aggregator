@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update EGI issuer URL to new Keycloak one (keep old provider under "egi-legacy")
 - Improve collection metadata merging ([#5](https://github.com/Open-EO/openeo-aggregator/issues/5))
 - Replace local memory cache with centralized ZooKeeper based cache for metadata documents ([#2](https://github.com/Open-EO/openeo-aggregator/issues/2))
+- Fix issue https://discuss.eodc.eu/t/invalid-band-name-index-vv/472
 
 ### Fixed
 

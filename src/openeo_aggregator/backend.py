@@ -263,7 +263,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                         prefix = [t[0] for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, bands))]
                         if bands != prefix:
                             report(f"Trimming bands {bands} to common prefix {prefix}")
-                    result["cube:dimensions"][dim]["values"] = prefix
+                    if len(prefix) > 0:
+                        result["cube:dimensions"][dim]["values"] = prefix
+                    else:
+                        report(f"Empty prefix for bands, falling back to first back-end's bands")
                 except Exception as e:
                     report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}")
 
