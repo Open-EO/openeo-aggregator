@@ -1,4 +1,4 @@
-import itertools
+import logging
 import logging
 import re
 from typing import Tuple, List
@@ -7,9 +7,8 @@ import pytest
 import requests
 
 from openeo.rest.connection import url_join
-from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.connection import MultiBackendConnection
+from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
     ProcessGraphInvalidException
@@ -594,7 +593,7 @@ class TestProcessing:
             "process_id": "load_collection",
             "arguments": {
                 "id": "S2",
-                "properties": {AggregatorCollectionCatalog.STAC_PROPERTY_PROVIDER_BACKEND: {"process_graph": {
+                "properties": {STAC_PROPERTY_PROVIDER_BACKEND: {"process_graph": {
                     "eq": {
                         "process_id": "eq",
                         "arguments": {"x": {"from_parameter": "value"}, "y": user_selected_backend},
