@@ -11,6 +11,10 @@ import flask
 
 from openeo.util import rfc3339
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
+from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
+
+from openeo_aggregator.metadata.models.extent import Extent
+from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
 from openeo_aggregator.utils import MultiDictGetter
 from openeo_driver.errors import OpenEOApiException
 
@@ -84,17 +88,15 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
         result[field] = getter.first(field)
 
     # Summary merging
-    result["summaries"] = {}
-    summaries_getter = getter.select("summaries")
-    for summary_name in summaries_getter.keys():
-        if summary_name in [
-            "constellation", "platform", "instruments",
-        ]:
-            result["summaries"][summary_name] = summaries_getter.concat(summary_name, skip_duplicates=True)
-        elif summary_name.startswith("sar:") or summary_name.startswith("sat:"):
-            result["summaries"][summary_name] = summaries_getter.concat(summary_name, skip_duplicates=True)
-        else:
-            report(f"Unhandled merging of summary {summary_name!r}")
+    summaries_list = []
+    for i, cube_dim_dict in enumerate(getter.select("summaries").dictionaries):
+        backend_id = list(by_backend.keys())[i]
+        try:
+            summary = StacSummaries.from_dict(cube_dim_dict)
+            summaries_list.append((f"{backend_id}:{cid}", summary))
+        except Exception as e:
+            report(f"['{backend_id}':'{cid}']: {e}", "warning")
+    result["summaries"] = StacSummaries.merge_all(summaries_list, report).to_dict()
 
     # Assets
     if getter.has_key("assets"):
