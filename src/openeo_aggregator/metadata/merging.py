@@ -110,16 +110,15 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
     licenses = set(getter.get("license"))
     result["license"] = licenses.pop() if len(licenses) == 1 else ("various" if licenses else "proprietary")
 
-    result["extent"] = {
-        "spatial": {
-            "bbox": getter.select("extent").select("spatial").concat("bbox", skip_duplicates=True) \
-                    or [[-180, -90, 180, 90]],
-        },
-        "temporal": {
-            "interval": getter.select("extent").select("temporal").concat("interval", skip_duplicates=True) \
-                        or [[None, None]],
-        },
-    }
+    extents = []
+    for i, extent_dict in enumerate(getter.select("extent").dictionaries):
+        backend_id = list(by_backend.keys())[i]
+        try:
+            extent = Extent.from_dict(extent_dict)
+            extents.append((f"{backend_id}:{cid}", extent))
+        except Exception as e:
+            report(f"['{backend_id}':'{cid}']: {e}", "warning")
+    result["extent"] = Extent.merge_all(extents).to_dict()
 
     if getter.has_key("cube:dimensions"):
         cube_dim_getter = getter.select("cube:dimensions")

@@ -245,7 +245,7 @@ class TestAggregatorCollectionCatalog:
                                               ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}},
                 "cube:dimensions": {
                     "bands": {"type": "bands", "values": ["B01", "B02"]},
-                    "x": {"type": "spatial", "extent": [3, 4], "axis": "x"},
+                    "x": {"type": "spatial", "extent": [3.0, 4.0], "axis": "x"},
                     "y": {"type": "spatial", "axis": "y"}
                 },
                 "license": "various",
@@ -422,9 +422,9 @@ class TestAggregatorCollectionCatalog:
         })
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-            'license': 'proprietary',
-            'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
+            'description': 'S2', 'extent': {
+                'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}
+            }, 'id': 'S2', 'license': 'proprietary',
             'links': [
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
@@ -468,7 +468,7 @@ class TestAggregatorCollectionCatalog:
             'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
             'license': 'proprietary', 'extent': {
                 'spatial': {'bbox': [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
-                'temporal': {'interval': [['2014-10-03T04:14:15Z', None], [None, None]]}
+                'temporal': {'interval': [['2014-10-03T04:14:15Z', None]]}
             },
             'links': [
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
