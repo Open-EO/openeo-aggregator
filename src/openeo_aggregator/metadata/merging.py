@@ -5,7 +5,7 @@ Functionality and tools for openEO collection/process metadata processing, norma
 """
 import itertools
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 
 import flask
 
@@ -42,11 +42,13 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     return metadata
 
 
-def merge_collection_metadata(by_backend: Dict[str, dict], report=_log.warning) -> dict:
+def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str, str], None]):
     """
     Merge collection metadata dicts from multiple backends
 
     :param by_backend: mapping of backend id to collection metadata dict
+    :param report: function to report issues in the merging process
+    It takes in a message and level (e.g. "warning", "error") as arguments.
     """
     getter = MultiDictGetter(by_backend.values())
 
