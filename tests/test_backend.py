@@ -379,7 +379,6 @@ class TestAggregatorCollectionCatalog:
             "type": "Collection",
             "sci:citation": "Modified Copernicus Sentinel data [Year]/Sentinel Hub",
         }
-
     def test_get_collection_metadata_merging_summaries(
             self, catalog, backend1, backend2, requests_mock
     ):
@@ -429,7 +428,7 @@ class TestAggregatorCollectionCatalog:
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
-            ],
+            ], 'stac_version': '0.9.0',
             'summaries': {
                 'constellation': ['sentinel-1', 'sentinel-1'], 'instruments': ['c-sar', 'c-sar'],
                 'platform': ['sentinel-1a', 'sentinel-1b', 'sentinel-1'], 'provider:backend': ['b1', 'b2'],

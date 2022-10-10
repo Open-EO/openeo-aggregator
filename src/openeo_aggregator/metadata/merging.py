@@ -122,8 +122,17 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
 
     if getter.has_key("cube:dimensions"):
         cube_dim_getter = getter.select("cube:dimensions")
-        result["cube:dimensions"] = {}
 
+        # First deserialize the cube:dimensions object to log any inconsistencies.
+        for i, cube_dim_dict in enumerate(cube_dim_getter.dictionaries):
+            backend_id = list(by_backend.keys())[i]
+            try:
+                CubeDimensions.from_dict(cube_dim_dict)
+            except Exception as e:
+                report(f"['{backend_id}':'{cid}']: {e}", "warning")
+
+        # Then merge the cube:dimensions objects into one.
+        result["cube:dimensions"] = {}
         # Spatial dimensions
         for dim in cube_dim_getter.available_keys(["x", "y"]):
             result["cube:dimensions"][dim] = cube_dim_getter.first(dim)
