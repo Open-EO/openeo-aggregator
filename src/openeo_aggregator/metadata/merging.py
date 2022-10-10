@@ -143,18 +143,21 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
             except Exception as e:
                 report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}")
         # Temporal dimension
-        for dim in cube_dim_getter.available_keys(["t"]):
-            result["cube:dimensions"][dim] = cube_dim_getter.first(dim)
+        t_dim = "t"
+        if cube_dim_getter.has_key(t_dim):
+            result["cube:dimensions"][t_dim] = cube_dim_getter.first(t_dim)
             # TODO: check consistency of step?
+            t_extent = list(cube_dim_getter.select(t_dim).get("extent"))
             try:
-                t_starts = [e[0] for e in cube_dim_getter.select(dim).get("extent") if e[0]]
-                t_ends = [e[1] for e in cube_dim_getter.select(dim).get("extent") if e[1]]
-                result["cube:dimensions"][dim]["extent"] = [
+                # TODO: Is multidict getter with id required?
+                t_starts = [e[0] for e in t_extent if e[0] and e[0] != 'None']
+                t_ends = [e[1] for e in t_extent if e[1] and e[1] != 'None']
+                result["cube:dimensions"][t_dim]["extent"] = [
                     min(rfc3339.normalize(t) for t in t_starts) if t_starts else None,
                     max(rfc3339.normalize(t) for t in t_ends) if t_ends else None
                 ]
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}")
+                report(f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}")
 
         for dim in cube_dim_getter.available_keys(["bands"]):
             result["cube:dimensions"][dim] = cube_dim_getter.first(dim)
@@ -182,6 +185,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
     # TODO: report invalid links
     license_links = [k for k in getter.concat("links") if isinstance(k, dict) and k.get("rel") == "license"]
     if result["license"] in ["various", "proprietary"] and not license_links:
-        _log.warning(f"Missing license links for collection: {cid}")
+        _log.warning(f"[%s] License is '%s' but can not be found in license_links [%s]",
+            cid, result["license"], ", ".join(license_links))
 
     return result
