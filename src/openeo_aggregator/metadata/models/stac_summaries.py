@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Type, TypeVar, Union, cast, Set, Tuple, Call
 import attr
 
 from openeo_aggregator.metadata.models.statistics import Statistics
-from openeo_aggregator.metadata.utils import merge_dict_values
+from openeo_aggregator.metadata.utils import merge_lists_skip_duplicates
 
 T = TypeVar("T", bound="StacSummaries")
 
@@ -125,15 +125,13 @@ class StacSummaries:
         additional_properties = [(cid, x.additional_properties) for cid, x in summaries_list]
         # Calculate the unique summary names.
         unique_summary_names: Set[str] = functools.reduce(lambda a, b: a.union(b), (d.keys() for _, d in additional_properties), set())
-        
+
         merged_addition_properties = {}
         for summary_name in unique_summary_names:
-            if summary_name in ["constellation", "platform", "instruments"]:
-                merged_addition_properties[summary_name] = merge_dict_values(
-                    additional_properties, summary_name, [list], report)
-            elif summary_name.startswith("sar:") or summary_name.startswith("sat:"):
-                merged_addition_properties[summary_name] = merge_dict_values(
-                    additional_properties, summary_name, [list], report)
+            if (summary_name in ["constellation", "platform", "instruments"] or
+                summary_name.startswith("sar:") or summary_name.startswith("sat:")):
+                summary_lists = [d.get(summary_name, []) for _, d in additional_properties]
+                merged_addition_properties[summary_name] = merge_lists_skip_duplicates(summary_lists)
             else:
                 backends = [cid for cid, d in additional_properties if summary_name in d]
                 report(f"{backends}: Unhandled merging of StacSummaries for summary_name: {summary_name!r}", "warning")
