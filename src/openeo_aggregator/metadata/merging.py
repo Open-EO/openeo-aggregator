@@ -46,7 +46,7 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     return metadata
 
 
-def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str, str], None]):
+def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str, str], None]) -> dict:
     """
     Merge collection metadata dicts from multiple backends
 
