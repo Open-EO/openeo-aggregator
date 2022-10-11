@@ -1,11 +1,11 @@
 import functools
 import logging
-from typing import Any, Dict, List, Type, TypeVar, Union, cast, Set, Tuple
+from typing import Any, Dict, List, Type, TypeVar, Union, cast, Set, Tuple, Callable
 
 import attr
 
 from openeo_aggregator.metadata.models.statistics import Statistics
-from openeo_aggregator.metadata.utils import concat
+from openeo_aggregator.metadata.utils import merge_dict_values
 
 T = TypeVar("T", bound="StacSummaries")
 
@@ -112,7 +112,7 @@ class StacSummaries:
     @staticmethod
     def merge_all(
             summaries_list: List[Tuple[str, "StacSummaries"]],
-            report=logging.getLogger().warning
+            report: Callable[[str, str], None]
     ) -> "StacSummaries":
         """
         Merge all summaries into one.
@@ -129,9 +129,11 @@ class StacSummaries:
         merged_addition_properties = {}
         for summary_name in unique_summary_names:
             if summary_name in ["constellation", "platform", "instruments"]:
-                merged_addition_properties[summary_name] = concat(additional_properties, summary_name, [list], report)
+                merged_addition_properties[summary_name] = merge_dict_values(
+                    additional_properties, summary_name, [list], report)
             elif summary_name.startswith("sar:") or summary_name.startswith("sat:"):
-                merged_addition_properties[summary_name] = concat(additional_properties, summary_name, [list], report)
+                merged_addition_properties[summary_name] = merge_dict_values(
+                    additional_properties, summary_name, [list], report)
             else:
                 backends = [cid for cid, d in additional_properties if summary_name in d]
                 report(f"{backends}: Unhandled merging of StacSummaries for summary_name: {summary_name!r}", "warning")
