@@ -2,6 +2,7 @@ import inspect
 import logging
 from pathlib import Path
 
+import argparse
 import requests
 from openeo_aggregator.config import get_config, AggregatorConfig
 from openeo_aggregator.metadata.merging import merge_collection_metadata
@@ -10,7 +11,6 @@ _log = logging.getLogger(__name__)
 
 
 def main():
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-b", "--backends", nargs="+", help="List of backends to use", )
     parser.add_argument("-e", "--environment", help="Environment to use", default="dev")
@@ -18,10 +18,9 @@ def main():
     print("Requested backends: {}".format(args.backends))
     print("Requested environment: {}".format(args.environment))
     config: AggregatorConfig = get_config(args.environment)
-    if len(args.backends) == 0:
-        args.backends = config.aggregator_backends.keys()
+    backends = config.aggregator_backends.keys() if len(args.backends) == 0 else args.backends
 
-    urls = [url for b, url in config.aggregator_backends.items() if b in args.backends]
+    urls = [url for b, url in config.aggregator_backends.items() if b in backends]
     print("Found backends:\n  * {}".format("\n  * ".join(urls)))
 
     # 1. Compare /collections
@@ -29,6 +28,26 @@ def main():
     # 2. Compare /collections/{collection_id}
     # 3. Compare /processes
     # 4. Compare /processes/{process_id}
+
+
+class ValidationReporter:
+    def __init__(self):
+        self.warning_messages = []
+        self.critical_messages = []
+
+    def report(self, msg, level="warning"):
+        caller = inspect.stack()[1]
+        caller_file = Path(caller.filename).name.split("/")[-1]
+        msg = f"{caller_file}:{caller.lineno}: {msg}"
+        self.critical_messages.append(msg) if level == "critical" else self.warning_messages.append(msg)
+
+    def print(self):
+        print("Warning messages:")
+        for msg in self.warning_messages:
+            print("  * {}".format(msg))
+        print("Critical messages:")
+        for msg in self.critical_messages:
+            print("  * {}".format(msg))
 
 
 def compare_get_collections(backend_urls):
@@ -44,30 +63,16 @@ def compare_get_collections(backend_urls):
             backends_for_collection[collection["id"]][url] = collection
 
     # Merge the different collection objects for each unique collection_id.
-    warning_messages = []
-    critical_messages = []
-    def report_func(msg, level="warning"):
-        caller = inspect.stack()[1]
-        caller_file = Path(caller.filename).name.split("/")[-1]
-        msg = f"{caller_file}:{caller.lineno}: {msg}"
-        critical_messages.append(msg) if level == "critical" else warning_messages.append(msg)
-
+    reporter = ValidationReporter()
     merged_metadata = {}
     for collection_id, backend_collection in backends_for_collection.items():
         by_backend = {}
         for url, collection in backend_collection.items():
             by_backend[url] = collection
-        merged_metadata = merge_collection_metadata(by_backend, report_func)
+        merged_metadata[collection_id] = merge_collection_metadata(by_backend, reporter.report)
 
     # Print the results
-    print("Warning messages:")
-    for msg in warning_messages:
-        print("  * {}".format(msg))
-    print("Critical messages:")
-    for msg in critical_messages:
-        print("  * {}".format(msg))
-    print("Merged metadata:")
-    print(merged_metadata)
+    reporter.print()
 
 
 def compare_get_collection_by_id(backend_urls, collection_id):
