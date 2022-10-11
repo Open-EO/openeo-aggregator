@@ -82,5 +82,14 @@ def compare_get_process_by_id(backend_urls, process_id):
     pass
 
 
+def get_all_collections_ids(backend_urls):
+    collection_ids = []
+    for url in backend_urls:
+        r = requests.get(url + "/collections")
+        collections_result = r.json()
+        collection_ids.extend([c["id"] for c in collections_result["collections"]])
+    return collection_ids
+
+
 if __name__ == "__main__":
     main()
