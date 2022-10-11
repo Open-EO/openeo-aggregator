@@ -1,6 +1,7 @@
 import logging
 import inspect
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple, List, Callable
+
 
 class Unset:
     def __bool__(self) -> bool:
@@ -8,12 +9,12 @@ class Unset:
 UNSET: Unset = Unset()
 
 
-def concat(
+def merge_dict_values(
         dictionaries: List[Tuple[str, Dict]],
-        key, expected_types=None, report=logging.getLogger().warning
-):
+        key, expected_types, report: Callable[[str, str], None]
+) -> Any:
     """
-    Concatenate all values of a given key from a list of dictionaries, skipping any duplicates.
+    Merge all values of a given key from a list of dictionaries, skipping any duplicates.
     Args:
         dictionaries: List of dictionaries, given as tuples of (collection_identifier, dictionary)
         key: Key to concatenate
@@ -22,7 +23,7 @@ def concat(
         report: function to report inconsistencies
 
     Returns:
-        Concatenated value
+        Merged value, can be a list, a dict, or an object that implements the merge method.
     """
     result = None
     for cid, d in dictionaries:
