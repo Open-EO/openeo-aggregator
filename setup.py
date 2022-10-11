@@ -22,6 +22,7 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "requests",
+        "attr",
         "openeo>=0.9.3.a2.dev",
         "openeo_driver>=0.22.0.dev",
         "flask~=2.0",
