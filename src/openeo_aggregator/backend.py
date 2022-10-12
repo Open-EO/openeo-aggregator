@@ -19,6 +19,7 @@ from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.metadata.merging import merge_collection_metadata,     normalize_collection_metadata
+from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
@@ -114,7 +115,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 try:
-                    metadata = merge_collection_metadata(by_backend)
+                    metadata = merge_collection_metadata(by_backend, LoggerReporter(_log).report)
                 except Exception as e:
                     _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
                     continue
@@ -203,7 +204,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             metadata = by_backend.popitem()[1]
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
-            metadata = merge_collection_metadata(by_backend=by_backend)
+            metadata = merge_collection_metadata(by_backend=by_backend, report=LoggerReporter(_log).report)
         return normalize_collection_metadata(metadata, app=flask.current_app)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:

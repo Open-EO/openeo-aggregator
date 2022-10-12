@@ -95,7 +95,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
             summary = StacSummaries.from_dict(cube_dim_dict)
             summaries_list.append((f"{backend_id}:{cid}", summary))
         except Exception as e:
-            report(f"['{backend_id}':'{cid}']: {e}", "warning")
+            report(f"{e}", cid, backend_id, "warning")
     result["summaries"] = StacSummaries.merge_all(summaries_list, report).to_dict()
 
     # Assets
@@ -117,7 +117,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
             extent = Extent.from_dict(extent_dict)
             extents.append((f"{backend_id}:{cid}", extent))
         except Exception as e:
-            report(f"['{backend_id}':'{cid}']: {e}", "warning")
+            report(f"{e}", cid, backend_id, "warning")
     result["extent"] = Extent.merge_all(extents).to_dict()
 
     if getter.has_key("cube:dimensions"):
@@ -129,7 +129,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
             try:
                 CubeDimensions.from_dict(cube_dim_dict)
             except Exception as e:
-                report(f"['{backend_id}':'{cid}']: {e}", "warning")
+                report(f"{e}", cid, backend_id, "warning")
 
         # Then merge the cube:dimensions objects into one.
         result["cube:dimensions"] = {}
@@ -141,7 +141,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
                 bounds = cube_dim_getter.select(dim).concat("extent")
                 result["cube:dimensions"][dim]["extent"] = [min(bounds), max(bounds)]
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}")
+                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}", cid, "", "warning")
         # Temporal dimension
         t_dim = "t"
         if cube_dim_getter.has_key(t_dim):
@@ -157,7 +157,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
                     max(rfc3339.normalize(t) for t in t_ends) if t_ends else None
                 ]
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}")
+                report(f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}", cid)
 
         for dim in cube_dim_getter.available_keys(["bands"]):
             result["cube:dimensions"][dim] = cube_dim_getter.first(dim)
@@ -169,13 +169,13 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
                 for bands in bands_iterator:
                     prefix = [t[0] for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, bands))]
                     if bands != prefix:
-                        report(f"Trimming bands {bands} to common prefix {prefix}")
+                        report(f"Trimming bands {bands} to common prefix {prefix}", cid)
                 if len(prefix) > 0:
                     result["cube:dimensions"][dim]["values"] = prefix
                 else:
-                    report(f"Empty prefix for bands, falling back to first back-end's bands")
+                    report(f"Empty prefix for bands, falling back to first back-end's bands", cid)
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}")
+                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}", cid)
 
     # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
     result["summaries"][STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
@@ -185,7 +185,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
     # TODO: report invalid links
     license_links = [k for k in getter.concat("links") if isinstance(k, dict) and k.get("rel") == "license"]
     if result["license"] in ["various", "proprietary"] and not license_links:
-        _log.warning(f"[%s] License is '%s' but can not be found in license_links [%s]",
-            cid, result["license"], ", ".join(license_links))
-
+        lc = result["license"]
+        license_links_str = ", ".join(license_links)
+        report(f"License is '{lc}' but can not be found in license_links {license_links_str}", cid)
     return result

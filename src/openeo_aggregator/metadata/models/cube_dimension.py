@@ -159,7 +159,7 @@ class CubeDimension:
         identifier = "horizontal dimension"
         self._set_type_from_dict(d, DimensionType.SPATIAL.value, identifier)
         self._set_description_from_dict(d, identifier)
-        self._set_extent_from_dict(d, is_required =True, is_open =False, is_spatial =True, identifier=identifier)
+        self._set_extent_from_dict(d, is_required=True, is_open=False, is_spatial=True, identifier=identifier)
         self._set_values_from_dict(d, types=(float, int,), identifier=identifier)
         self._set_step_from_dict(d, types=(float, int,), identifier=identifier)
         self._set_reference_system_from_dict(d, types=(str, float, int, dict), identifier=identifier)
