@@ -430,14 +430,14 @@ class TestAggregatorCollectionCatalog:
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
             ], 'stac_version': '0.9.0',
             'summaries': {
-                'constellation': ['sentinel-1', 'sentinel-1'], 'instruments': ['c-sar', 'c-sar'],
+                'constellation': ['sentinel-1'], 'instruments': ['c-sar'],
                 'platform': ['sentinel-1a', 'sentinel-1b', 'sentinel-1'], 'provider:backend': ['b1', 'b2'],
-                'sar:center_frequency': [5.405, 5.405], 'sar:frequency_band': ['C', 'C'],
-                'sar:instrument_mode': ['SM', 'IW', 'EW', 'WV', 'IW'], 'sar:looks_azimuth': [1],
+                'sar:center_frequency': [5.405], 'sar:frequency_band': ['C'],
+                'sar:instrument_mode': ['SM', 'IW', 'EW', 'WV'], 'sar:looks_azimuth': [1],
                 'sar:looks_equivalent_number': [4.4], 'sar:looks_range': [5], 'sar:pixel_spacing_azimuth': [10],
                 'sar:pixel_spacing_range': [10],
-                'sar:polarizations': ['SH', 'SV', 'DH', 'DV', 'HH', 'HV', 'VV', 'VH', 'HH', 'VV', 'VV+VH', 'HH+HV'],
-                'sar:product_type': ['GRD', 'GRD'], 'sar:resolution': [10, 25, 40], 'sar:resolution_azimuth': [22],
+                'sar:polarizations': ['SH', 'SV', 'DH', 'DV', 'HH', 'HV', 'VV', 'VH', 'VV+VH', 'HH+HV'],
+                'sar:product_type': ['GRD'], 'sar:resolution': [10, 25, 40], 'sar:resolution_azimuth': [22],
                 'sar:resolution_range': [20], 'sat:orbit_state': ['ascending', 'descending']
             }, 'title': 'S2', 'type': 'Collection'
         }
