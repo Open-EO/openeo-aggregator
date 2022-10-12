@@ -112,7 +112,7 @@ class StacSummaries:
     @staticmethod
     def merge_all(
             summaries_list: List[Tuple[str, "StacSummaries"]],
-            report: Callable[[str, str], None]
+            report
     ) -> "StacSummaries":
         """
         Merge all summaries into one.
@@ -133,6 +133,6 @@ class StacSummaries:
                 summary_lists = [d.get(summary_name, []) for _, d in additional_properties]
                 merged_addition_properties[summary_name] = merge_lists_skip_duplicates(summary_lists)
             else:
-                backends = [cid for cid, d in additional_properties if summary_name in d]
-                report(f"{backends}: Unhandled merging of StacSummaries for summary_name: {summary_name!r}", "warning")
+                backends = ",".join([cid for cid, d in additional_properties if summary_name in d])
+                report(f"Unhandled merging of StacSummaries for summary_name: {summary_name!r}", "", backends)
         return StacSummaries(additional_properties=merged_addition_properties)
