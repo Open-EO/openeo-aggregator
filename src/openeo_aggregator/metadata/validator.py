@@ -18,7 +18,9 @@ def main():
     print("Requested backends: {}".format(args.backends))
     print("Requested environment: {}".format(args.environment))
     config: AggregatorConfig = get_config(args.environment)
-    backends = config.aggregator_backends.keys() if len(args.backends) == 0 else args.backends
+    backends = args.backends
+    if not backends or len(backends) == 0:
+        backends = config.aggregator_backends.keys()
 
     urls = [url for b, url in config.aggregator_backends.items() if b in backends]
     print("Found backends:\n  * {}".format("\n  * ".join(urls)))
