@@ -115,7 +115,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 try:
-                    metadata = merge_collection_metadata(by_backend, LoggerReporter(_log).report, False)
+                    metadata = merge_collection_metadata(by_backend, False, LoggerReporter(_log).report)
                 except Exception as e:
                     _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
                     continue
@@ -204,7 +204,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             metadata = by_backend.popitem()[1]
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
-            metadata = merge_collection_metadata(by_backend=by_backend, report=LoggerReporter(_log).report, isFull=True)
+            metadata = merge_collection_metadata(by_backend=by_backend, isFull=True, report=LoggerReporter(_log).report)
         return normalize_collection_metadata(metadata, app=flask.current_app)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
