@@ -30,16 +30,13 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
     if app:
         metadata["links"].append({
-            "href": app.url_for("openeo.collections", _external=True),
-            "rel": "root"
+            "href": app.url_for("openeo.collections", _external = True), "rel": "root"
         })
         metadata["links"].append({
-            "href": app.url_for("openeo.collections", _external=True),
-            "rel": "parent"
+            "href": app.url_for("openeo.collections", _external = True), "rel": "parent"
         })
         metadata["links"].append({
-            "href": app.url_for("openeo.collection_by_id", collection_id=cid, _external=True),
-            "rel": "self"
+            "href": app.url_for("openeo.collection_by_id", collection_id = cid, _external = True), "rel": "self"
         })
     else:
         _log.warning("Unable to provide root/parent/self links in collection metadata outside flask app context")
@@ -64,23 +61,18 @@ def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> di
 
     if isFull:
         for backend_id, collection in by_backend.items():
-            for required_field in ["stac_version", "id", "description", "license",
-                                   "extent", "links", "cube:dimensions", "summaries"]:
+            for required_field in ["stac_version", "id", "description", "license", "extent", "links", "cube:dimensions",
+                                   "summaries"]:
                 if required_field not in collection:
-                    report(f"Missing {required_field} in collection metadata.", cid, backend_id, level="error")
+                    report(f"Missing {required_field} in collection metadata.", cid, backend_id, level = "error")
 
     # Start with some initial/required fields
     result = {
-        "id": cid,
-        "stac_version": max(list(getter.get("stac_version")) + ["0.9.0"]),
-        "title": getter.first("title", default=cid),
-        "description": getter.first("description", default=cid),
-        "type": getter.first("type", default="Collection"),
-        "links": [
-            k for k in getter.concat("links")
-            # TODO: report invalid links (e.g. string instead of dict)
-            if isinstance(k, dict) and k.get("rel") not in ("self", "parent", "root")
-        ],
+        "id": cid, "stac_version": max(list(getter.get("stac_version")) + ["0.9.0"]),
+        "title": getter.first("title", default = cid), "description": getter.first("description", default = cid),
+        "type": getter.first("type", default = "Collection"),
+        "links": [k for k in getter.concat("links") # TODO: report invalid links (e.g. string instead of dict)
+            if isinstance(k, dict) and k.get("rel") not in ("self", "parent", "root")],
     }
 
     # Generic field merging
@@ -88,7 +80,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> di
     # - `crs` is required by OGC API: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
     # - `sci:doi` and related are defined at https://github.com/stac-extensions/scientific
     for field in getter.available_keys(["stac_extensions", "keywords", "providers", "sci:publications"]):
-        result[field] = getter.concat(field, skip_duplicates=True)
+        result[field] = getter.concat(field, skip_duplicates = True)
     for field in getter.available_keys(["deprecated"]):
         result[field] = all(getter.get(field))
     for field in getter.available_keys(["crs", "sci:citation", "sci:doi"]):
@@ -161,8 +153,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> di
                 t_ends = [e[1] for e in t_extent if e[1] and e[1] != 'None']
                 result["cube:dimensions"][t_dim]["extent"] = [
                     min(rfc3339.normalize(t) for t in t_starts) if t_starts else None,
-                    max(rfc3339.normalize(t) for t in t_ends) if t_ends else None
-                ]
+                    max(rfc3339.normalize(t) for t in t_ends) if t_ends else None]
             except Exception as e:
                 report(f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}", cid)
 
