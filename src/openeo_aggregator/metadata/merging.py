@@ -5,9 +5,10 @@ Functionality and tools for openEO collection/process metadata processing, norma
 """
 import itertools
 import logging
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, Any
 
 import flask
+from deepdiff import DeepDiff
 
 from openeo.util import rfc3339
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
@@ -187,3 +188,84 @@ def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> di
         license_links_str = ", ".join(license_links)
         report(f"License is '{lc}' but can not be found in license_links {license_links_str}", cid)
     return result
+
+
+def merge_process_metadata(processes_per_backend: Dict[str, Dict[str, Any]], report) -> Dict[str, Any]:
+    """Merge processes from multiple back-ends into a single dict.
+
+    :param processes_per_backend: A dictionary mapping backend ids to processes.
+    :return: A single process graph.
+    """
+    combined_processes = {}
+    for bid, backend_processes in processes_per_backend.items():
+        for process_id, process in backend_processes.items():
+            if process_id in combined_processes:
+                first_process, second_process = combined_processes[process_id], process
+                first_bid, second_bid = first_process["supported_by"], bid
+                first_params = first_process.get("parameters", None)
+                second_params = second_process.get("parameters", None)
+                if type(first_params) != type(second_params):
+                    report(f"Parameters key is different on these two groups of backends: "
+                           f"{first_bid} and {[second_bid]}", process_id, "", "warning")
+                    continue
+                if first_params is None:
+                    continue
+                for param1, param2 in zip(first_params, second_params):
+                    parameter_name = param1.get("name", "")
+                    # Compare top level parameter fields.
+                    for key, default in [("name", ""), ("optional", False), ("default", None)]:
+                        param1_value = param1.get(key, default)
+                        param2_value = param2.get(key, default)
+                        if param1_value != param2_value:
+                            report(f"{parameter_name}: \"{key}\" key is different "
+                                   f"on these two groups of backends: {first_bid} and {[second_bid]}, "
+                                   f"\"{param1_value}\" vs \"{param2_value}\"", process_id, "", "warning")
+                            continue
+                    # Compare schema of parameter.
+                    first_schema, second_schema = param1.get("schema", {}), param2.get("schema", {})
+                    diff = DeepDiff(first_schema, second_schema, ignore_order = True,
+                        exclude_regex_paths = "(deprecated)|(description)|(experimental)").to_dict()
+                    if diff:
+                        # Do an extra pass over diff to ignore default keys.
+                        default_keys = {
+                            "default": None, "optional": False, "deprecated": False, "experimental": False
+                        }
+                        values_changed = diff.get('values_changed', None)
+                        if values_changed:
+                            paths_to_remove = []
+                            for path, changes in values_changed.items():
+                                if type(changes) != dict:
+                                    continue
+                                new_value, old_value = changes.get("new_value", None), changes.get("old_value", None)
+                                if type(new_value) == type(old_value) == dict:
+                                    for key, value in default_keys.items():
+                                        if key not in new_value:
+                                            new_value[key] = value
+                                        if key not in old_value:
+                                            old_value[key] = value
+                                if new_value == old_value:
+                                    paths_to_remove.append(path)
+                            for path in paths_to_remove:
+                                del values_changed[path]
+                            if not values_changed:
+                                del diff['values_changed']
+                        # If there are still differences in the diff dict, log them.
+                        if diff:
+                            report(f"{process_id}: schema of {parameter_name} parameter is different on "
+                                   f"these two groups of backends: {first_bid} and {[second_bid]}. Diff: {diff}",
+                                process_id, "", "warning")
+                            continue
+                # Compare the return schema of the process.
+                first_returns_schema = first_process.get("returns", {}).get("schema", None)
+                second_returns_schema = second_process.get("returns", {}).get("schema", None)
+                if first_returns_schema != second_returns_schema:
+                    diff = DeepDiff(first_returns_schema, second_returns_schema, ignore_order = True,
+                        exclude_regex_paths = "(deprecated)|(description)|(experimental)").to_dict()
+                    report(f"\"return\" key is different on these two groups of backends: "
+                           f"{first_bid} and {[second_bid]}. Diff: {diff}", process_id, "", "warning")
+                    continue
+                first_process["supported_by"].append(bid)
+            else:
+                process["supported_by"] = [bid]
+                combined_processes[process_id] = process
+    return combined_processes

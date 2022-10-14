@@ -5,7 +5,7 @@ from pathlib import Path
 import argparse
 import requests
 from openeo_aggregator.config import get_config, AggregatorConfig
-from openeo_aggregator.metadata.merging import merge_collection_metadata
+from openeo_aggregator.metadata.merging import merge_collection_metadata, merge_process_metadata
 from openeo_aggregator.metadata.reporter import ValidationReporter
 
 _log = logging.getLogger(__name__)
@@ -71,11 +71,18 @@ def compare_get_collection_by_id(backend_urls, collection_id):
 
 
 def compare_get_processes(backend_urls):
-    pass
-
-
-def compare_get_process_by_id(backend_urls, process_id):
-    pass
+    print("Comparing /processes")
+    processes_per_backend = {}
+    for url in backend_urls:
+        r = requests.get(url + "/processes")
+        if r.status_code == 200:
+            processes = r.json().get("processes", {})
+            processes_per_backend[url] = {p["id"]: p for p in processes}
+        else:
+            print("WARNING: {} /processes does not return 200".format(url))
+    reporter = ValidationReporter()
+    merge_process_metadata(processes_per_backend, reporter.report)
+    reporter.print()
 
 
 def get_all_collections_ids(backend_urls):
