@@ -6,6 +6,7 @@ import argparse
 import requests
 from openeo_aggregator.config import get_config, AggregatorConfig
 from openeo_aggregator.metadata.merging import merge_collection_metadata
+from openeo_aggregator.metadata.reporter import ValidationReporter
 
 _log = logging.getLogger(__name__)
 
@@ -28,28 +29,10 @@ def main():
     # 1. Compare /collections
     compare_get_collections(urls)
     # 2. Compare /collections/{collection_id}
+    for collection_id in get_all_collections_ids(urls):
+        compare_get_collection_by_id(urls, collection_id)
     # 3. Compare /processes
     # 4. Compare /processes/{process_id}
-
-
-class ValidationReporter:
-    def __init__(self):
-        self.warning_messages = []
-        self.critical_messages = []
-
-    def report(self, msg, level="warning"):
-        caller = inspect.stack()[1]
-        caller_file = Path(caller.filename).name.split("/")[-1]
-        msg = f"{caller_file}:{caller.lineno}: {msg}"
-        self.critical_messages.append(msg) if level == "critical" else self.warning_messages.append(msg)
-
-    def print(self):
-        print("Warning messages:")
-        for msg in self.warning_messages:
-            print("  * {}".format(msg))
-        print("Critical messages:")
-        for msg in self.critical_messages:
-            print("  * {}".format(msg))
 
 
 def compare_get_collections(backend_urls):
@@ -71,14 +54,20 @@ def compare_get_collections(backend_urls):
         by_backend = {}
         for url, collection in backend_collection.items():
             by_backend[url] = collection
-        merged_metadata[collection_id] = merge_collection_metadata(by_backend, reporter.report)
-
-    # Print the results
+        merged_metadata[collection_id] = merge_collection_metadata(by_backend, reporter.report, False)
     reporter.print()
 
 
 def compare_get_collection_by_id(backend_urls, collection_id):
-    pass
+    print("Comparing /collections/{}".format(collection_id))
+    by_backend = {}
+    for url in backend_urls:
+        r = requests.get(url + "/collections/{}".format(collection_id))
+        if r.status_code == 200:
+            by_backend[url] = r.json()
+    reporter = ValidationReporter()
+    merged_metadata = merge_collection_metadata(by_backend, reporter.report, True)
+    reporter.print()
 
 
 def compare_get_processes(backend_urls):

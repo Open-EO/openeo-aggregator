@@ -46,7 +46,7 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     return metadata
 
 
-def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str, str], None]) -> dict:
+def merge_collection_metadata(by_backend: Dict[str, dict], report, isFull) -> dict:
     """
     Merge collection metadata dicts from multiple backends
 
@@ -61,6 +61,13 @@ def merge_collection_metadata(by_backend: Dict[str, dict], report: Callable[[str
         raise ValueError(f"Single collection id expected, but got {ids}")
     cid = ids.pop()
     _log.info(f"Merging collection metadata for {cid!r}")
+
+    if isFull:
+        for backend_id, collection in by_backend.items():
+            for required_field in ["stac_version", "id", "description", "license",
+                                   "extent", "links", "cube:dimensions", "summaries"]:
+                if required_field not in collection:
+                    report(f"Missing {required_field} in collection metadata.", cid, backend_id, level="error")
 
     # Start with some initial/required fields
     result = {
