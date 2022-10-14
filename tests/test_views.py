@@ -381,21 +381,21 @@ class TestProcessing:
         res = api100.get("/processes").assert_status_code(200).json
         assert res == {
             "processes": [
-                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-                {"id": "mean", "parameters": [{"name": "data"}]},
-                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
+                {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b1', 'b2']},
+                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
             ],
             "links": [],
         }
 
     @pytest.mark.parametrize(["backend1_up", "backend2_up", "expected"], [
         (True, False, [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
+            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
+            {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b1']},
         ]),
         (False, True, [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
+            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
+            {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b2']},
         ]),
         (False, False, []),
     ])
