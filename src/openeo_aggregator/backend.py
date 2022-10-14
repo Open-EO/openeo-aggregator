@@ -18,7 +18,8 @@ from openeo_aggregator.connection import MultiBackendConnection, BackendConnecti
 from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
-from openeo_aggregator.metadata.merging import merge_collection_metadata,     normalize_collection_metadata
+from openeo_aggregator.metadata.merging import merge_collection_metadata, normalize_collection_metadata, \
+    merge_process_metadata
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
@@ -266,11 +267,15 @@ class AggregatorProcessing(Processing):
         if api_version != self.backends.api_version:
             # TODO: only check for mismatch in major version?
             _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
-
-        combined_processes = self._memoizer.get_or_call(
-            key=("all", str(api_version)),
-            callback=self._get_merged_process_meatadata
-        )
+        processes_per_backend = {}
+        for con in self.backends:
+            try:
+                processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
+            except Exception as e:
+                # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
+                _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
+        reporter = LoggerReporter(_log)
+        combined_processes = merge_process_metadata(processes_per_backend, report=reporter.report)
         process_registry = ProcessRegistry()
         for pid, spec in combined_processes.items():
             process_registry.add_spec(spec=spec)
