@@ -44,11 +44,12 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     return metadata
 
 
-def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> dict:
+def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> dict:
     """
     Merge collection metadata dicts from multiple backends
 
     :param by_backend: mapping of backend id to collection metadata dict
+    :param is_full: indicates whether the collection metadata is full. This adds several extra requirements.
     :param report: function to report issues in the merging process
     It takes in a message and level (e.g. "warning", "error") as arguments.
     """
@@ -60,7 +61,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], isFull, report) -> di
     cid = ids.pop()
     _log.info(f"Merging collection metadata for {cid!r}")
 
-    if isFull:
+    if is_full:
         for backend_id, collection in by_backend.items():
             for required_field in ["stac_version", "id", "description", "license", "extent", "links", "cube:dimensions",
                                    "summaries"]:
