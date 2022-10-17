@@ -205,7 +205,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             metadata = by_backend.popitem()[1]
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
-            metadata = merge_collection_metadata(by_backend=by_backend, isFull=True, report=LoggerReporter(_log).report)
+            metadata = merge_collection_metadata(by_backend=by_backend, is_full =True, report=LoggerReporter(_log).report)
         return normalize_collection_metadata(metadata, app=flask.current_app)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
