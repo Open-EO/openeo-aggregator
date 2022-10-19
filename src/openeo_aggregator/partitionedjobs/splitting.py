@@ -14,8 +14,9 @@ from openeo_aggregator.utils import BoundingBox
 from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
 from openeo_driver.backend import OpenEoBackendImplementation
 from openeo_driver.dry_run import DryRunDataTracer
+from openeo_driver.util.geometry import reproject_bounding_box, spatial_extent_union
 from openeo_driver.util.utm import auto_utm_epsg_for_geometry
-from openeo_driver.utils import EvalEnv, spatial_extent_union, reproject_bounding_box
+from openeo_driver.utils import EvalEnv
 
 if typing.TYPE_CHECKING:
     from openeo_aggregator.backend import AggregatorProcessing
