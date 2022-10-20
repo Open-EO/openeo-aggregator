@@ -32,7 +32,7 @@ def main():
     for collection_id in get_all_collections_ids(urls):
         compare_get_collection_by_id(urls, collection_id)
     # 3. Compare /processes
-    # 4. Compare /processes/{process_id}
+    compare_get_processes(urls)
 
 
 def compare_get_collections(backend_urls):
