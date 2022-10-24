@@ -49,6 +49,8 @@ class AggregatorConfig(dict):
     # See `memoizer_from_config` for details.
     memoizer = dict_item(default={"type": "dict"})
 
+    # TTL for connection caching.
+    connections_cache_ttl = dict_item(default=5 * 60.0)
 
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
