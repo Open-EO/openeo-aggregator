@@ -170,16 +170,15 @@ class MultiBackendConnection:
     # TODO: keep track of (recent) backend failures, e.g. to automatically blacklist a backend
     # TODO: synchronized backend connection caching/flushing across gunicorn workers, for better consistency?
 
-    # TODO: move this connections caching ttl to config?
-    _CONNECTIONS_CACHING_TTL = 5 * 60
 
     _TIMEOUT = 5
 
     def __init__(
-            self,
-            backends: Dict[str, str],
-            configured_oidc_providers: List[OidcProvider],
-            memoizer: Memoizer = None,
+        self,
+        backends: Dict[str, str],
+        configured_oidc_providers: List[OidcProvider],
+        memoizer: Memoizer = None,
+        connections_cache_ttl: float = 5 * 60.0,
     ):
         if any(not re.match(r"^[a-z0-9]+$", bid) for bid in backends.keys()):
             raise ValueError(
@@ -195,6 +194,7 @@ class MultiBackendConnection:
 
         # Caching of connection objects
         self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
+        self._connections_cache_ttl = connections_cache_ttl
         # Event handler for when there is a change in the set of working back-end ids.
         self.on_connections_change = EventHandler("connections_change")
         self.on_connections_change.add(self._memoizer.invalidate)
@@ -205,6 +205,7 @@ class MultiBackendConnection:
             backends=config.aggregator_backends,
             configured_oidc_providers=config.configured_oidc_providers,
             memoizer=memoizer_from_config(config, namespace="mbcon"),
+            connections_cache_ttl=config.connections_cache_ttl,
         )
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
@@ -229,14 +230,14 @@ class MultiBackendConnection:
             for con in self._connections_cache.connections:
                 con.invalidate()
             self._connections_cache = _ConnectionsCache(
-                expiry=now + self._CONNECTIONS_CACHING_TTL,
+                expiry=now + self._connections_cache_ttl,
                 connections=list(self._get_connections(skip_failures=True))
             )
             new_bids = [c.id for c in self._connections_cache.connections]
             _log.debug(
                 f"Created {len(self._connections_cache.connections)} actual"
                 f" of {len(self._backend_urls)} configured connections"
-                f" (TTL {self._CONNECTIONS_CACHING_TTL}s)"
+                f" (TTL {self._connections_cache_ttl}s)"
             )
             if orig_bids != new_bids:
                 if len(orig_bids) > 0:
