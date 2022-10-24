@@ -271,20 +271,17 @@ class AggregatorProcessing(Processing):
         if api_version != self.backends.api_version:
             # TODO: only check for mismatch in major version?
             _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
-        processes_per_backend = {}
-        for con in self.backends:
-            try:
-                processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
-            except Exception as e:
-                # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
-                _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
-        combined_processes = merge_process_metadata(processes_per_backend)
+
+        combined_processes = self._memoizer.get_or_call(
+            key=("all", str(api_version)),
+            callback=self._get_merged_process_metadata,
+        )
         process_registry = ProcessRegistry()
         for pid, spec in combined_processes.items():
             process_registry.add_spec(spec=spec)
         return process_registry
 
-    def _get_merged_process_meatadata(self) -> dict:
+    def _get_merged_process_metadata(self) -> dict:
         processes_per_backend = {}
         for con in self.backends:
             try:
@@ -293,12 +290,7 @@ class AggregatorProcessing(Processing):
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
 
-        # TODO #4: combined set of processes: union, intersection or something else?
-        # TODO #4: not only check process name, but also parameters and return type?
-        combined_processes = {}
-        for bid, backend_processes in processes_per_backend.items():
-            # Combine by taking union (with higher preference for earlier backends)
-            combined_processes = {**backend_processes, **combined_processes}
+        combined_processes = merge_process_metadata(processes_per_backend)
         return combined_processes
 
     def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:
