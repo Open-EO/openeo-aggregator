@@ -128,11 +128,19 @@ class StacSummaries:
 
         merged_addition_properties = {}
         for summary_name in unique_summary_names:
-            if (summary_name in ["constellation", "platform", "instruments"] or
-                summary_name.startswith("sar:") or summary_name.startswith("sat:")):
+            if (
+                summary_name in ["constellation", "platform", "instruments"]
+                or summary_name.startswith("sar:")
+                or summary_name.startswith("sat:")
+            ):
                 summary_lists = [d.get(summary_name, []) for _, d in additional_properties]
                 merged_addition_properties[summary_name] = merge_lists_skip_duplicates(summary_lists)
             else:
-                backends = ",".join([cid for cid, d in additional_properties if summary_name in d])
-                report(f"Unhandled merging of StacSummaries for summary_name: {summary_name!r}", "", backends)
+                backends = ",".join(
+                    [cid for cid, d in additional_properties if summary_name in d]
+                )
+                report(
+                    f"Unhandled merging of StacSummaries for summary_name: {summary_name!r}",
+                    backend_id=backends,
+                )
         return StacSummaries(additional_properties=merged_addition_properties)

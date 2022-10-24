@@ -3,6 +3,10 @@ from typing import Any, Dict, List, Type, TypeVar, Union, cast
 
 import attr
 
+
+_log = logging.getLogger(__name__)
+
+
 T = TypeVar("T", bound="Statistics")
 
 
@@ -82,7 +86,8 @@ class Statistics:
     def __contains__(self, key: str) -> bool:
         return key in self.additional_properties
 
-    def merge(self, other: "Statistics", report=logging.getLogger().warning) -> "Statistics":
+    def merge(self, other: "Statistics", report=_log.warning) -> "Statistics":
+        # TODO: why is `report` different here from all other "reporter" usage?
         if not isinstance(other, Statistics):
             raise TypeError(f"Cannot merge {type(other)} with Statistics")
         # If min and max are strings, we can't merge them
