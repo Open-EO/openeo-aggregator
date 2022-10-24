@@ -16,11 +16,14 @@ from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
+from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.utils import MultiDictGetter
 from openeo_driver.errors import OpenEOApiException
 
 _log = logging.getLogger(__name__)
 
+
+DEFAULT_REPORTER = LoggerReporter(_log)
 
 def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = None) -> dict:
     cid = metadata.get("id", None)
@@ -45,7 +48,9 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
 
 
 def merge_collection_metadata(
-    by_backend: Dict[str, dict], full_metadata: bool, report: Callable
+    by_backend: Dict[str, dict],
+    full_metadata: bool,
+    report: Callable = DEFAULT_REPORTER.report,
 ) -> dict:
     """
     Merge collection metadata dicts from multiple backends
@@ -220,7 +225,8 @@ def merge_collection_metadata(
 
 
 def merge_process_metadata(
-    processes_per_backend: Dict[str, Dict[str, Any]], report: Callable
+    processes_per_backend: Dict[str, Dict[str, Any]],
+    report: Callable = DEFAULT_REPORTER.report,
 ) -> Dict[str, Any]:
     """Merge processes from multiple back-ends into a single dict.
 

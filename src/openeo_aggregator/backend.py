@@ -117,9 +117,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 try:
                     metadata = merge_collection_metadata(
-                        by_backend,
-                        full_metadata=False,
-                        report=LoggerReporter(_log).report,
+                        by_backend, full_metadata=False
                     )
                 except Exception as e:
                     _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
@@ -210,9 +208,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
             metadata = merge_collection_metadata(
-                by_backend=by_backend,
-                full_metadata=True,
-                report=LoggerReporter(_log).report,
+                by_backend=by_backend, full_metadata=True
             )
         return normalize_collection_metadata(metadata, app=flask.current_app)
 
@@ -282,8 +278,7 @@ class AggregatorProcessing(Processing):
             except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
-        reporter = LoggerReporter(_log)
-        combined_processes = merge_process_metadata(processes_per_backend, report=reporter.report)
+        combined_processes = merge_process_metadata(processes_per_backend)
         process_registry = ProcessRegistry()
         for pid, spec in combined_processes.items():
             process_registry.add_spec(spec=spec)
