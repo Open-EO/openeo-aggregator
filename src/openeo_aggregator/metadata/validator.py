@@ -54,7 +54,9 @@ def compare_get_collections(backend_urls):
         by_backend = {}
         for url, collection in backend_collection.items():
             by_backend[url] = collection
-        merged_metadata[collection_id] = merge_collection_metadata(by_backend, False, reporter.report)
+        merged_metadata[collection_id] = merge_collection_metadata(
+            by_backend, full_metadata=False, report=reporter.report
+        )
     reporter.print()
 
 
@@ -66,7 +68,9 @@ def compare_get_collection_by_id(backend_urls, collection_id):
         if r.status_code == 200:
             by_backend[url] = r.json()
     reporter = ValidationReporter()
-    merged_metadata = merge_collection_metadata(by_backend, True, reporter.report)
+    merged_metadata = merge_collection_metadata(
+        by_backend, full_metadata=True, report=reporter.report
+    )
     reporter.print()
 
 

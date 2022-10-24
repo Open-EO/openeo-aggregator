@@ -44,12 +44,14 @@ def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = N
     return metadata
 
 
-def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> dict:
+def merge_collection_metadata(
+    by_backend: Dict[str, dict], full_metadata: bool, report: Callable
+) -> dict:
     """
     Merge collection metadata dicts from multiple backends
 
     :param by_backend: mapping of backend id to collection metadata dict
-    :param is_full: indicates whether the collection metadata is full. This adds several extra requirements.
+    :param full_metadata: indicates whether to work with full collection metadata (instead of basic).
     :param report: function to report issues in the merging process
     It takes in a message and level (e.g. "warning", "error") as arguments.
     """
@@ -61,12 +63,17 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
     cid = ids.pop()
     _log.info(f"Merging collection metadata for {cid!r}")
 
-    if is_full:
+    if full_metadata:
         for backend_id, collection in by_backend.items():
             for required_field in ["stac_version", "id", "description", "license", "extent", "links", "cube:dimensions",
                                    "summaries"]:
                 if required_field not in collection:
-                    report(f"Missing {required_field} in collection metadata.", cid, backend_id, level = "error")
+                    report(
+                        f"Missing {required_field} in collection metadata.",
+                        collection_id=cid,
+                        backend_id=backend_id,
+                        level="error",
+                    )
 
     # Start with some initial/required fields
     result = {
@@ -96,7 +103,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
             summary = StacSummaries.from_dict(cube_dim_dict)
             summaries_list.append((f"{backend_id}:{cid}", summary))
         except Exception as e:
-            report(f"{e}", cid, backend_id, "warning")
+            report(repr(e), collection_id=cid, backend_id=backend_id, level="warning")
     result["summaries"] = StacSummaries.merge_all(summaries_list, report).to_dict()
 
     # Assets
@@ -118,7 +125,7 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
             extent = Extent.from_dict(extent_dict)
             extents.append((f"{backend_id}:{cid}", extent))
         except Exception as e:
-            report(f"{e}", cid, backend_id, "warning")
+            report(repr(e), collection_id=cid, backend_id=backend_id, level="warning")
     result["extent"] = Extent.merge_all(extents).to_dict()
 
     if getter.has_key("cube:dimensions"):
@@ -130,7 +137,9 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
             try:
                 CubeDimensions.from_dict(cube_dim_dict)
             except Exception as e:
-                report(f"{e}", cid, backend_id, "warning")
+                report(
+                    repr(e), collection_id=cid, backend_id=backend_id, level="warning"
+                )
 
         # Then merge the cube:dimensions objects into one.
         result["cube:dimensions"] = {}
@@ -142,7 +151,11 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
                 bounds = cube_dim_getter.select(dim).concat("extent")
                 result["cube:dimensions"][dim]["extent"] = [min(bounds), max(bounds)]
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}", cid, "", "warning")
+                report(
+                    f"Failed to merge cube:dimensions.{dim}.extent: {e!r}",
+                    collection_id=cid,
+                    level="warning",
+                )
         # Temporal dimension
         t_dim = "t"
         if cube_dim_getter.has_key(t_dim):
@@ -157,7 +170,10 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
                     min(rfc3339.normalize(t) for t in t_starts) if t_starts else None,
                     max(rfc3339.normalize(t) for t in t_ends) if t_ends else None]
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}", cid)
+                report(
+                    f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}",
+                    collection_id=cid,
+                )
 
         for dim in cube_dim_getter.available_keys(["bands"]):
             result["cube:dimensions"][dim] = cube_dim_getter.first(dim)
@@ -169,13 +185,22 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
                 for bands in bands_iterator:
                     prefix = [t[0] for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, bands))]
                     if bands != prefix:
-                        report(f"Trimming bands {bands} to common prefix {prefix}", cid)
+                        report(
+                            f"Trimming bands {bands} to common prefix {prefix}",
+                            collection_id=cid,
+                        )
                 if len(prefix) > 0:
                     result["cube:dimensions"][dim]["values"] = prefix
                 else:
-                    report(f"Empty prefix for bands, falling back to first back-end's bands", cid)
+                    report(
+                        f"Empty prefix for bands, falling back to first back-end's bands",
+                        collection_id=cid,
+                    )
             except Exception as e:
-                report(f"Failed to merge cube:dimensions.{dim}.extent: {e!r}", cid)
+                report(
+                    f"Failed to merge cube:dimensions.{dim}.extent: {e!r}",
+                    collection_id=cid,
+                )
 
     # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
     result["summaries"][STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
@@ -187,11 +212,16 @@ def merge_collection_metadata(by_backend: Dict[str, dict], is_full, report) -> d
     if result["license"] in ["various", "proprietary"] and not license_links:
         lc = result["license"]
         license_links_str = ", ".join(license_links)
-        report(f"License is '{lc}' but can not be found in license_links {license_links_str}", cid)
+        report(
+            f"License is '{lc}' but can not be found in license_links {license_links_str}",
+            collection_id=cid,
+        )
     return result
 
 
-def merge_process_metadata(processes_per_backend: Dict[str, Dict[str, Any]], report) -> Dict[str, Any]:
+def merge_process_metadata(
+    processes_per_backend: Dict[str, Dict[str, Any]], report: Callable
+) -> Dict[str, Any]:
     """Merge processes from multiple back-ends into a single dict.
 
     :param processes_per_backend: A dictionary mapping backend ids to processes.
@@ -206,8 +236,12 @@ def merge_process_metadata(processes_per_backend: Dict[str, Dict[str, Any]], rep
                 first_params = first_process.get("parameters", None)
                 second_params = second_process.get("parameters", None)
                 if type(first_params) != type(second_params):
-                    report(f"Parameters key is different on these two groups of backends: "
-                           f"{first_bid} and {[second_bid]}", process_id, "", "warning")
+                    report(
+                        f"Parameters key is different on these two groups of backends: "
+                        f"{first_bid} and {[second_bid]}",
+                        process_id=process_id,
+                        level="warning",
+                    )
                     continue
                 if first_params is None:
                     continue
@@ -218,9 +252,13 @@ def merge_process_metadata(processes_per_backend: Dict[str, Dict[str, Any]], rep
                         param1_value = param1.get(key, default)
                         param2_value = param2.get(key, default)
                         if param1_value != param2_value:
-                            report(f"{parameter_name}: \"{key}\" key is different "
-                                   f"on these two groups of backends: {first_bid} and {[second_bid]}, "
-                                   f"\"{param1_value}\" vs \"{param2_value}\"", process_id, "", "warning")
+                            report(
+                                f'{parameter_name}: "{key}" key is different '
+                                f"on these two groups of backends: {first_bid} and {[second_bid]}, "
+                                f'"{param1_value}" vs "{param2_value}"',
+                                process_id=process_id,
+                                level="warning",
+                            )
                             continue
                     # Compare schema of parameter.
                     first_schema, second_schema = param1.get("schema", {}), param2.get("schema", {})
@@ -252,18 +290,29 @@ def merge_process_metadata(processes_per_backend: Dict[str, Dict[str, Any]], rep
                                 del diff['values_changed']
                         # If there are still differences in the diff dict, log them.
                         if diff:
-                            report(f"{process_id}: schema of {parameter_name} parameter is different on "
-                                   f"these two groups of backends: {first_bid} and {[second_bid]}. Diff: {diff}",
-                                process_id, "", "warning")
+                            report(
+                                f"{process_id}: schema of {parameter_name} parameter is different on "
+                                f"these two groups of backends: {first_bid} and {[second_bid]}. Diff: {diff}",
+                                process_id=process_id,
+                                level="warning",
+                            )
                             continue
                 # Compare the return schema of the process.
                 first_returns_schema = first_process.get("returns", {}).get("schema", None)
                 second_returns_schema = second_process.get("returns", {}).get("schema", None)
                 if first_returns_schema != second_returns_schema:
-                    diff = DeepDiff(first_returns_schema, second_returns_schema, ignore_order = True,
-                        exclude_regex_paths = "(deprecated)|(description)|(experimental)").to_dict()
-                    report(f"\"return\" key is different on these two groups of backends: "
-                           f"{first_bid} and {[second_bid]}. Diff: {diff}", process_id, "", "warning")
+                    diff = DeepDiff(
+                        first_returns_schema,
+                        second_returns_schema,
+                        ignore_order=True,
+                        exclude_regex_paths="(deprecated)|(description)|(experimental)",
+                    ).to_dict()
+                    report(
+                        f'"return" key is different on these two groups of backends: '
+                        f"{first_bid} and {[second_bid]}. Diff: {diff}",
+                        process_id=process_id,
+                        level="warning",
+                    )
                     continue
                 first_process["supported_by"].append(bid)
             else:

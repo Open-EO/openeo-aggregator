@@ -7,9 +7,12 @@ After that, additional validation rules and merging logic was added manually.
 You can follow these steps to generate the models yourself:
 1. Install the openapi-generator: `pip install openapi-generator-cli`
 2. Convert the [openapi.yaml](https://github.com/Open-EO/openeo-api/blob/master/openapi.yaml) file to json.
-sudo openapi-generator-cli generate -g openapi -i openapi.yaml -o .
+
+        sudo openapi-generator-cli generate -g openapi -i openapi.yaml -o .
+
 3. Generate models from openapi.json
-openapi-python-client generate --path openapi.json
+
+        openapi-python-client generate --path openapi.json
 
 Note that some models use extensions such as the datacube stac-extension. 
 In such cases the typing was added manually using the [specification](https://github.com/stac-extensions/datacube/blob/main/json-schema/schema.json).
