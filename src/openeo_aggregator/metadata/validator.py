@@ -24,7 +24,7 @@ def main():
         backends = config.aggregator_backends.keys()
 
     urls = [url for b, url in config.aggregator_backends.items() if b in backends]
-    print("Found backends:\n  * {}".format("\n  * ".join(urls)))
+    print("Using backends:\n  * {}".format("\n  * ".join(urls)))
 
     # 1. Compare /collections
     compare_get_collections(urls)
