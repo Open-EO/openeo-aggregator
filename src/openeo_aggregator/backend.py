@@ -18,8 +18,11 @@ from openeo_aggregator.connection import MultiBackendConnection, BackendConnecti
 from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
-from openeo_aggregator.metadata.merging import merge_collection_metadata, normalize_collection_metadata, \
-    merge_process_metadata
+from openeo_aggregator.metadata.merging import (
+    merge_collection_metadata,
+    normalize_collection_metadata,
+    ProcessMetadataMerger,
+)
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
@@ -290,7 +293,9 @@ class AggregatorProcessing(Processing):
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
 
-        combined_processes = merge_process_metadata(processes_per_backend)
+        combined_processes = ProcessMetadataMerger().merge_processes_metadata(
+            processes_per_backend=processes_per_backend
+        )
         return combined_processes
 
     def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:

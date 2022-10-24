@@ -5,7 +5,10 @@ from pathlib import Path
 import argparse
 import requests
 from openeo_aggregator.config import get_config, AggregatorConfig
-from openeo_aggregator.metadata.merging import merge_collection_metadata, merge_process_metadata
+from openeo_aggregator.metadata.merging import (
+    merge_collection_metadata,
+    ProcessMetadataMerger,
+)
 from openeo_aggregator.metadata.reporter import ValidationReporter
 
 _log = logging.getLogger(__name__)
@@ -13,8 +16,18 @@ _log = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-b", "--backends", nargs="+", help="List of backends to use", )
-    parser.add_argument("-e", "--environment", help="Environment to use", default="dev")
+    parser.add_argument(
+        "-b",
+        "--backends",
+        nargs="+",
+        help="List of backends to use",
+    )
+    parser.add_argument(
+        "-e",
+        "--environment",
+        help="Environment to use (e.g. 'dev', 'prod', 'local', ...)",
+        default="dev",
+    )
     args = parser.parse_args()
     print("Requested backends: {}".format(args.backends))
     print("Requested environment: {}".format(args.environment))
@@ -26,6 +39,7 @@ def main():
     urls = [url for b, url in config.aggregator_backends.items() if b in backends]
     print("Using backends:\n  * {}".format("\n  * ".join(urls)))
 
+    # TODO: cli options to toggle these different checks
     # 1. Compare /collections
     compare_get_collections(urls)
     # 2. Compare /collections/{collection_id}
@@ -85,7 +99,9 @@ def compare_get_processes(backend_urls):
         else:
             print("WARNING: {} /processes does not return 200".format(url))
     reporter = ValidationReporter()
-    merge_process_metadata(processes_per_backend, reporter.report)
+    ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(
+        processes_per_backend
+    )
     reporter.print()
 
 
