@@ -60,7 +60,7 @@ class TestMultiDictGetter:
         assert getter.concat("a") == expected
 
         if expect_warning:
-            assert "Skipping unexpected type in MultiDictGetter.concat" in caplog.text
+            assert "skipping unexpected type" in caplog.text
         else:
             assert not caplog.text
 

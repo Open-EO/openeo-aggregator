@@ -370,48 +370,172 @@ class TestAuthEntitlementCheck:
 
 class TestProcessing:
     def test_processes_basic(self, api100, requests_mock, backend1, backend2):
-        requests_mock.get(backend1 + "/processes", json={"processes": [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-        ]})
-        requests_mock.get(backend2 + "/processes", json={"processes": [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-        ]})
+        requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "add",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "multiply",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                ]
+            },
+        )
         res = api100.get("/processes").assert_status_code(200).json
         assert res == {
             "processes": [
-                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
-                {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b1', 'b2']},
-                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
+                {
+                    "id": "add",
+                    "description": "add",
+                    "parameters": [
+                        {"name": "x", "schema": {}, "description": "x"},
+                        {"name": "y", "schema": {}, "description": "y"},
+                    ],
+                    "returns": {"schema": {}},
+                    "federation:backends": ["b1"],
+                },
+                {
+                    "id": "mean",
+                    "description": "mean",
+                    "parameters": [
+                        {"name": "data", "schema": {}, "description": "data"}
+                    ],
+                    "returns": {"schema": {}},
+                    "federation:backends": ["b1", "b2"],
+                },
+                {
+                    "id": "multiply",
+                    "description": "multiply",
+                    "parameters": [
+                        {"name": "x", "schema": {}, "description": "x"},
+                        {"name": "y", "schema": {}, "description": "y"},
+                    ],
+                    "returns": {"schema": {}},
+                    "federation:backends": ["b2"],
+                },
             ],
             "links": [],
         }
 
-    @pytest.mark.parametrize(["backend1_up", "backend2_up", "expected"], [
-        (True, False, [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b1']},
-            {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b1']},
-        ]),
-        (False, True, [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}], 'supported_by': ['b2']},
-            {"id": "mean", "parameters": [{"name": "data"}], 'supported_by': ['b2']},
-        ]),
-        (False, False, []),
-    ])
-    def test_processes_resilience(self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected):
+    @pytest.mark.parametrize(
+        ["backend1_up", "backend2_up", "expected"],
+        [
+            (
+                True,
+                False,
+                [
+                    {
+                        "id": "add",
+                        "description": "add",
+                        "parameters": [
+                            {"name": "x", "schema": {}, "description": "x"},
+                            {"name": "y", "schema": {}, "description": "y"},
+                        ],
+                        "returns": {"schema": {}},
+                        "federation:backends": ["b1"],
+                    },
+                    {
+                        "id": "mean",
+                        "description": "mean",
+                        "parameters": [
+                            {"name": "data", "schema": {}, "description": "data"}
+                        ],
+                        "returns": {"schema": {}},
+                        "federation:backends": ["b1"],
+                    },
+                ],
+            ),
+            (
+                False,
+                True,
+                [
+                    {
+                        "id": "multiply",
+                        "description": "multiply",
+                        "parameters": [
+                            {"name": "x", "schema": {}, "description": "x"},
+                            {"name": "y", "schema": {}, "description": "y"},
+                        ],
+                        "returns": {"schema": {}},
+                        "federation:backends": ["b2"],
+                    },
+                    {
+                        "id": "mean",
+                        "description": "mean",
+                        "parameters": [
+                            {"name": "data", "schema": {}, "description": "data"}
+                        ],
+                        "returns": {"schema": {}},
+                        "federation:backends": ["b2"],
+                    },
+                ],
+            ),
+            (False, False, []),
+        ],
+    )
+    def test_processes_resilience(
+        self,
+        api100,
+        requests_mock,
+        backend1,
+        backend2,
+        backend1_up,
+        backend2_up,
+        expected,
+    ):
         if backend1_up:
-            requests_mock.get(backend1 + "/processes", json={"processes": [
-                {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-                {"id": "mean", "parameters": [{"name": "data"}]},
-            ]})
+            requests_mock.get(
+                backend1 + "/processes",
+                json={
+                    "processes": [
+                        {
+                            "id": "add",
+                            "parameters": [
+                                {"name": "x", "schema": {}},
+                                {"name": "y", "schema": {}},
+                            ],
+                        },
+                        {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                    ]
+                },
+            )
         else:
             requests_mock.get(backend1 + "/processes", status_code=404, text="nope")
         if backend2_up:
-            requests_mock.get(backend2 + "/processes", json={"processes": [
-                {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-                {"id": "mean", "parameters": [{"name": "data"}]},
-            ]})
+            requests_mock.get(
+                backend2 + "/processes",
+                json={
+                    "processes": [
+                        {
+                            "id": "multiply",
+                            "parameters": [
+                                {"name": "x", "schema": {}},
+                                {"name": "y", "schema": {}},
+                            ],
+                        },
+                        {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                    ]
+                },
+            )
         else:
             requests_mock.get(backend2 + "/processes", status_code=404, text="nope")
         res = api100.get("/processes").assert_status_code(200).json
