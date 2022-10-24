@@ -33,12 +33,12 @@ class ValidationReporter:
             self.warning_messages.append(msg)
 
     def print(self):
-        print("Warning messages:")
-        for msg in self.warning_messages:
-            print("  * {}".format(msg))
-        print("Critical messages:")
+        print(f"Critical messages ({len(self.critical_messages)}):")
         for msg in self.critical_messages:
-            print("  * {}".format(msg))
+            print("  - {}".format(msg))
+        print(f"Warning messages ({len(self.warning_messages)}):")
+        for msg in self.warning_messages:
+            print("  - {}".format(msg))
 
 
 class LoggerReporter:
