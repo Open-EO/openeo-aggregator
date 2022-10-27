@@ -24,7 +24,7 @@ from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection,
 from openeo_aggregator.utils import MultiDictGetter, subdict, dict_merge, normalize_issuer_url
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider, BatchJobs, BatchJobMetadata
+    OidcProvider, BatchJobs, BatchJobMetadata, SecondaryServices
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
     JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
@@ -772,6 +772,47 @@ class AggregatorBatchJobs(BatchJobs):
             return con.job(backend_job_id).logs(offset=offset)
 
 
+class AggregatorSecondaryServices(SecondaryServices):
+    """
+    Aggregator implementation of the Secondary Services "microservice"
+    https://openeo.org/documentation/1.0/developers/api/reference.html#tag/Secondary-Services
+    """
+
+    def __init__(
+            self,
+            backends: MultiBackendConnection,
+    ):
+        super(AggregatorSecondaryServices, self).__init__()
+        self._backends = backends
+
+    def service_types(self) -> dict:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
+
+        service_types = {}
+
+        def merge(formats: dict, to_add: dict):
+            # TODO: merge parameters in some way?
+            for name, data in to_add.items():
+                if name.lower() not in {k.lower() for k in formats.keys()}:
+                    formats[name] = data
+
+        for con in self._backends:
+            try:
+                types_to_add = con.get("/service_types").json()
+            except Exception as e:
+                # TODO: fail instead of warn?
+                _log.warning(f"Failed to get service_types from {con.id}: {e!r}", exc_info=True)
+                continue
+            # TODO #1 smarter merging:  parameter differences?
+            merge(service_types, types_to_add)
+
+        return service_types
+
+    # next one to implement
+    # def list_services(self, user_id: str) -> List[ServiceMetadata]:
+    #     """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
+    #     return []
+
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
@@ -797,10 +838,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             processing=processing,
             partitioned_job_tracker=partitioned_job_tracker
         )
+
+        secondary_services = AggregatorSecondaryServices(backends=backends)
+
         super().__init__(
             catalog=catalog,
             processing=processing,
-            secondary_services=None,
+            secondary_services=secondary_services,
             batch_jobs=batch_jobs,
             user_defined_processes=None,
         )
@@ -953,3 +997,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # TODO: standardize this field?
         capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities
+
+    def service_types(self) -> dict:
+        return self.secondary_services.service_types()

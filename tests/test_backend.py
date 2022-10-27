@@ -110,6 +110,76 @@ class TestAggregatorBackendImplementation:
             }
         }
 
+    def test_service_types_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        single_service_type = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        requests_mock.get(backend2 + "/service_types", json=single_service_type)
+        implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+        service_types = implementation.service_types()
+        assert service_types == single_service_type
+
+    def test_service_types_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        service_1 = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        service_2 = {
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {},
+                "process_parameters": [],
+                "links": []
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=service_1)
+        requests_mock.get(backend2 + "/service_types", json=service_2)
+        implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+        service_types = implementation.service_types()
+        expected = dict(service_1)
+        expected.update(service_2)
+        assert service_types == expected
+
 
 class TestInternalCollectionMetadata:
 
