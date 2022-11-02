@@ -28,7 +28,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
     JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
-    FeatureUnsupportedException
+    FeatureUnsupportedException, ServiceNotFoundException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -791,11 +791,11 @@ class AggregatorSecondaryServices(SecondaryServices):
         service_types = {}
 
         def merge(formats: dict, to_add: dict):
-            # TODO: merge parameters in some way?
             for name, data in to_add.items():
                 if name.lower() not in {k.lower() for k in formats.keys()}:
                     formats[name] = data
 
+        # Collect all service types from the backends.
         for con in self._backends:
             try:
                 types_to_add = con.get("/service_types").json()
@@ -819,7 +819,7 @@ class AggregatorSecondaryServices(SecondaryServices):
                 services_metadata = [ServiceMetadata.from_dict(s) for s in services_to_add]
                 services.extend(services_metadata)
 
-        # Get stuff from backends
+        # Collect all services from the backends.
         for con in self._backends:
             services_json = None
             try:
@@ -832,6 +832,22 @@ class AggregatorSecondaryServices(SecondaryServices):
                 merge(all_services, services_json)
 
         return all_services
+
+    def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
+
+        # TODO: can there ever be a service with the same ID in multiple back-ends? (For the same user)
+        for con in self._backends:
+            try:
+                service_json = con.get(f"/services/{service_id}").json()
+            except Exception as e:
+                _log.debug("No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
+                continue
+            else:
+                return ServiceMetadata.from_dict(service_json)
+
+        raise ServiceNotFoundException(service_id)
+
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
@@ -1023,3 +1039,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         return self.secondary_services.list_services(user_id=user_id)
+
+    def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
+        return self.secondary_services.service_info(user_id=user_id, service_id=service_id)

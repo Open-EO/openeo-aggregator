@@ -8,7 +8,8 @@ from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorPro
 from openeo_aggregator.caching import DictMemoizer
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.backend import ServiceMetadata
-from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException
+from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException, \
+    ServiceNotFoundException
 from openeo_driver.testing import DictSubSet
 from openeo_driver.users.oidc import OidcProvider
 from .conftest import DEFAULT_MEMOIZER_CONFIG
@@ -519,344 +520,14 @@ class TestAggregatorBackendImplementation:
         }]
     }
 
-    TEST_SERVICES2 = {
-        "services": [{
-            "id": "wms-a3cca9",
-            "title": "TEST COPY -- NDVI based on Sentinel 2",
-            "description": "TEST COPY Deriving minimum NDVI measurements over pixel time series of Sentinel 2",
-            "url": "https://example.openeo.org/wms/wms-a3cca9",
-            "type": "wms",
-            "enabled": True,
-            "process": {
-                "id": "ndvi",
-                "summary": "string",
-                "description": "string",
-                "parameters": [{
-                    "schema": {
-                        "parameters": [{
-                            "schema": {
-                                "type": "array",
-                                "subtype": "string",
-                                "pattern": "/regex/",
-                                "enum": [None],
-                                "minimum": 0,
-                                "maximum": 0,
-                                "minItems": 0,
-                                "maxItems": 0,
-                                "items": [{}],
-                                "deprecated": False
-                            },
-                            "name": "string",
-                            "description": "string",
-                            "optional": False,
-                            "deprecated": False,
-                            "experimental": False,
-                            "default": None
-                        }],
-                        "returns": {
-                            "description": "string",
-                            "schema": {
-                                "type": "array",
-                                "subtype": "string",
-                                "pattern": "/regex/",
-                                "enum": [None],
-                                "minimum": 0,
-                                "maximum": 0,
-                                "minItems": 0,
-                                "maxItems": 0,
-                                "items": [{}],
-                                "deprecated": False
-                            },
-                            "type": "array",
-                            "subtype": "string",
-                            "pattern": "/regex/",
-                            "enum": [None],
-                            "minimum": 0,
-                            "maximum": 0,
-                            "minItems": 0,
-                            "maxItems": 0,
-                            "items": [{}],
-                            "deprecated": False
-                        },
-                        "type": "array",
-                        "subtype": "string",
-                        "pattern": "/regex/",
-                        "enum": [None],
-                        "minimum": 0,
-                        "maximum": 0,
-                        "minItems": 0,
-                        "maxItems": 0,
-                        "items": [{}],
-                        "deprecated": False
-                    },
-                    "name": "string",
-                    "description": "string",
-                    "optional": False,
-                    "deprecated": False,
-                    "experimental": False,
-                    "default": None
-                }],
-                "returns": {
-                    "description": "string",
-                    "schema": {
-                        "type": "array",
-                        "subtype": "string",
-                        "pattern": "/regex/",
-                        "enum": [None],
-                        "minimum": 0,
-                        "maximum": 0,
-                        "minItems": 0,
-                        "maxItems": 0,
-                        "items": [{}],
-                        "deprecated": False
-                    }
-                },
-                "categories": ["string"],
-                "deprecated": False,
-                "experimental": False,
-                "exceptions": {
-                    "Error Code1": {
-                        "description": "string",
-                        "message": "The value specified for the process argument '{argument}' in process '{process}' is invalid: {reason}",
-                        "http": 400
-                    },
-                    "Error Code2": {
-                        "description": "string",
-                        "message": "The value specified for the process argument '{argument}' in process '{process}' is invalid: {reason}",
-                        "http": 400
-                    }
-                },
-                "examples": [{
-                    "title": "string",
-                    "description": "string",
-                    "arguments": {
-                        "property1": {
-                            "from_parameter": None,
-                            "from_node": None,
-                            "process_graph": None
-                        },
-                        "property2": {
-                            "from_parameter": None,
-                            "from_node": None,
-                            "process_graph": None
-                        }
-                    },
-                    "returns": None
-                }],
-                "links": [{
-                    "rel": "related",
-                    "href": "https://example.openeo.org",
-                    "type": "text/html",
-                    "title": "openEO"
-                }],
-                "process_graph": {
-                    "dc": {
-                        "process_id": "load_collection",
-                        "arguments": {
-                            "id": "Sentinel-2",
-                            "spatial_extent": {
-                                "west": 16.1,
-                                "east": 16.6,
-                                "north": 48.6,
-                                "south": 47.2
-                            },
-                            "temporal_extent": ["2018-01-01", "2018-02-01"]
-                        }
-                    },
-                    "bands": {
-                        "process_id": "filter_bands",
-                        "description":
-                        "Filter and order the bands. The order is important for the following reduce operation.",
-                        "arguments": {
-                            "data": {
-                                "from_node": "dc"
-                            },
-                            "bands": ["B08", "B04", "B02"]
-                        }
-                    },
-                    "evi": {
-                        "process_id": "reduce",
-                        "description":
-                        "Compute the EVI. Formula: 2.5 * (NIR - RED) / (1 + NIR + 6*RED + -7.5*BLUE)",
-                        "arguments": {
-                            "data": {
-                                "from_node": "bands"
-                            },
-                            "dimension": "bands",
-                            "reducer": {
-                                "process_graph": {
-                                    "nir": {
-                                        "process_id": "array_element",
-                                        "arguments": {
-                                            "data": {
-                                                "from_parameter": "data"
-                                            },
-                                            "index": 0
-                                        }
-                                    },
-                                    "red": {
-                                        "process_id": "array_element",
-                                        "arguments": {
-                                            "data": {
-                                                "from_parameter": "data"
-                                            },
-                                            "index": 1
-                                        }
-                                    },
-                                    "blue": {
-                                        "process_id": "array_element",
-                                        "arguments": {
-                                            "data": {
-                                                "from_parameter": "data"
-                                            },
-                                            "index": 2
-                                        }
-                                    },
-                                    "sub": {
-                                        "process_id": "subtract",
-                                        "arguments": {
-                                            "data": [{
-                                                "from_node": "nir"
-                                            }, {
-                                                "from_node": "red"
-                                            }]
-                                        }
-                                    },
-                                    "p1": {
-                                        "process_id": "product",
-                                        "arguments": {
-                                            "data": [6, {
-                                                "from_node": "red"
-                                            }]
-                                        }
-                                    },
-                                    "p2": {
-                                        "process_id": "product",
-                                        "arguments": {
-                                            "data":
-                                            [-7.5, {
-                                                "from_node": "blue"
-                                            }]
-                                        }
-                                    },
-                                    "sum": {
-                                        "process_id": "sum",
-                                        "arguments": {
-                                            "data": [
-                                                1, {
-                                                    "from_node": "nir"
-                                                }, {
-                                                    "from_node": "p1"
-                                                }, {
-                                                    "from_node": "p2"
-                                                }
-                                            ]
-                                        }
-                                    },
-                                    "div": {
-                                        "process_id": "divide",
-                                        "arguments": {
-                                            "data": [{
-                                                "from_node": "sub"
-                                            }, {
-                                                "from_node": "sum"
-                                            }]
-                                        }
-                                    },
-                                    "p3": {
-                                        "process_id": "product",
-                                        "arguments": {
-                                            "data":
-                                            [2.5, {
-                                                "from_node": "div"
-                                            }]
-                                        },
-                                        "result": True
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "mintime": {
-                        "process_id": "reduce",
-                        "description":
-                        "Compute a minimum time composite by reducing the temporal dimension",
-                        "arguments": {
-                            "data": {
-                                "from_node": "evi"
-                            },
-                            "dimension": "temporal",
-                            "reducer": {
-                                "process_graph": {
-                                    "min": {
-                                        "process_id": "min",
-                                        "arguments": {
-                                            "data": {
-                                                "from_parameter": "data"
-                                            }
-                                        },
-                                        "result": True
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "save": {
-                        "process_id": "save_result",
-                        "arguments": {
-                            "data": {
-                                "from_node": "mintime"
-                            },
-                            "format": "GTiff"
-                        },
-                        "result": True
-                    }
-                }
-            },
-            "configuration": {
-                "version": "1.3.0"
-            },
-            "attributes": {
-                "layers": ["ndvi", "evi"]
-            },
-            "created": "2017-01-01T09:32:12Z",
-            "plan": "free",
-            "costs": 12.98,
-            "budget": 100,
-            "usage": {
-                "cpu": {
-                    "value": 40668,
-                    "unit": "cpu-seconds"
-                },
-                "duration": {
-                    "value": 2611,
-                    "unit": "seconds"
-                },
-                "memory": {
-                    "value": 108138811,
-                    "unit": "mb-seconds"
-                },
-                "network": {
-                    "value": 0,
-                    "unit": "kb"
-                },
-                "storage": {
-                    "value": 55,
-                    "unit": "mb"
-                }
-            }
-        }],
-        "links": []
-    }
-
     def test_list_services_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
         services1 = self.TEST_SERVICES
         services2 = {}
-        test_user_id = "fakeuser"
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
+        test_user_id = "fakeuser"
         actual_services = implementation.list_services(user_id=test_user_id)
 
         # Construct expected result. We have get just data from the service in services1
@@ -877,27 +548,147 @@ class TestAggregatorBackendImplementation:
             enabled=True,
             configuration={"version": "0.5.8"},
             attributes={},
-            title="Test service",
+            title="Test WMTS service",
             created=datetime(2020, 4, 9, 15, 5, 8)
         )
         services2 = {"services": [serv_metadata_wmts_foo.prepare_for_json()], "links": []}
-        test_user_id = "fakeuser"
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
+        test_user_id = "fakeuser"
         actual_services = implementation.list_services(user_id=test_user_id)
 
         # Construct expected result. We have get just data from the service in
         # services1 (there is only one) for conversion to a ServiceMetadata.
-        # For now we still ignore the key "links" in the outer dictionary.
+        # TODO: do we need to take care of the links part in the JSON as well?
         service1 = services1["services"][0]
         service1_md = ServiceMetadata.from_dict(service1)
-        service2 = services2["services"][0]
-        service2_md = ServiceMetadata.from_dict(service2)
-        expected_services = [service1_md, service2_md]
+        expected_services = [service1_md, serv_metadata_wmts_foo]
 
-        assert actual_services == expected_services
+        assert sorted(actual_services) == sorted(expected_services)
+
+    def test_list_services_merged_multiple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        services1 = self.TEST_SERVICES
+        serv_metadata_wmts_foo = ServiceMetadata(
+            id="wmts-foo",
+            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            url='https://oeo.net/wmts/foo',
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service",
+            created=datetime(2020, 4, 9, 15, 5, 8)
+        )
+        serv_metadata_wms_bar = ServiceMetadata(
+            id="wms-bar",
+            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
+            url='https://oeo.net/wms/bar',
+            type="WMS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMS service",
+            created=datetime(2022, 2, 1, 13, 30, 3)
+        )
+        services2 = {"services": [
+                serv_metadata_wmts_foo.prepare_for_json(),
+                serv_metadata_wms_bar.prepare_for_json()
+            ],
+            "links": []
+        }
+        requests_mock.get(backend1 + "/services", json=services1)
+        requests_mock.get(backend2 + "/services", json=services2)
+        implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+
+        test_user_id = "fakeuser"
+        actual_services = implementation.list_services(user_id=test_user_id)
+
+        # Construct expected result. We have get just data from the service in
+        # services1 (there is only one) for conversion to a ServiceMetadata.
+        # TODO: do we need to take care of the links part in the JSON as well?
+        service1 = services1["services"][0]
+        service1_md = ServiceMetadata.from_dict(service1)
+        expected_services = [
+            service1_md, serv_metadata_wmts_foo, serv_metadata_wms_bar
+        ]
+
+        assert sorted(actual_services) == sorted(expected_services)
+
+    def test_service_info(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        service1 = ServiceMetadata(
+            id="wmts-foo",
+            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            url='https://oeo.net/wmts/foo',
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service",
+            created=datetime(2020, 4, 9, 15, 5, 8)
+        )
+        service2 = ServiceMetadata(
+            id="wms-bar",
+            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
+            url='https://oeo.net/wms/bar',
+            type="WMS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMS service",
+            created=datetime(2022, 2, 1, 13, 30, 3)
+        )
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
+        requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
+
+        implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+
+        test_user_id = "fakeuser"
+        actual_service1 = implementation.service_info(user_id=test_user_id, service_id="wmts-foo")
+        assert actual_service1 == service1
+
+        actual_service2 = implementation.service_info(user_id=test_user_id,
+                                                      service_id="wms-bar")
+        assert actual_service2 == service2
+
+    def test_service_info_not_found(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        service1 = ServiceMetadata(
+            id="wmts-foo",
+            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            url='https://oeo.net/wmts/foo',
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service",
+            created=datetime(2020, 4, 9, 15, 5, 8)
+        )
+        service2 = ServiceMetadata(
+            id="wms-bar",
+            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
+            url='https://oeo.net/wms/bar',
+            type="WMS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMS service",
+            created=datetime(2022, 2, 1, 13, 30, 3)
+        )
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
+        requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
+
+        implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+
+        test_user_id = "fakeuser"
+        with pytest.raises(ServiceNotFoundException):
+            actual_service1 = implementation.service_info(user_id=test_user_id, service_id="doesnotexist")
 
 
 class TestInternalCollectionMetadata:
