@@ -30,7 +30,7 @@ from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection,
 from openeo_aggregator.utils import subdict, dict_merge, normalize_issuer_url
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider, BatchJobs, BatchJobMetadata, SecondaryServices
+    OidcProvider, BatchJobs, BatchJobMetadata, SecondaryServices, ServiceMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
     JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
@@ -656,10 +656,30 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         return service_types
 
-    # next one to implement
-    # def list_services(self, user_id: str) -> List[ServiceMetadata]:
-    #     """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
-    #     return []
+    def list_services(self, user_id: str) -> List[ServiceMetadata]:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
+
+        all_services = []
+        def merge(services, to_add):
+            # For now ignore the links
+            services_to_add = to_add.get("services")
+            if services_to_add:
+                services_metadata = [ServiceMetadata.from_dict(s) for s in services_to_add]
+                services.extend(services_metadata)
+
+        # Get stuff from backends
+        for con in self._backends:
+            services_json = None
+            try:
+                services_json = con.get("/services").json()
+            except Exception as e:
+                _log.warning("Failed to get services from {con.id}: {e!r}", exc_info=True)
+                continue
+
+            if services_json:
+                merge(all_services, services_json)
+
+        return all_services
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
@@ -848,3 +868,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def service_types(self) -> dict:
         return self.secondary_services.service_types()
+
+    def list_services(self, user_id: str) -> List[ServiceMetadata]:
+        return self.secondary_services.list_services(user_id=user_id)
