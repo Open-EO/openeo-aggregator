@@ -136,8 +136,17 @@ def backend_implementation(flask_app) -> AggregatorBackendImplementation:
     return flask_app.config["OPENEO_BACKEND_IMPLEMENTATION"]
 
 
+def get_api040(flask_app: flask.Flask) -> ApiTester:
+    return ApiTester(api_version="0.4.0", client=flask_app.test_client())
+
+
 def get_api100(flask_app: flask.Flask) -> ApiTester:
     return ApiTester(api_version="1.0.0", client=flask_app.test_client())
+
+
+@pytest.fixture
+def api040(flask_app: flask.Flask) -> ApiTester:
+    return get_api040(flask_app)
 
 
 @pytest.fixture

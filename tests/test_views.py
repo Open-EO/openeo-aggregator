@@ -1182,6 +1182,70 @@ class TestBatchJobs:
             }}}
         ]
 
+class TestSecondaryServices:
+
+    # TODO: add view tests for list service types, list_services, servicfe_info
+
+    def test_create_wmts_040(self, api040, requests_mock, backend1):
+        api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        expected_openeo_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        expected_location = "/openeo/0.4.0/services/" + expected_openeo_id
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process_graph": process_graph,
+            "custom_param": 45,
+            "title": "My Service",
+            "description": "Service description"
+        }
+
+        requests_mock.post(
+            backend1 + "/services",
+            headers={
+                "OpenEO-Identifier": expected_openeo_id,
+                "Location": expected_location
+            },
+            status_code=201)
+
+        resp = api040.post('/services', json=post_data).assert_status_code(201)
+        assert resp.headers['OpenEO-Identifier'] == expected_openeo_id
+        assert resp.headers['Location'] == expected_location
+
+    def test_create_wmts_100(self, api100, requests_mock, backend1):
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        # used both to set up data and to validate at the end
+        expected_openeo_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        expected_location = "/openeo/1.0.0/services/" + expected_openeo_id
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
+            "custom_param": 45,
+            "title": "My Service",
+            "description": "Service description"
+        }
+        requests_mock.post(
+            backend1 + "/services",
+            headers={
+                "OpenEO-Identifier": expected_openeo_id,
+                "Location": expected_location
+            },
+            status_code=201)
+
+        resp = api100.post('/services', json=post_data).assert_status_code(201)
+
+        assert resp.headers['OpenEO-Identifier'] == 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        assert resp.headers['Location'] == expected_location
+
 
 class TestResilience:
 

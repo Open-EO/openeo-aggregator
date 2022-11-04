@@ -781,9 +781,11 @@ class AggregatorSecondaryServices(SecondaryServices):
     def __init__(
             self,
             backends: MultiBackendConnection,
+            processing: AggregatorProcessing
     ):
         super(AggregatorSecondaryServices, self).__init__()
         self._backends = backends
+        self._processing = processing
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
@@ -848,6 +850,31 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         raise ServiceNotFoundException(service_id)
 
+    def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
+                       configuration: dict) -> str:
+        """
+        https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
+        :return: (location, openeo_identifier)
+        """
+
+        backend_id = self._processing.get_backend_for_process_graph(
+            process_graph=process_graph, api_version=api_version
+        )
+        process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+
+        con = self._backends.get_connection(backend_id)
+        try:
+            service = con.create_service(graph=process_graph, type=service_type)
+        except OpenEoApiError as e:
+            for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
+                if e.code == exc_class.code:
+                    raise exc_class
+            raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+        except (OpenEoRestError, OpenEoClientException) as e:
+            raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+
+        return service.service_id
+
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
@@ -875,7 +902,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             partitioned_job_tracker=partitioned_job_tracker
         )
 
-        secondary_services = AggregatorSecondaryServices(backends=backends)
+        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing)
 
         super().__init__(
             catalog=catalog,
@@ -1042,3 +1069,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
         return self.secondary_services.service_info(user_id=user_id, service_id=service_id)
+
+    def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
+                       configuration: dict) -> Tuple[str, str]:
+        return self.secondary_services.create_service(user_id=user_id, process_graph=process_graph,
+            service_type=service_type, api_version=api_version, configuration=configuration)

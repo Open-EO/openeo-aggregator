@@ -15,6 +15,9 @@ from openeo_driver.users.oidc import OidcProvider
 from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 
+TEST_USER = "Mr.Test"
+
+
 class TestAggregatorBackendImplementation:
 
     def test_oidc_providers(self, multi_backend_connection, config, backend1, backend2, requests_mock):
@@ -185,6 +188,7 @@ class TestAggregatorBackendImplementation:
         expected.update(service_2)
         assert service_types == expected
 
+    # TODO: eliminate TEST_SERVICES (too long) when I find a better way to set up the test.
     TEST_SERVICES = {
         "services": [{
             "id": "wms-a3cca9",
@@ -521,14 +525,15 @@ class TestAggregatorBackendImplementation:
     }
 
     def test_list_services_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        """Given 2 backends where only 1 has 1 service and the other is empty, it lists that 1 service."""
+
         services1 = self.TEST_SERVICES
         services2 = {}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        test_user_id = "fakeuser"
-        actual_services = implementation.list_services(user_id=test_user_id)
+        actual_services = implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in services1
         # (there is only one) for conversion to a ServiceMetadata.
@@ -539,6 +544,8 @@ class TestAggregatorBackendImplementation:
         assert actual_services == expected_services
 
     def test_list_services_merged(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        """Given 2 backends with each 1 service, it lists both services."""
+
         services1 = self.TEST_SERVICES
         serv_metadata_wmts_foo = ServiceMetadata(
             id="wmts-foo",
@@ -556,8 +563,7 @@ class TestAggregatorBackendImplementation:
         requests_mock.get(backend2 + "/services", json=services2)
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        test_user_id = "fakeuser"
-        actual_services = implementation.list_services(user_id=test_user_id)
+        actual_services = implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in
         # services1 (there is only one) for conversion to a ServiceMetadata.
@@ -565,10 +571,11 @@ class TestAggregatorBackendImplementation:
         service1 = services1["services"][0]
         service1_md = ServiceMetadata.from_dict(service1)
         expected_services = [service1_md, serv_metadata_wmts_foo]
-
         assert sorted(actual_services) == sorted(expected_services)
 
     def test_list_services_merged_multiple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        """Given multiple services in 2 backends, it lists all services from all backends."""
+
         services1 = self.TEST_SERVICES
         serv_metadata_wmts_foo = ServiceMetadata(
             id="wmts-foo",
@@ -604,8 +611,7 @@ class TestAggregatorBackendImplementation:
             backends=multi_backend_connection, config=config
         )
 
-        test_user_id = "fakeuser"
-        actual_services = implementation.list_services(user_id=test_user_id)
+        actual_services = implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in
         # services1 (there is only one) for conversion to a ServiceMetadata.
@@ -619,6 +625,8 @@ class TestAggregatorBackendImplementation:
         assert sorted(actual_services) == sorted(expected_services)
 
     def test_service_info(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+
         service1 = ServiceMetadata(
             id="wmts-foo",
             process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
@@ -643,20 +651,19 @@ class TestAggregatorBackendImplementation:
         )
         requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
-
         implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
 
-        test_user_id = "fakeuser"
-        actual_service1 = implementation.service_info(user_id=test_user_id, service_id="wmts-foo")
+        actual_service1 = implementation.service_info(user_id=TEST_USER, service_id="wmts-foo")
         assert actual_service1 == service1
 
-        actual_service2 = implementation.service_info(user_id=test_user_id,
-                                                      service_id="wms-bar")
+        actual_service2 = implementation.service_info(user_id=TEST_USER, service_id="wms-bar")
         assert actual_service2 == service2
 
-    def test_service_info_not_found(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    def test_service_info_wrong_id(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+        """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
+
         service1 = ServiceMetadata(
             id="wmts-foo",
             process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
@@ -681,14 +688,40 @@ class TestAggregatorBackendImplementation:
         )
         requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
-
         implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
 
-        test_user_id = "fakeuser"
         with pytest.raises(ServiceNotFoundException):
-            actual_service1 = implementation.service_info(user_id=test_user_id, service_id="doesnotexist")
+            _ = implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
+
+    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
+    def test_create_service(self, multi_backend_connection, config, backend1, requests_mock, api_version):
+        """When it gets a correct params for a new service, it succesfully create it."""
+
+        # Set up responses for creating the service in backend 1
+        expected_openeo_id = "wmts-foo"
+        expected_location = backend1 + "/services/wmts-foo"
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        requests_mock.post(
+            backend1 + "/services",
+            headers={
+                "OpenEO-Identifier": expected_openeo_id,
+                "Location": expected_location
+            },
+            status_code=201)
+
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+        actual_openeo_id = implementation.create_service(
+            user_id=TEST_USER,
+            process_graph=process_graph,
+            service_type="WMTS",
+            api_version=api_version,
+            configuration={}
+        )
+
+        assert actual_openeo_id == expected_openeo_id
 
 
 class TestInternalCollectionMetadata:
