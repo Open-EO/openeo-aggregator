@@ -1,4 +1,3 @@
-from datetime import datetime
 import itertools
 import logging
 import re
@@ -12,7 +11,7 @@ from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
-    ProcessGraphInvalidException
+    ProcessGraphInvalidException, ProcessGraphMissingException
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
     RegexMatcher
@@ -1185,8 +1184,34 @@ class TestBatchJobs:
 
 
 class TestSecondaryServices:
+    
+    @pytest.fixture
+    def service_metadata_wmts_foo(self):
+        return ServiceMetadata(
+            id="wmts-foo",
+            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            url='https://oeo.net/wmts/foo',
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service"
+            # not setting "created": This is used to test creating a service.
+        )
 
-    # TODO: add view tests for list service types, list_services, servicfe_info
+    @pytest.fixture
+    def service_metadata_wms_bar(self):
+        return ServiceMetadata(
+            id="wms-bar",
+            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
+            url='https://oeo.net/wms/bar',
+            type="WMS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMS service"
+            # not setting "created": This is used to test creating a service.
+        )
 
     def test_service_types_simple(self, api, backend1, backend2, requests_mock):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
@@ -1260,31 +1285,13 @@ class TestSecondaryServices:
         expected_service_types.update(service_type_2)
         assert actual_service_types == expected_service_types
 
-    def test_service_info_api100(self, api100, backend1, backend2, requests_mock):
+    def test_service_info_api100(
+        self, api100, backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
+    ):
         """When it gets a correct service ID, it returns the expected ServiceMetadata."""
 
-        service1 = ServiceMetadata(
-            id="wmts-foo",
-            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
-            url='https://oeo.net/wmts/foo',
-            type="WMTS",
-            enabled=True,
-            configuration={"version": "0.5.8"},
-            attributes={},
-            title="Test WMTS service",
-        )
-        service2 = ServiceMetadata(
-            id="wms-bar",
-            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
-            url='https://oeo.net/wms/bar',
-            type="WMS",
-            enabled=True,
-            configuration={"version": "0.5.8"},
-            attributes={"layers": ["ndvi", "evi"]},
-            title="Test WMS service",
-        )
-        requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
-        requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
+        requests_mock.get(backend2 + "/services/wms-bar", json=service_metadata_wms_bar.prepare_for_json())
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Retrieve and verify the metadata for both services
@@ -1299,7 +1306,7 @@ class TestSecondaryServices:
             attributes=resp.json["attributes"],
             title=resp.json["title"],
         )
-        assert actual_service1 == service1
+        assert actual_service1 == service_metadata_wmts_foo
 
         resp = api100.get("/services/wms-bar").assert_status_code(200)
         actual_service2 = ServiceMetadata(
@@ -1312,53 +1319,48 @@ class TestSecondaryServices:
             attributes=resp.json["attributes"],
             title=resp.json["title"],
         )
-        assert actual_service2 == service2
+        assert actual_service2 == service_metadata_wms_bar
 
-    def test_service_info_api040(self, api040, backend1, backend2, requests_mock):
+    def test_service_info_api040(
+        self, api040, backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
+    ):
         """When it gets a correct service ID, it returns the expected ServiceMetadata."""
 
-        service1 = ServiceMetadata(
-            id="wmts-foo",
-            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
-            url='https://oeo.net/wmts/foo',
-            type="WMTS",
-            enabled=True,
-            configuration={"version": "0.5.8"},
-            attributes={"layers": ["ndvi", "evi"]},
-            title="Test WMTS service",
-        )
-        service2 = ServiceMetadata(
-            id="wms-bar",
-            process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
-            url='https://oeo.net/wms/bar',
-            type="WMS",
-            enabled=True,
-            configuration={"version": "0.5.8"},
-            attributes={},
-            title="Test WMS service",
-        )
-        requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
-        requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
+        expected_service1 = service_metadata_wmts_foo
+        expected_service2 = service_metadata_wms_bar
+        requests_mock.get(backend1 + "/services/wmts-foo", json=expected_service1.prepare_for_json())
+        requests_mock.get(backend2 + "/services/wms-bar", json=expected_service2.prepare_for_json())
         api040.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Retrieve and verify the metadata for both services
         resp = api040.get("/services/wmts-foo").assert_status_code(200)
         # required = ["id", "process", "url", "type", "enabled", "configuration", "attributes", "title"]
-        assert service1.id == resp.json["id"]
-        assert service1.process["process_graph"] == resp.json["process_graph"]
-        assert service1.url == resp.json["url"]
-        assert service1.type == resp.json["type"]
-        assert service1.title == resp.json["title"]
-        assert service1.attributes == resp.json["attributes"]
+        assert expected_service1.id == resp.json["id"]
+        assert expected_service1.process["process_graph"] == resp.json["process_graph"]
+        assert expected_service1.url == resp.json["url"]
+        assert expected_service1.type == resp.json["type"]
+        assert expected_service1.title == resp.json["title"]
+        assert expected_service1.attributes == resp.json["attributes"]
 
         resp = api040.get("/services/wms-bar").assert_status_code(200)
-        assert service2.id == resp.json["id"]
-        assert service2.process["process_graph"] == resp.json["process_graph"]
-        assert service2.url == resp.json["url"]
-        assert service2.type == resp.json["type"]
-        assert service2.title == resp.json["title"]
-        assert service2.attributes == resp.json["attributes"]
-        assert service2.attributes == resp.json["attributes"]
+        assert expected_service2.id == resp.json["id"]
+        assert expected_service2.process["process_graph"] == resp.json["process_graph"]
+        assert expected_service2.url == resp.json["url"]
+        assert expected_service2.type == resp.json["type"]
+        assert expected_service2.title == resp.json["title"]
+        assert expected_service2.attributes == resp.json["attributes"]
+        assert expected_service2.attributes == resp.json["attributes"]
+
+    def test_service_info_wrong_id(
+        self, api, backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
+    ):
+        """When it gets a non-existent service ID, it returns HTTP Status 404, Not found."""
+
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
+        requests_mock.get(backend2 + "/services/wms-bar", json=service_metadata_wms_bar.prepare_for_json())
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        api.get("/services/doesnotexist").assert_status_code(404)
 
     def test_create_wmts_040(self, api040, requests_mock, backend1):
         api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1421,6 +1423,30 @@ class TestSecondaryServices:
 
         assert resp.headers['OpenEO-Identifier'] == 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
         assert resp.headers['Location'] == expected_location
+
+    @pytest.mark.parametrize("exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException])
+    def test_create_wmts_100_reports_400_client_error(self, api100, requests_mock, backend1, exception_class):
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
+            "custom_param": 45,
+            "title": "My Service",
+            "description": "Service description"
+        }
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api100.post('/services', json=post_data)
+        resp.status_code == 400
 
 
 class TestResilience:
