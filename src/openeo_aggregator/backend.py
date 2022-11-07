@@ -854,7 +854,6 @@ class AggregatorSecondaryServices(SecondaryServices):
                        configuration: dict) -> str:
         """
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
-        :return: (location, openeo_identifier)
         """
 
         backend_id = self._processing.get_backend_for_process_graph(
@@ -864,7 +863,10 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         con = self._backends.get_connection(backend_id)
         try:
+            # create_service can raise ServiceUnsupportedException and OpenEOApiException.
             service = con.create_service(graph=process_graph, type=service_type)
+
+        # TODO: This exception handling was copy-pasted. What do we actually need here?
         except OpenEoApiError as e:
             for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
                 if e.code == exc_class.code:

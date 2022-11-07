@@ -1182,9 +1182,78 @@ class TestBatchJobs:
             }}}
         ]
 
+
 class TestSecondaryServices:
 
     # TODO: add view tests for list service types, list_services, servicfe_info
+
+    def test_service_types_simple(self, api, backend1, backend2, requests_mock):
+        single_service_type = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        requests_mock.get(backend2 + "/service_types", json=single_service_type)
+
+        resp = api.get('/service_types').assert_status_code(200)
+        assert resp.json == single_service_type
+
+    def test_service_types_merging(self, api, backend1, backend2, requests_mock):
+        service_type_1 = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        service_type_2 = {
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {},
+                "process_parameters": [],
+                "links": []
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=service_type_1)
+        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+
+        resp = api.get("/service_types").assert_status_code(200)
+        actual_service_types = resp.json
+
+        expected_service_types = dict(service_type_1)
+        expected_service_types.update(service_type_2)
+        assert actual_service_types == expected_service_types
 
     def test_create_wmts_040(self, api040, requests_mock, backend1):
         api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
