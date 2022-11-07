@@ -142,10 +142,10 @@ class TestAggregatorBackendImplementation:
         }
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json=single_service_type)
-        implementation = AggregatorBackendImplementation(
+        abe_implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
-        service_types = implementation.service_types()
+        service_types = abe_implementation.service_types()
         assert service_types == single_service_type
 
     def test_service_types_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
@@ -180,13 +180,15 @@ class TestAggregatorBackendImplementation:
         }
         requests_mock.get(backend1 + "/service_types", json=service_1)
         requests_mock.get(backend2 + "/service_types", json=service_2)
-        implementation = AggregatorBackendImplementation(
+        abe_implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
-        service_types = implementation.service_types()
-        expected = dict(service_1)
-        expected.update(service_2)
-        assert service_types == expected
+
+        actual_service_types = abe_implementation.service_types()
+
+        expected_service_types = dict(service_1)
+        expected_service_types.update(service_2)
+        assert actual_service_types == expected_service_types
 
     # TODO: eliminate TEST_SERVICES (too long) when I find a better way to set up the test.
     TEST_SERVICES = {
@@ -531,9 +533,9 @@ class TestAggregatorBackendImplementation:
         services2 = {}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        actual_services = implementation.list_services(user_id=TEST_USER)
+        actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in services1
         # (there is only one) for conversion to a ServiceMetadata.
@@ -561,9 +563,9 @@ class TestAggregatorBackendImplementation:
         services2 = {"services": [serv_metadata_wmts_foo.prepare_for_json()], "links": []}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        actual_services = implementation.list_services(user_id=TEST_USER)
+        actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in
         # services1 (there is only one) for conversion to a ServiceMetadata.
@@ -607,11 +609,11 @@ class TestAggregatorBackendImplementation:
         }
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        implementation = AggregatorBackendImplementation(
+        abe_implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
 
-        actual_services = implementation.list_services(user_id=TEST_USER)
+        actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
         # Construct expected result. We have get just data from the service in
         # services1 (there is only one) for conversion to a ServiceMetadata.
@@ -651,14 +653,14 @@ class TestAggregatorBackendImplementation:
         )
         requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
-        implementation = AggregatorBackendImplementation(
+        abe_implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
 
-        actual_service1 = implementation.service_info(user_id=TEST_USER, service_id="wmts-foo")
+        actual_service1 = abe_implementation.service_info(user_id=TEST_USER, service_id="wmts-foo")
         assert actual_service1 == service1
 
-        actual_service2 = implementation.service_info(user_id=TEST_USER, service_id="wms-bar")
+        actual_service2 = abe_implementation.service_info(user_id=TEST_USER, service_id="wms-bar")
         assert actual_service2 == service2
 
     def test_service_info_wrong_id(self, multi_backend_connection, config, backend1, backend2, requests_mock):
@@ -688,12 +690,12 @@ class TestAggregatorBackendImplementation:
         )
         requests_mock.get(backend1 + "/services/wmts-foo", json=service1.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service2.prepare_for_json())
-        implementation = AggregatorBackendImplementation(
+        abe_implementation = AggregatorBackendImplementation(
             backends=multi_backend_connection, config=config
         )
 
         with pytest.raises(ServiceNotFoundException):
-            _ = implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
+            _ = abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
     @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
     def test_create_service(self, multi_backend_connection, config, backend1, requests_mock, api_version):
@@ -711,9 +713,9 @@ class TestAggregatorBackendImplementation:
             },
             status_code=201)
 
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        actual_openeo_id = implementation.create_service(
+        actual_openeo_id = abe_implementation.create_service(
             user_id=TEST_USER,
             process_graph=process_graph,
             service_type="WMTS",
@@ -722,6 +724,61 @@ class TestAggregatorBackendImplementation:
         )
 
         assert actual_openeo_id == expected_openeo_id
+
+    # TODO: test a failing case for test_create_service
+    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
+    def test_create_service_backend_returns_error(
+        self, multi_backend_connection, config, backend1, requests_mock, api_version
+    ):
+        from openeo.rest import OpenEoApiError, OpenEoRestError
+        # TODO: Two exception types should be re-raised: ProcessGraphMissingException, ProcessGraphInvalidException
+
+        for exc_class in [OpenEoApiError, OpenEoRestError]:
+            # Set up responses for creating the service in backend 1
+            process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+            requests_mock.post(
+                backend1 + "/services",
+                exc=exc_class("Some server error"),
+            )
+
+            abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+            with pytest.raises(OpenEOApiException):
+                _ = abe_implementation.create_service(
+                        user_id=TEST_USER,
+                        process_graph=process_graph,
+                        service_type="WMTS",
+                        api_version=api_version,
+                        configuration={}
+                    )
+
+    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
+    def test_create_service_backend_reraises(
+        self, multi_backend_connection, config, backend1, requests_mock, api_version
+    ):
+        from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
+
+        for exc_class in [ProcessGraphMissingException,
+                          ProcessGraphInvalidException,
+                          ServiceUnsupportedException]:
+            # Set up responses for creating the service in backend 1
+            process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+            requests_mock.post(
+                backend1 + "/services",
+                exc=exc_class("Some server error"),
+            )
+
+            abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+            # These exception types should be re-raised, not become an OpenEOApiException.
+            with pytest.raises(exc_class):
+                _ = abe_implementation.create_service(
+                        user_id=TEST_USER,
+                        process_graph=process_graph,
+                        service_type="WMTS",
+                        api_version=api_version,
+                        configuration={}
+                    )
 
 
 class TestInternalCollectionMetadata:
