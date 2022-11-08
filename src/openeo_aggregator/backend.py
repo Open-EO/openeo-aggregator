@@ -675,7 +675,7 @@ class AggregatorSecondaryServices(SecondaryServices):
             try:
                 services_json = con.get("/services").json()
             except Exception as e:
-                _log.warning("Failed to get services from {con.id}: {e!r}", exc_info=True)
+                _log.warning(f"Failed to get services from {con.id}: {e!r}", exc_info=True)
                 continue
 
             if services_json:
@@ -691,7 +691,7 @@ class AggregatorSecondaryServices(SecondaryServices):
             try:
                 service_json = con.get(f"/services/{service_id}").json()
             except Exception as e:
-                _log.debug("No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
+                _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
                 continue
             else:
                 return ServiceMetadata.from_dict(service_json)
@@ -724,6 +724,34 @@ class AggregatorSecondaryServices(SecondaryServices):
             raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
 
         return service.service_id
+
+    def remove_service(self, user_id: str, service_id: str) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+        # Search all services on the backends.
+        for con in self._backends:
+            try:
+                _ = con.get(f"/services/{service_id}")
+            except OpenEoApiError as e:
+                if e.http_status_code == 404:
+                    _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
+                    continue
+                else:
+                    _log.warning(f"Failed to get service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                    raise e
+            except Exception as e:
+                _log.warning(f"Failed to get service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                raise e
+
+            try:
+                response_del = con.delete(f"/services/{service_id}")
+            except Exception as e:
+                _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                raise OpenEOApiException(
+                    f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
+                ) from e
+
+            if response_del.status_code != 204:
+                raise OpenEOApiException(f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}")
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -924,3 +952,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                        configuration: dict) -> Tuple[str, str]:
         return self.secondary_services.create_service(user_id=user_id, process_graph=process_graph,
             service_type=service_type, api_version=api_version, configuration=configuration)
+
+    def remove_service(self, user_id: str, service_id: str) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+        return self.secondary_services.remove_service(user_id=user_id, service_id=service_id)

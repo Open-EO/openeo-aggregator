@@ -358,10 +358,10 @@ class TestAggregatorBackendImplementation:
         )
 
         with pytest.raises(ServiceNotFoundException):
-            _ = abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
+            abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
     def test_create_service(self, api, multi_backend_connection, config, backend1, requests_mock):
-        """When it gets a correct params for a new service, it succesfully creates it."""
+        """When it gets a correct params for a new service, it successfully creates it."""
 
         # Set up responses for creating the service in backend 1
         expected_openeo_id = "wmts-foo"
@@ -373,22 +373,9 @@ class TestAggregatorBackendImplementation:
                 "OpenEO-Identifier": expected_openeo_id,
                 "Location": location_backend_1
             },
-            status_code=201)
-        service1 = ServiceMetadata(
-            id="wmts-foo",
-            process=process_graph,
-            url=location_backend_1,
-            type="WMTS",
-            enabled=True,
-            configuration={"version": "0.5.8"},
-            attributes={},
-            title="Test WMTS service",
+            status_code=201
         )
-        requests_mock.get(
-            location_backend_1,
-            json=service1.prepare_for_json(),
-            status_code=200
-        )
+
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         actual_openeo_id = abe_implementation.create_service(
@@ -405,6 +392,8 @@ class TestAggregatorBackendImplementation:
     def test_create_service_backend_raises_openeoapiexception(
         self, multi_backend_connection, config, backend1, requests_mock, api_version, exception_class
     ):
+        """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
+
         # Set up responses for creating the service in backend 1:
         # This time the backend raises an error, one that will be reported as a OpenEOApiException. 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -415,13 +404,13 @@ class TestAggregatorBackendImplementation:
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         with pytest.raises(OpenEOApiException):
-            _ = abe_implementation.create_service(
-                    user_id=TEST_USER,
-                    process_graph=process_graph,
-                    service_type="WMTS",
-                    api_version=api_version,
-                    configuration={}
-                )
+            abe_implementation.create_service(
+                user_id=TEST_USER,
+                process_graph=process_graph,
+                service_type="WMTS",
+                api_version=api_version,
+                configuration={}
+            )
 
     @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
     @pytest.mark.parametrize("exception_class",
@@ -430,24 +419,76 @@ class TestAggregatorBackendImplementation:
     def test_create_service_backend_reraises(
         self, multi_backend_connection, config, backend1, requests_mock, api_version, exception_class
     ):
+        """When the backend raises exception types that indicate client error / bad input data,
+        the aggregator raises and OpenEOApiException.
+        """
+
         # Set up responses for creating the service in backend 1
         # This time the backend raises an error, one that will simply be re-raised/passed on as it is.
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
-            exc=exception_class("Some server error"),
+            exc=exception_class("Some server error")
         )
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         # These exception types should be re-raised, not become an OpenEOApiException.
         with pytest.raises(exception_class):
-            _ = abe_implementation.create_service(
-                    user_id=TEST_USER,
-                    process_graph=process_graph,
-                    service_type="WMTS",
-                    api_version=api_version,
-                    configuration={}
-                )
+            abe_implementation.create_service(
+                user_id=TEST_USER,
+                process_graph=process_graph,
+                service_type="WMTS",
+                api_version=api_version,
+                configuration={}
+            )
+
+    def test_remove_service(self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo):
+        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
+        abe_implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404
+        )
+        requests_mock.delete(backend1 + "/services/wmts-foo", status_code=204)
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+        # Should not raise any exceptions.
+        abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+
+    @pytest.mark.parametrize("backend_status_code", [400, 500])
+    def test_remove_service_backend_response_is_an_error_status(
+            self, multi_backend_connection, config, backend1, backend2, requests_mock,
+            service_metadata_wmts_foo, backend_status_code
+    ):
+        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+        requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
+        abe_implementation = AggregatorBackendImplementation(
+            backends=multi_backend_connection, config=config
+        )
+
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404
+        )
+        requests_mock.delete(backend1 + "/services/wmts-foo", status_code=backend_status_code)
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+        with pytest.raises(OpenEOApiException):
+            abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
 
 class TestInternalCollectionMetadata:
