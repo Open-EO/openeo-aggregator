@@ -159,9 +159,10 @@ def api(flask_app, api_version) -> ApiTester:
     """Get an ApiTester for each version.
 
     Useful when it easy to test several API versions with (mostly) the same test code.
-    But when the difference is too big, just write separate tests.
+    But when the difference is too big, just keep it simple and write separate tests.
     """
     return get_api_version(flask_app, api_version)
+
 
 @pytest.fixture
 def api040(flask_app: flask.Flask) -> ApiTester:

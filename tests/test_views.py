@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from openeo.rest.connection import url_join
+from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo_aggregator.backend import AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import clock_mock
@@ -1184,7 +1185,7 @@ class TestBatchJobs:
 
 
 class TestSecondaryServices:
-    
+
     @pytest.fixture
     def service_metadata_wmts_foo(self):
         return ServiceMetadata(
@@ -1333,8 +1334,9 @@ class TestSecondaryServices:
         api040.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Retrieve and verify the metadata for both services
+        # Here we compare attribute by attribute because in API version 0.4.0 the response
+        # has fewer properties, and some have a slightly different name and data structure.
         resp = api040.get("/services/wmts-foo").assert_status_code(200)
-        # required = ["id", "process", "url", "type", "enabled", "configuration", "attributes", "title"]
         assert expected_service1.id == resp.json["id"]
         assert expected_service1.process["process_graph"] == resp.json["process_graph"]
         assert expected_service1.url == resp.json["url"]
@@ -1348,7 +1350,6 @@ class TestSecondaryServices:
         assert expected_service2.url == resp.json["url"]
         assert expected_service2.type == resp.json["type"]
         assert expected_service2.title == resp.json["title"]
-        assert expected_service2.attributes == resp.json["attributes"]
         assert expected_service2.attributes == resp.json["attributes"]
 
     def test_service_info_wrong_id(
@@ -1366,14 +1367,17 @@ class TestSecondaryServices:
         api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
         expected_openeo_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        # The aggregator MUST NOT point to the actual instance but to its own endpoint.
+        # This is handled by the openeo python driver in openeo_driver.views.services_post.
         expected_location = "/openeo/0.4.0/services/" + expected_openeo_id
+        # However, backend1 must report its OWN location.
+        location_backend_1 = backend1 + "/services" + expected_openeo_id
 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         # The process_graph/process format is slightly different between api v0.4 and v1.0
         post_data = {
             "type": 'WMTS',
             "process_graph": process_graph,
-            "custom_param": 45,
             "title": "My Service",
             "description": "Service description"
         }
@@ -1382,7 +1386,7 @@ class TestSecondaryServices:
             backend1 + "/services",
             headers={
                 "OpenEO-Identifier": expected_openeo_id,
-                "Location": expected_location
+                "Location": location_backend_1
             },
             status_code=201
         )
@@ -1394,9 +1398,12 @@ class TestSecondaryServices:
     def test_create_wmts_100(self, api100, requests_mock, backend1):
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
-        # used both to set up data and to validate at the end
         expected_openeo_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        # The aggregator MUST NOT point to the actual instance but to its own endpoint.
+        # This is handled by the openeo python driver in openeo_driver.views.services_post.
         expected_location = "/openeo/1.0.0/services/" + expected_openeo_id
+        # However, backend1 must report its OWN location.
+        location_backend_1 = backend1 + "/services" + expected_openeo_id
 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         # The process_graph/process format is slightly different between api v0.4 and v1.0
@@ -1406,7 +1413,6 @@ class TestSecondaryServices:
                 "process_graph": process_graph,
                 "id": "filter_temporal_wmts"
             },
-            "custom_param": 45,
             "title": "My Service",
             "description": "Service description"
         }
@@ -1414,7 +1420,7 @@ class TestSecondaryServices:
             backend1 + "/services",
             headers={
                 "OpenEO-Identifier": expected_openeo_id,
-                "Location": expected_location
+                "Location": location_backend_1
             },
             status_code=201
         )
@@ -1424,8 +1430,36 @@ class TestSecondaryServices:
         assert resp.headers['OpenEO-Identifier'] == 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
         assert resp.headers['Location'] == expected_location
 
+    # TODO: maybe testing specifically client error vs server error goes to far. It may be a bit too complicated.
+    # ProcessGraphMissingException and ProcessGraphInvalidException are well known reasons for a bad client request.
     @pytest.mark.parametrize("exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException])
-    def test_create_wmts_100_reports_400_client_error(self, api100, requests_mock, backend1, exception_class):
+    def test_create_wmts_reports_400_client_error_api040(self, api040, requests_mock, backend1, exception_class):
+        """When the backend raised an exception that we know represents incorrect input / client error,
+        then the aggregator's responds with an HTTP status code in the 400 range.
+        """
+        api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process_graph": process_graph,
+            "title": "My Service",
+            "description": "Service description"
+        }
+        # TODO: In theory we should make the backend report a HTTP 400 status and then the aggregator
+        # should also report HTTP 400. But in fact that comes back as HTTP 500.
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api040.post('/services', json=post_data)
+        assert resp.status_code == 400
+
+    # ProcessGraphMissingException and ProcessGraphInvalidException are well known reasons for a bad client request.
+    @pytest.mark.parametrize("exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException])
+    def test_create_wmts_reports_400_client_error_api100(self, api100, requests_mock, backend1, exception_class):
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -1436,7 +1470,53 @@ class TestSecondaryServices:
                 "process_graph": process_graph,
                 "id": "filter_temporal_wmts"
             },
-            "custom_param": 45,
+            "title": "My Service",
+            "description": "Service description"
+        }
+        # TODO: In theory we should make the backend report a HTTP 400 status and then the aggregator
+        # should also report HTTP 400. But in fact that comes back as HTTP 500.
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api100.post('/services', json=post_data)
+        assert resp.status_code == 400
+
+    # OpenEoApiError, OpenEoRestError: more general errors we can expect to lead to a HTTP 500 server error.
+    @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
+    def test_create_wmts_reports_500_server_error_api040(self, api040, requests_mock, backend1, exception_class):
+        api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process_graph": process_graph,
+            "title": "My Service",
+            "description": "Service description"
+        }
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api040.post('/services', json=post_data)
+        assert resp.status_code == 500
+
+    # OpenEoApiError, OpenEoRestError: more general errors we can expect to lead to a HTTP 500 server error.
+    @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
+    def test_create_wmts_reports_500_server_error_api100(self, api100, requests_mock, backend1, exception_class):
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        # The process_graph/process format is slightly different between api v0.4 and v1.0
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
             "title": "My Service",
             "description": "Service description"
         }
@@ -1446,7 +1526,7 @@ class TestSecondaryServices:
         )
 
         resp = api100.post('/services', json=post_data)
-        resp.status_code == 400
+        assert resp.status_code == 500
 
 
 class TestResilience:

@@ -360,32 +360,44 @@ class TestAggregatorBackendImplementation:
         with pytest.raises(ServiceNotFoundException):
             _ = abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
-    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
-    def test_create_service(self, multi_backend_connection, config, backend1, requests_mock, api_version):
+    def test_create_service(self, api, multi_backend_connection, config, backend1, requests_mock):
         """When it gets a correct params for a new service, it succesfully creates it."""
 
         # Set up responses for creating the service in backend 1
         expected_openeo_id = "wmts-foo"
-        expected_location = backend1 + "/services/wmts-foo"
+        location_backend_1 = backend1 + "/services/" + expected_openeo_id
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
             headers={
                 "OpenEO-Identifier": expected_openeo_id,
-                "Location": expected_location
+                "Location": location_backend_1
             },
             status_code=201)
-
+        service1 = ServiceMetadata(
+            id="wmts-foo",
+            process=process_graph,
+            url=location_backend_1,
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service",
+        )
+        requests_mock.get(
+            location_backend_1,
+            json=service1.prepare_for_json(),
+            status_code=200
+        )
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         actual_openeo_id = abe_implementation.create_service(
             user_id=TEST_USER,
             process_graph=process_graph,
             service_type="WMTS",
-            api_version=api_version,
+            api_version=api.api_version,
             configuration={}
         )
-
         assert actual_openeo_id == expected_openeo_id
 
     @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
@@ -393,7 +405,6 @@ class TestAggregatorBackendImplementation:
     def test_create_service_backend_raises_openeoapiexception(
         self, multi_backend_connection, config, backend1, requests_mock, api_version, exception_class
     ):
-        # for exc_class in [OpenEoApiError, OpenEoRestError]:
         # Set up responses for creating the service in backend 1:
         # This time the backend raises an error, one that will be reported as a OpenEOApiException. 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -401,7 +412,6 @@ class TestAggregatorBackendImplementation:
             backend1 + "/services",
             exc=exception_class("Some server error"),
         )
-
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         with pytest.raises(OpenEOApiException):
@@ -427,7 +437,6 @@ class TestAggregatorBackendImplementation:
             backend1 + "/services",
             exc=exception_class("Some server error"),
         )
-
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         # These exception types should be re-raised, not become an OpenEOApiException.
