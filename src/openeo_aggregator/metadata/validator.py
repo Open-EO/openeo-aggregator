@@ -94,7 +94,7 @@ def compare_get_processes(backend_urls):
     for url in backend_urls:
         r = requests.get(url + "/processes")
         if r.status_code == 200:
-            processes = r.json().get("processes", {})
+            processes = r.json().get("processes", [])
             processes_per_backend[url] = {p["id"]: p for p in processes}
         else:
             print("WARNING: {} /processes does not return 200".format(url))
