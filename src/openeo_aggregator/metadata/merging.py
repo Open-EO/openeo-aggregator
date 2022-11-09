@@ -8,7 +8,7 @@ from collections import defaultdict
 import flask
 import itertools
 import logging
-from typing import Dict, Optional, Callable, Any
+from typing import Dict, Optional, Callable, Any, List
 
 from openeo.util import rfc3339, dict_no_none
 from openeo_aggregator.metadata import (
@@ -286,22 +286,9 @@ class ProcessMetadataMerger:
         }
         set_if_non_empty(merged, "summary", getter.first("summary", default=None))
 
-        # Merge parameters
-        params_by_name = self._group_parameters_by_name(by_backend, process_id)
-        params = []
-        for param_name, param_by_backend in params_by_name.items():
-            for backend_id in [
-                b for b in supporting_backends if b not in param_by_backend
-            ]:
-                self.report(
-                    f"Unsupported parameter {param_name}",
-                    backend_id=backend_id,
-                    process_id=process_id,
-                )
-            params.append(
-                self.merge_parameter(by_backend=param_by_backend, process_id=process_id)
-            )
-        merged["parameters"] = params
+        merged["parameters"] = self._merge_process_parameters(
+            by_backend=by_backend, process_id=process_id
+        )
 
         # Return schema
         merged["returns"] = self._merge_process_returns(
@@ -315,74 +302,127 @@ class ProcessMetadataMerger:
             merged, "categories", self._merge_process_categories(by_backend=by_backend)
         )
 
+        # TODO: merge "deprecated" field
+        # TODO: merge "experimental" field
+        # TODO: merge "examples" field
+        # TODO: merge "links" field
+
         return merged
 
-    def _group_parameters_by_name(
-        self, by_backend: Dict[str, dict], process_id: str
+    def _get_parameters_by_name(
+        self, parameters: List[dict], backend_id: str, process_id: str
+    ) -> Dict[str, dict]:
+        """Build dictionary of parameter metadata, keyed on name."""
+        names = {}
+        try:
+            for param in parameters:
+                try:
+                    names[param["name"]] = param
+                except Exception as e:
+                    self.report(
+                        f"Invalid parameter metadata {param!r}: {e!r}",
+                        process_id=process_id,
+                        backend_id=backend_id,
+                    )
+        except Exception as e:
+            self.report(
+                f"Invalid parameter listing {parameters!r}: {e!r}",
+                backend_id=backend_id,
+                process_id=process_id,
+            )
+
+        return names
+
+    def _normalize_parameter(
+        self,
+        param: dict,
+        strip_description: bool = False,
+        add_optionals: bool = True,
     ) -> dict:
-        """
-        Group parameters (for given process, across multiple backends) by parameter name
-        :param by_backend: A dictionary mapping backend ids to process metadata.
-        :param process_id:
-        :return: {param_name: {backend_id: process_metadata_dict}}
-        """
-        params_by_name: Dict[str, Dict[str, dict]] = defaultdict(dict)
-        for backend_id, process_metadata in by_backend.items():
-            for param in process_metadata.get("parameters") or []:
-                if not (
-                    isinstance(param, dict)
-                    and all(f in param for f in ["name", "schema"])
-                ):
-                    self.report(
-                        f"Invalid parameter metadata {param!r}",
-                        process_id=process_id,
-                        backend_id=backend_id,
-                    )
-                    continue
-                params_by_name[param["name"]][backend_id] = param
-        return params_by_name.copy()
-
-    def merge_parameter(self, by_backend: Dict[str, dict], process_id: str) -> dict:
-        """
-        Merge metadata (from different backends) of a process parameter
-
-        :param by_backend: dict mapping backend_id to parameter metadata
-        """
-        getter = MultiDictGetter(by_backend.values())
-        param_name = getter.single_value_for("name")
-        # Initialize with some required fields
-        merged = {
-            "name": param_name,
-            "description": getter.first("description", param_name),
+        """Normalize a parameter metadata dict"""
+        # TODO: report missing name/description/schema?
+        normalized = {
+            "name": param.get("name", "n/a"),
+            "schema": param.get("schema", {}),
         }
-        # Some optional fields.
-        merged.update(
-            {k: getter.first(k) for k in ["optional", "default"] if getter.has_key(k)}
-        )
-        # Compare top level parameter fields.
-        for key, default in [("optional", False), ("default", None)]:
-            merged_value = merged.get(key, default)
-            for backend_id, param in by_backend.items():
-                value = param.get(key, default)
-                # TODO: use smarter comparison or DeepDiff?
-                if value != merged_value:
-                    self.report(
-                        f"Parameter {param_name!r} key {key!r} has value {value!r} instead of {merged_value!r}",
-                        process_id=process_id,
-                        backend_id=backend_id,
-                    )
+        if strip_description:
+            normalized["description"] = "-"
+        else:
+            normalized["description"] = param.get("description", normalized["name"])
+        for field, default_value in [
+            ("optional", False),
+            ("deprecated", False),
+            ("experimental", False),
+        ]:
+            if add_optionals:
+                normalized[field] = param.get(field, default_value)
+            elif field in param:
+                normalized[field] = param[field]
+        # Required parameters SHOULD NOT specify a default value.
+        # Optional parameters SHOULD always specify a default value.
+        if normalized.get("optional", False):
+            normalized["default"] = param.get("default", None)
+        return normalized
 
-        # Merge/compare parameter schema's
-        # TODO: real merge instead of taking first schema as "merged" schema
-        merged["schema"] = merged_schema = getter.first("schema")
-        for backend_id, param in by_backend.items():
-            other_schema = param.get("schema", {})
-            if other_schema != merged_schema:
-                self.report(
-                    f"Parameter {param_name!r} schema {other_schema} is different from merged {merged_schema}",
-                    process_id=process_id,
-                    backend_id=backend_id,
+    def _merge_process_parameters(
+        self, by_backend: Dict[str, dict], process_id: str
+    ) -> List[dict]:
+        # Pick first non-empty parameter listing as merge result
+        # TODO: real merge instead of taking first?
+        merged = []
+        merged_params_by_name = {}
+        for backend_id, process_metadata in by_backend.items():
+            params = process_metadata.get("parameters", [])
+            if params:
+                merged = [
+                    self._normalize_parameter(
+                        p, strip_description=False, add_optionals=False
+                    )
+                    for p in params
+                ]
+                merged_params_by_name = self._get_parameters_by_name(
+                    parameters=merged, backend_id=backend_id, process_id=process_id
                 )
+                break
+
+        # Check other parameter listings
+        for backend_id, process_metadata in by_backend.items():
+            params = process_metadata.get("parameters", [])
+            params_by_name = self._get_parameters_by_name(
+                parameters=params, backend_id=backend_id, process_id=process_id
+            )
+            missing_parameters = set(merged_params_by_name).difference(params_by_name)
+            if missing_parameters:
+                self.report(
+                    f"Missing parameters: {missing_parameters!r}",
+                    backend_id=backend_id,
+                    process_id=process_id,
+                )
+            extra_parameters = set(params_by_name).difference(merged_params_by_name)
+            if extra_parameters:
+                self.report(
+                    f"Extra parameters (not in merged listing): {extra_parameters}",
+                    backend_id=backend_id,
+                    process_id=process_id,
+                )
+            for name in set(merged_params_by_name).intersection(params_by_name):
+                merged_param = self._normalize_parameter(
+                    merged_params_by_name[name],
+                    strip_description=True,
+                    add_optionals=True,
+                )
+                other_param = self._normalize_parameter(
+                    params_by_name[name], strip_description=True, add_optionals=True
+                )
+                for field in merged_param.keys():
+                    merged_value = merged_param[field]
+                    other_value = other_param[field]
+                    if merged_value != other_value:
+                        self.report(
+                            f"Parameter {name!r} field {field!r} value {other_value!r} differs from merged {merged_value!r}",
+                            backend_id=backend_id,
+                            process_id=process_id,
+                        )
 
         return merged
 
@@ -396,7 +436,7 @@ class ProcessMetadataMerger:
         :return:
         """
         getter = MultiDictGetter(by_backend.values())
-        # TODO: real merge instead of taking first schema as "merged" schema
+        # TODO: real merge instead of taking first schema as "merged" schema?
         merged = getter.first("returns", {"schema": {}})
         for backend_id, process_metadata in by_backend.items():
             other_returns = process_metadata.get("returns", {"schema": {}})
@@ -411,9 +451,9 @@ class ProcessMetadataMerger:
 
     def _merge_process_exceptions(self, by_backend: Dict[str, dict]):
         merged = {}
-        for backend_id, process in by_backend.items():
-            process_id = process.get("id", "n/a")
-            exceptions = process.get("exceptions", {})
+        for backend_id, process_metadata in by_backend.items():
+            process_id = process_metadata.get("id", "n/a")
+            exceptions = process_metadata.get("exceptions", {})
             if isinstance(exceptions, dict):
                 # TODO: take value from first backend instead of last one here?
                 merged.update(exceptions)
@@ -427,9 +467,9 @@ class ProcessMetadataMerger:
 
     def _merge_process_categories(self, by_backend: Dict[str, dict]):
         merged = set()
-        for backend_id, process in by_backend.items():
-            process_id = process.get("id", "n/a")
-            categories = process.get("categories", [])
+        for backend_id, process_metadata in by_backend.items():
+            process_id = process_metadata.get("id", "n/a")
+            categories = process_metadata.get("categories", [])
             if isinstance(categories, list):
                 merged.update(categories)
             else:
