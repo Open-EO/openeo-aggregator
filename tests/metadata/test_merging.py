@@ -172,6 +172,8 @@ class TestMergeProcessMetadata:
                         "name": "x",
                         "description": "X value",
                         "schema": {"type": "number"},
+                        "deprecated": False,
+                        "optional": False,
                     },
                 ],
             },
@@ -200,3 +202,171 @@ class TestMergeProcessMetadata:
                 {"backend_id": "b3", "process_id": "cos"},
             )
         ]
+
+    def test_merge_process_parameters_recursive(self, merger, reporter):
+        """
+        Comparison use case with sub-process-graph with parameters
+        and some to-be-ignored differences in optional values.
+        """
+        by_backend = {
+            "b1": {
+                "id": "array_apply",
+                "parameters": [
+                    {
+                        "name": "process",
+                        "schema": {
+                            "type": "object",
+                            "subtype": "process-graph",
+                            "parameters": [{"name": "x", "schema": {}}],
+                            "returns": {"schema": {}},
+                        },
+                    },
+                ],
+            },
+            "b2": {
+                "id": "array_apply",
+                "parameters": [
+                    {
+                        "name": "process",
+                        "schema": {
+                            "type": "object",
+                            "subtype": "process-graph",
+                            "parameters": [
+                                {
+                                    "name": "x",
+                                    "schema": {},
+                                    "optional": False,
+                                    "deprecated": False,
+                                    "experimental": False,
+                                }
+                            ],
+                            "returns": {"schema": {}},
+                        },
+                        "optional": False,
+                        "deprecated": False,
+                        "experimental": False,
+                    },
+                ],
+            },
+        }
+        merged = merger.merge_process_metadata(by_backend=by_backend)
+        assert merged == {
+            "id": "array_apply",
+            "description": "array_apply",
+            "parameters": [
+                {
+                    "name": "process",
+                    "description": "process",
+                    "schema": {
+                        "type": "object",
+                        "subtype": "process-graph",
+                        "parameters": [{"name": "x", "description": "x", "schema": {}}],
+                        "returns": {"schema": {}},
+                    },
+                }
+            ],
+            "returns": {"schema": {}},
+            "federation:backends": ["b1", "b2"],
+        }
+        assert reporter.logs == []
+
+    def test_merge_process_parameters_recursive2(self, merger, reporter):
+        """
+        Comparison use case with sub-process-graph with parameters
+        and some to-be-ignored differences in optional values.
+        """
+        by_backend = {
+            "b1": {
+                "id": "count",
+                "parameters": [
+                    {"name": "data", "schema": {"type": "array"}},
+                    {
+                        "name": "condition",
+                        "schema": [
+                            {
+                                "parameters": [{"name": "x", "schema": {}}],
+                                "returns": {"schema": {"type": "boolean"}},
+                                "subtype": "process-graph",
+                                "type": "object",
+                            },
+                            {"const": True, "type": "boolean"},
+                        ],
+                        "default": None,
+                        "optional": True,
+                    },
+                ],
+                "returns": {"schema": {"type": "number"}},
+            },
+            "b2": {
+                "id": "count",
+                "deprecated": False,
+                "exceptions": {},
+                "experimental": False,
+                "parameters": [
+                    {
+                        "name": "data",
+                        "deprecated": False,
+                        "description": "An array with elements of any data type.",
+                        "experimental": False,
+                        "optional": False,
+                        "schema": {"type": "array"},
+                    },
+                    {
+                        "name": "condition",
+                        "deprecated": False,
+                        "experimental": False,
+                        "optional": True,
+                        "schema": [
+                            {
+                                "parameters": [
+                                    {
+                                        "name": "x",
+                                        "deprecated": False,
+                                        "description": "The value of the current element being processed.",
+                                        "experimental": False,
+                                        "optional": False,
+                                        "schema": {},
+                                    },
+                                ],
+                                "returns": {"schema": {"type": "boolean"}},
+                                "subtype": "process-graph",
+                                "type": "object",
+                            },
+                            {"const": True, "type": "boolean"},
+                        ],
+                    },
+                ],
+                "returns": {"schema": {"type": "number"}},
+                "summary": "Count the number of elements",
+            },
+        }
+        merged = merger.merge_process_metadata(by_backend=by_backend)
+        assert merged == {
+            "id": "count",
+            "description": "count",
+            "federation:backends": ["b1", "b2"],
+            "parameters": [
+                {"name": "data", "description": "data", "schema": {"type": "array"}},
+                {
+                    "name": "condition",
+                    "description": "condition",
+                    "default": None,
+                    "optional": True,
+                    "schema": [
+                        {
+                            "type": "object",
+                            "subtype": "process-graph",
+                            "parameters": [
+                                {"name": "x", "description": "x", "schema": {}}
+                            ],
+                            "returns": {"schema": {"type": "boolean"}},
+                        },
+                        {"const": True, "type": "boolean"},
+                    ],
+                },
+            ],
+            "returns": {"schema": {"type": "number"}},
+            "summary": "Count the number of elements",
+        }
+
+        assert reporter.logs == []

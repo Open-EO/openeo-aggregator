@@ -333,37 +333,6 @@ class ProcessMetadataMerger:
 
         return names
 
-    def _normalize_parameter(
-        self,
-        param: dict,
-        strip_description: bool = False,
-        add_optionals: bool = True,
-    ) -> dict:
-        """Normalize a parameter metadata dict"""
-        # TODO: report missing name/description/schema?
-        normalized = {
-            "name": param.get("name", "n/a"),
-            "schema": param.get("schema", {}),
-        }
-        if strip_description:
-            normalized["description"] = "-"
-        else:
-            normalized["description"] = param.get("description", normalized["name"])
-        for field, default_value in [
-            ("optional", False),
-            ("deprecated", False),
-            ("experimental", False),
-        ]:
-            if add_optionals:
-                normalized[field] = param.get(field, default_value)
-            elif field in param:
-                normalized[field] = param[field]
-        # Required parameters SHOULD NOT specify a default value.
-        # Optional parameters SHOULD always specify a default value.
-        if normalized.get("optional", False):
-            normalized["default"] = param.get("default", None)
-        return normalized
-
     def _merge_process_parameters(
         self, by_backend: Dict[str, dict], process_id: str
     ) -> List[dict]:
@@ -374,18 +343,17 @@ class ProcessMetadataMerger:
         for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             if params:
-                merged = [
-                    self._normalize_parameter(
-                        p, strip_description=False, add_optionals=False
-                    )
-                    for p in params
-                ]
+                normalizer = ProcessParameterNormalizer(
+                    strip_description=False, add_optionals=False
+                )
+                merged = normalizer.normalize_parameters(params)
+
                 merged_params_by_name = self._get_parameters_by_name(
                     parameters=merged, backend_id=backend_id, process_id=process_id
                 )
                 break
 
-        # Check other parameter listings
+        # Check other parameter listings against merged
         for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             params_by_name = self._get_parameters_by_name(
@@ -406,14 +374,14 @@ class ProcessMetadataMerger:
                     process_id=process_id,
                 )
             for name in set(merged_params_by_name).intersection(params_by_name):
-                merged_param = self._normalize_parameter(
-                    merged_params_by_name[name],
+                normalizer = ProcessParameterNormalizer(
                     strip_description=True,
                     add_optionals=True,
                 )
-                other_param = self._normalize_parameter(
-                    params_by_name[name], strip_description=True, add_optionals=True
+                merged_param = normalizer.normalize_parameter(
+                    merged_params_by_name[name]
                 )
+                other_param = normalizer.normalize_parameter(params_by_name[name])
                 for field in merged_param.keys():
                     merged_value = merged_param[field]
                     other_value = other_param[field]
@@ -479,3 +447,74 @@ class ProcessMetadataMerger:
                     process_id=process_id,
                 )
         return sorted(merged)
+
+
+class ProcessParameterNormalizer:
+    """
+    Helper class to normalize process parameters
+    (set default values, strip descriptions),
+    e.g. for comparison purposes.
+    """
+
+    __slots__ = ["strip_description", "add_optionals"]
+
+    def __init__(self, strip_description: bool = False, add_optionals: bool = True):
+        self.strip_description = strip_description
+        self.add_optionals = add_optionals
+
+    def normalize_parameter(self, param: dict) -> dict:
+        """Normalize a parameter metadata dict"""
+        # TODO: report missing name/description/schema?
+        normalized = {
+            "name": param.get("name", "n/a"),
+            "schema": param.get("schema", {}),
+        }
+        if self.strip_description:
+            normalized["description"] = "-"
+        else:
+            normalized["description"] = param.get("description", normalized["name"])
+        for field, default_value in [
+            ("optional", False),
+            ("deprecated", False),
+            ("experimental", False),
+        ]:
+            if self.add_optionals:
+                normalized[field] = param.get(field, default_value)
+            elif field in param:
+                normalized[field] = param[field]
+        # Required parameters SHOULD NOT specify a default value.
+        # Optional parameters SHOULD always specify a default value.
+        if normalized.get("optional", False):
+            normalized["default"] = param.get("default", None)
+
+        # Recurse into sub-process graphs under "schema" to normalize nested parameters
+        normalized["schema"] = self.normalize_recursively(normalized["schema"])
+
+        return normalized
+
+    def normalize_parameters(self, parameters: List[dict]) -> List[dict]:
+        """Normalize a list of parameter dicts."""
+        return [self.normalize_parameter(param) for param in parameters]
+
+    def normalize_recursively(self, x: Any) -> Any:
+        """
+        Recursively walk dictionary and lists and normalize process parameters along the way.
+        """
+        if isinstance(x, dict):
+            if (
+                x.get("type") == "object"
+                and x.get("subtype") == "process-graph"
+                and isinstance(x.get("parameters"), list)
+            ):
+                return {
+                    k: self.normalize_parameters(parameters=v)
+                    if k == "parameters"
+                    else v
+                    for k, v in x.items()
+                }
+            else:
+                return {k: self.normalize_recursively(v) for k, v in x.items()}
+        elif isinstance(x, list):
+            return [self.normalize_recursively(v) for v in x]
+        else:
+            return x
