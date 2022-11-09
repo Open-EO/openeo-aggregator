@@ -728,11 +728,13 @@ class AggregatorSecondaryServices(SecondaryServices):
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
         # Search all services on the backends.
+        service = None
         for con in self._backends:
             try:
-                _ = con.get(f"/services/{service_id}")
+                service = con.get(f"/services/{service_id}")
             except OpenEoApiError as e:
                 if e.http_status_code == 404:
+                    # Expected error
                     _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
                     continue
                 else:
@@ -743,15 +745,20 @@ class AggregatorSecondaryServices(SecondaryServices):
                 raise e
 
             try:
-                response_del = con.delete(f"/services/{service_id}")
+                con.delete(f"/services/{service_id}", expected_status=204)
+            except (OpenEoApiError, OpenEOApiException) as e:
+                # TODO: maybe we should just let these exception straight go to the caller without logging it here.
+                # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
+                _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                raise
             except Exception as e:
                 _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
                 raise OpenEOApiException(
                     f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
                 ) from e
 
-            if response_del.status_code != 204:
-                raise OpenEOApiException(f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}")
+        if not service:
+            raise ServiceNotFoundException(service_id)
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -949,10 +956,10 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         return self.secondary_services.service_info(user_id=user_id, service_id=service_id)
 
     def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
-                       configuration: dict) -> Tuple[str, str]:
+                       configuration: dict) -> str:
         return self.secondary_services.create_service(user_id=user_id, process_graph=process_graph,
             service_type=service_type, api_version=api_version, configuration=configuration)
 
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
-        return self.secondary_services.remove_service(user_id=user_id, service_id=service_id)
+        self.secondary_services.remove_service(user_id=user_id, service_id=service_id)
