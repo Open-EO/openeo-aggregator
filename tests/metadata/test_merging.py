@@ -1,6 +1,6 @@
 import pytest
 
-from openeo_aggregator.metadata.merging import ProcessMetadataMerger
+from openeo_aggregator.metadata.merging import ProcessMetadataMerger, json_diff
 
 
 class ListReporter:
@@ -197,9 +197,22 @@ class TestMergeProcessMetadata:
         assert reporter.logs == [
             (
                 (
-                    "Parameter 'x' field 'schema' value {'type': 'array'} differs from merged {'type': 'number'}",
+                    "Parameter 'x' field 'schema' value {'type': 'array'} differs from merged "
+                    "{'type': 'number'}",
                 ),
-                {"backend_id": "b3", "process_id": "cos"},
+                {
+                    "backend_id": "b3",
+                    "process_id": "cos",
+                    "diff": [
+                        "--- merged\n",
+                        "+++ b3\n",
+                        "@@ -1,3 +1,3 @@\n",
+                        " {\n",
+                        '-  "type": "number"\n',
+                        '+  "type": "array"\n',
+                        " }",
+                    ],
+                },
             )
         ]
 
@@ -370,3 +383,85 @@ class TestMergeProcessMetadata:
         }
 
         assert reporter.logs == []
+
+
+def test_json_diff_empty():
+    assert json_diff([1, 2], [1, 2]) == []
+
+
+def test_json_diff_simple_list_difference():
+    assert json_diff(
+        [1, 2, 3, 4, 5, 6, 7],
+        [1, 2, 3, 4444, 5, 6, 7],
+        a_name="orig",
+        b_name="changed",
+        context=1,
+    ) == [
+        "--- orig\n",
+        "+++ changed\n",
+        "@@ -4,3 +4,3 @@\n",
+        "   3,\n",
+        "-  4,\n",
+        "+  4444,\n",
+        "   5,\n",
+    ]
+
+
+def test_json_diff_dict_sorting():
+    diff = json_diff(
+        {
+            "foo": 1,
+            "Bar": 2,
+            "meh": [3, 4, 5],
+            "lala": "haha",
+            "xev": [{1: 2, 3: 4, 5: 6}],
+        },
+        {
+            "meh": [3, 4, 5],
+            "foo": 1,
+            "xev": [{5: 6, 3: 4, 1: 2}],
+            "lala": "haha",
+            "Bar": 2,
+        },
+    )
+    assert diff == []
+
+
+def test_json_diff_dict_difference():
+    diff = json_diff(
+        {
+            "foo": 1,
+            "Bar": 2,
+            "meh": [3, 4, 5],
+            "lala": "haha",
+            "xev": [{1: 2, 3: 4, 5: 6}],
+        },
+        {
+            "meh": [3, 4, 5],
+            "foo": 1,
+            "xev": [{5: 6, 3: 4444, 1: 2}],
+            "lalalalala": "haha",
+            "Bar": 2,
+        },
+        a_name="orig",
+        b_name="changed",
+        context=2,
+    )
+    assert diff == [
+        "--- orig\n",
+        "+++ changed\n",
+        "@@ -2,5 +2,5 @@\n",
+        '   "Bar": 2,\n',
+        '   "foo": 1,\n',
+        '-  "lala": "haha",\n',
+        '+  "lalalalala": "haha",\n',
+        '   "meh": [\n',
+        "     3,\n",
+        "@@ -11,5 +11,5 @@\n",
+        "     {\n",
+        '       "1": 2,\n',
+        '-      "3": 4,\n',
+        '+      "3": 4444,\n',
+        '       "5": 6\n',
+        "     }\n",
+    ]
