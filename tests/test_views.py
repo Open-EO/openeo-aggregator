@@ -1214,7 +1214,7 @@ class TestSecondaryServices:
             # not setting "created": This is used to test creating a service.
         )
 
-    def test_service_types_simple(self, api, backend1, backend2, requests_mock):
+    def test_service_types_simple(self, api_tester, backend1, backend2, requests_mock):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
         """
@@ -1242,10 +1242,10 @@ class TestSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json=single_service_type)
 
-        resp = api.get('/service_types').assert_status_code(200)
+        resp = api_tester.get('/service_types').assert_status_code(200)
         assert resp.json == single_service_type
 
-    def test_service_types_merging(self, api, backend1, backend2, requests_mock):
+    def test_service_types_merging(self, api_tester, backend1, backend2, requests_mock):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
         service_type_1 = {
             "WMTS": {
@@ -1279,7 +1279,7 @@ class TestSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
 
-        resp = api.get("/service_types").assert_status_code(200)
+        resp = api_tester.get("/service_types").assert_status_code(200)
         actual_service_types = resp.json
 
         expected_service_types = dict(service_type_1)
@@ -1353,15 +1353,15 @@ class TestSecondaryServices:
         assert expected_service2.attributes == resp.json["attributes"]
 
     def test_service_info_wrong_id(
-        self, api, backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
+        self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """When it gets a non-existent service ID, it returns HTTP Status 404, Not found."""
 
         requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service_metadata_wms_bar.prepare_for_json())
-        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api_tester.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        api.get("/services/doesnotexist").assert_status_code(404)
+        api_tester.get("/services/doesnotexist").assert_status_code(404)
 
     def test_create_wmts_040(self, api040, requests_mock, backend1):
         api040.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)

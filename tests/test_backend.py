@@ -14,8 +14,8 @@ from openeo_driver.testing import DictSubSet
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
 from openeo.rest import OpenEoApiError, OpenEoRestError
-from .conftest import DEFAULT_MEMOIZER_CONFIG
-
+from .conftest import DEFAULT_MEMOIZER_CONFIG, set_backend_to_api_version
+  
 
 TEST_USER = "Mr.Test"
 
@@ -363,10 +363,11 @@ class TestAggregatorSecondaryServices:
         with pytest.raises(ServiceNotFoundException):
             abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
-    def test_create_service(self, api, multi_backend_connection, config, backend1, requests_mock):
+    def test_create_service(self, api_tester, multi_backend_connection, config, backend1, requests_mock):
         """When it gets a correct params for a new service, it successfully creates it."""
 
         # Set up responses for creating the service in backend 1
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         expected_openeo_id = "wmts-foo"
         location_backend_1 = backend1 + "/services/" + expected_openeo_id
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -385,20 +386,21 @@ class TestAggregatorSecondaryServices:
             user_id=TEST_USER,
             process_graph=process_graph,
             service_type="WMTS",
-            api_version=api.api_version,
+            api_version=api_tester.api_version,
             configuration={}
         )
         assert actual_openeo_id == expected_openeo_id
 
-    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
     @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
     def test_create_service_backend_raises_openeoapiexception(
-        self, multi_backend_connection, config, backend1, requests_mock, api_version, exception_class
+        self, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock, exception_class
     ):
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
 
         # Set up responses for creating the service in backend 1:
         # This time the backend raises an error, one that will be reported as a OpenEOApiException. 
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
@@ -411,16 +413,15 @@ class TestAggregatorSecondaryServices:
                 user_id=TEST_USER,
                 process_graph=process_graph,
                 service_type="WMTS",
-                api_version=api_version,
+                api_version=api_tester.api_version,
                 configuration={}
             )
 
-    @pytest.mark.parametrize("api_version", ["0.4.0", "1.0.0", "1.1.0"])
     @pytest.mark.parametrize("exception_class",
         [ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException]
     )
     def test_create_service_backend_reraises(
-        self, multi_backend_connection, config, backend1, requests_mock, api_version, exception_class
+        self, api_tester, multi_backend_connection, config, backend1, requests_mock, exception_class
     ):
         """When the backend raises exception types that indicate client error / bad input data,
         the aggregator raises and OpenEOApiException.
@@ -428,6 +429,7 @@ class TestAggregatorSecondaryServices:
 
         # Set up responses for creating the service in backend 1
         # This time the backend raises an error, one that will simply be re-raised/passed on as it is.
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
@@ -441,7 +443,7 @@ class TestAggregatorSecondaryServices:
                 user_id=TEST_USER,
                 process_graph=process_graph,
                 service_type="WMTS",
-                api_version=api_version,
+                api_version=api_tester.api_version,
                 configuration={}
             )
 
@@ -475,7 +477,7 @@ class TestAggregatorSecondaryServices:
 
     @pytest.mark.parametrize("backend_status_code", [400, 500])
     def test_remove_service_backend_response_is_an_error_status(
-            self, multi_backend_connection, config, backend1, backend2, requests_mock,
+            self, multi_backend_connection, config, backend1, requests_mock,
             service_metadata_wmts_foo, backend_status_code
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
@@ -516,6 +518,49 @@ class TestAggregatorSecondaryServices:
 
         with pytest.raises(ServiceNotFoundException):
             abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+
+    def test_update_service(
+        self, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+
+        # Also test that it can skip backends that don't have the service
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            status_code=404
+        )
+        # Update should succeed in backend2 so service should be present first.
+        service_metadata_wmts_foo
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_patch = requests_mock.patch(
+            backend2 + "/services/wmts-foo",
+            status_code=204,
+        )
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
+
+        abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
+
+        # # Make sure the aggregator asked the backend to remove the service.
+        assert mock_patch.called
+        from openeo.capabilities import ComparableVersion
+        comp_api_version = ComparableVersion(api_tester.api_version)
+        if comp_api_version < ComparableVersion((1, 0, 0)):
+            expected_process = {"process_graph": process_graph_after}
+        else:
+            expected_process = {"process": process_graph_after}
+        
+        assert mock_patch.last_request.json() == expected_process
+
+        # Check the other mocks were called too, just to be sure.
+        assert mock_get1.called
+        assert mock_get2.called
 
 
 class TestInternalCollectionMetadata:
