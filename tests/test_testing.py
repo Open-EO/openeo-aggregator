@@ -2,7 +2,14 @@ import datetime
 
 import pytest
 
-from openeo_aggregator.testing import clock_mock, approx_now, approx_str_prefix, approx_str_contains, approx_str_suffix
+from openeo_aggregator.testing import (
+    clock_mock,
+    approx_now,
+    approx_str_prefix,
+    approx_str_contains,
+    approx_str_suffix,
+    same_repr,
+)
 from openeo_aggregator.utils import Clock
 
 
@@ -76,3 +83,9 @@ def test_approx_str_nesting():
     assert actual == {"id": 123, "msg": approx_str_prefix("error:")}
     assert actual == {"id": 123, "msg": approx_str_contains("lookup failure")}
     assert actual == {"id": 123, "msg": approx_str_suffix("(confirmed)")}
+
+
+def test_same_repr():
+    assert TypeError("foo") == same_repr(TypeError("foo"))
+    assert float("nan") == same_repr(float("nan"))
+    assert 123 != same_repr("123")

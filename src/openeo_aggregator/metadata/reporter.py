@@ -18,6 +18,7 @@ def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:
 
 class MarkDownReporter:
     def __init__(self):
+        # TODO Handle warning/critical level generically instead of with two lists?
         self.warning_messages = []
         self.critical_messages = []
 
@@ -26,11 +27,16 @@ class MarkDownReporter:
         level = kwargs.pop("level", "warning")
         caller = inspect.stack()[1]
         caller_file = Path(caller.filename).name.split("/")[-1]
-        msg = f"*{' : '.join(entity_id)}* ({caller_file}:{caller.lineno}): {msg}"
+        msg = f"- *{' : '.join(entity_id)}* ({caller_file}:{caller.lineno}): {msg}"
         diff = kwargs.pop("diff", None)
+        if kwargs:
+            msg += "\n\n" + ("\n".join(f"    - {k} `{v!r}`" for k, v in kwargs.items()))
         if diff:
-            msg += "\n\n" + textwrap.indent("".join(diff), " " * 8) + "\n"
-        msg += f"  ({kwargs})" if kwargs else ""
+            msg += "\n\n" + textwrap.indent("".join(diff), " " * 8)
+        if "\n" in msg:
+            # Multi-line message with sublist of code block: add extra newline
+            msg += "\n"
+
         if level == "critical":
             self.critical_messages.append(msg)
         else:
@@ -39,10 +45,10 @@ class MarkDownReporter:
     def print(self):
         print(f"Critical messages ({len(self.critical_messages)}):")
         for msg in self.critical_messages:
-            print("  - {}".format(msg))
+            print(msg)
         print(f"Warning messages ({len(self.warning_messages)}):")
         for msg in self.warning_messages:
-            print("  - {}".format(msg))
+            print(msg)
 
 
 class LoggerReporter:

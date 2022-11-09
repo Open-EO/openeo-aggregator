@@ -352,15 +352,19 @@ class ProcessMetadataMerger:
                     names[param["name"]] = param
                 except Exception as e:
                     self.report(
-                        f"Invalid parameter metadata {param!r}: {e!r}",
+                        f"Invalid parameter metadata",
                         process_id=process_id,
                         backend_id=backend_id,
+                        parameter=param,
+                        exception=e,
                     )
         except Exception as e:
             self.report(
-                f"Invalid parameter listing {parameters!r}: {e!r}",
+                f"Invalid parameter listing",
                 backend_id=backend_id,
                 process_id=process_id,
+                parameters=parameters,
+                exception=e,
             )
 
         return names
@@ -394,16 +398,18 @@ class ProcessMetadataMerger:
             missing_parameters = set(merged_params_by_name).difference(params_by_name)
             if missing_parameters:
                 self.report(
-                    f"Missing parameters: {missing_parameters!r}",
+                    f"Missing parameters.",
                     backend_id=backend_id,
                     process_id=process_id,
+                    missing_parameters=missing_parameters,
                 )
             extra_parameters = set(params_by_name).difference(merged_params_by_name)
             if extra_parameters:
                 self.report(
-                    f"Extra parameters (not in merged listing): {extra_parameters}",
+                    f"Extra parameters (not in merged listing).",
                     backend_id=backend_id,
                     process_id=process_id,
+                    extra_parameters=extra_parameters,
                 )
             for name in set(merged_params_by_name).intersection(params_by_name):
                 normalizer = ProcessParameterNormalizer(
@@ -419,9 +425,11 @@ class ProcessMetadataMerger:
                     other_value = other_param[field]
                     if merged_value != other_value:
                         self.report(
-                            f"Parameter {name!r} field {field!r} value {other_value!r} differs from merged {merged_value!r}",
+                            f"Parameter {name!r} field {field!r} value differs from merged.",
                             backend_id=backend_id,
                             process_id=process_id,
+                            merged=merged_value,
+                            value=other_value,
                             diff=json_diff(
                                 a=merged_value,
                                 b=other_value,
@@ -431,7 +439,6 @@ class ProcessMetadataMerger:
                         )
 
         return merged
-
 
     def _merge_process_returns(
         self, by_backend: Dict[str, dict], process_id: str
@@ -450,9 +457,14 @@ class ProcessMetadataMerger:
             # TODO: ignore description
             if other_returns != merged:
                 self.report(
-                    f"Returns schema {other_returns} is different from merged {merged}",
+                    f"Returns schema is different from merged.",
                     backend_id=backend_id,
                     process_id=process_id,
+                    merged=merged,
+                    value=other_returns,
+                    diff=json_diff(
+                        merged, other_returns, a_name="merged", b_name=backend_id
+                    ),
                 )
         return merged
 
@@ -466,9 +478,10 @@ class ProcessMetadataMerger:
                 merged.update(exceptions)
             else:
                 self.report(
-                    f"Invalid process exceptions listing: {exceptions!r}",
+                    f"Invalid process exceptions listing",
                     backend_id=backend_id,
                     process_id=process_id,
+                    exceptions=exceptions,
                 )
         return merged
 
@@ -481,9 +494,10 @@ class ProcessMetadataMerger:
                 merged.update(categories)
             else:
                 self.report(
-                    f"Invalid process categories listing: {categories!r}",
+                    f"Invalid process categories listing.",
                     backend_id=backend_id,
                     process_id=process_id,
+                    categories=categories,
                 )
         return sorted(merged)
 
