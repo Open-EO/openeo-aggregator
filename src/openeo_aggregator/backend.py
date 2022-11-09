@@ -725,13 +725,13 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         return service.service_id
 
-    def remove_service(self, user_id: str, service_id: str) -> None:
-        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+    def _find_connection_with_service_id(self, service_id: str) -> BackendConnection:
+        """Get connection for the backend that contains the service, return None if not found."""
+
         # Search all services on the backends.
-        service = None
         for con in self._backends:
             try:
-                service = con.get(f"/services/{service_id}")
+                _ = con.get(f"/services/{service_id}")
             except OpenEoApiError as e:
                 if e.http_status_code == 404:
                     # Expected error
@@ -743,22 +743,51 @@ class AggregatorSecondaryServices(SecondaryServices):
             except Exception as e:
                 _log.warning(f"Failed to get service {service_id!r} from {con.id}: {e!r}", exc_info=True)
                 raise e
+            else:
+                return con
 
-            try:
-                con.delete(f"/services/{service_id}", expected_status=204)
-            except (OpenEoApiError, OpenEOApiException) as e:
-                # TODO: maybe we should just let these exception straight go to the caller without logging it here.
-                # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
-                _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
-                raise
-            except Exception as e:
-                _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
-                raise OpenEOApiException(
-                    f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
-                ) from e
+        return None
 
-        if not service:
+    def remove_service(self, user_id: str, service_id: str) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+        con = self._find_connection_with_service_id(service_id)
+        if not con:
             raise ServiceNotFoundException(service_id)
+
+        try:
+            con.delete(f"/services/{service_id}", expected_status=204)
+        except (OpenEoApiError, OpenEOApiException) as e:
+            # TODO: maybe we should just let these exception straight go to the caller without logging it here.
+            # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            raise
+        except Exception as e:
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            raise OpenEOApiException(
+                f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
+            ) from e
+
+    def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
+
+        con = self._find_connection_with_service_id(service_id)
+        if not con:
+            raise ServiceNotFoundException(service_id)
+
+        api_version = self._backends.api_version
+        try:
+            key = "process_graph" if api_version < ComparableVersion((1, 0, 0)) else "process"
+            con.patch(f"/services/{service_id}", json={key: process_graph}, expected_status=204)
+        except (OpenEoApiError, OpenEOApiException) as e:
+            # TODO: maybe we should just let these exception straight go to the caller without logging it here.
+            # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            raise
+        except Exception as e:
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            raise OpenEOApiException(
+                f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
+            ) from e
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
@@ -963,3 +992,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
         self.secondary_services.remove_service(user_id=user_id, service_id=service_id)
+
+    def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
+        self.secondary_services.update_service(
+            user_id=user_id, service_id=service_id, process_graph=process_graph
+        )
