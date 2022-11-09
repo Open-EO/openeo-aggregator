@@ -29,7 +29,6 @@ setup(
         "gunicorn~=20.0",
         "python-json-logger>=2.0.0",
         "kazoo~=2.8.0",
-        "deepdiff>=5.8.1",
     ],
     tests_require=tests_require,
     extras_require={

@@ -9,7 +9,7 @@ from openeo_aggregator.metadata.merging import (
     merge_collection_metadata,
     ProcessMetadataMerger,
 )
-from openeo_aggregator.metadata.reporter import ValidationReporter
+from openeo_aggregator.metadata.reporter import MarkDownReporter
 
 _log = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def compare_get_collections(backend_urls):
             backends_for_collection[collection["id"]][url] = collection
 
     # Merge the different collection objects for each unique collection_id.
-    reporter = ValidationReporter()
+    reporter = MarkDownReporter()
     merged_metadata = {}
     for collection_id, backend_collection in backends_for_collection.items():
         by_backend = {}
@@ -81,7 +81,7 @@ def compare_get_collection_by_id(backend_urls, collection_id):
         r = requests.get(url + "/collections/{}".format(collection_id))
         if r.status_code == 200:
             by_backend[url] = r.json()
-    reporter = ValidationReporter()
+    reporter = MarkDownReporter()
     merged_metadata = merge_collection_metadata(
         by_backend, full_metadata=True, report=reporter.report
     )
@@ -98,7 +98,7 @@ def compare_get_processes(backend_urls):
             processes_per_backend[url] = {p["id"]: p for p in processes}
         else:
             print("WARNING: {} /processes does not return 200".format(url))
-    reporter = ValidationReporter()
+    reporter = MarkDownReporter()
     ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(
         processes_per_backend
     )

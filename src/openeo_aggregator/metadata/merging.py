@@ -5,12 +5,14 @@ Functionality and tools for openEO collection/process metadata processing, norma
 """
 from collections import defaultdict
 
+import difflib
 import flask
 import itertools
+import json
 import logging
 from typing import Dict, Optional, Callable, Any, List
 
-from openeo.util import rfc3339, dict_no_none
+from openeo.util import rfc3339
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
     FEDERATION_BACKENDS,
@@ -233,6 +235,36 @@ def set_if_non_empty(d: dict, key: str, value: Any):
         d[key] = value
 
 
+def json_diff(
+    a: Any, b: Any, a_name: str = "", b_name: str = "", context: int = 3
+) -> List[str]:
+    """
+    Generate unified diff of JSON serialization of given objects
+    :return: List of diff lines
+    """
+
+    def sort_dicts(x: Any) -> Any:
+        """Recursively sort dictionaries in nested data structure"""
+        if isinstance(x, dict):
+            return {k: sort_dicts(v) for (k, v) in sorted(x.items())}
+        elif isinstance(x, (list, tuple)):
+            return type(x)(sort_dicts(v) for v in x)
+        else:
+            return x
+
+    a_json = json.dumps(sort_dicts(a), indent=2)
+    b_json = json.dumps(sort_dicts(b), indent=2)
+    return list(
+        difflib.unified_diff(
+            a_json.splitlines(keepends=True),
+            b_json.splitlines(keepends=True),
+            fromfile=a_name,
+            tofile=b_name,
+            n=context,
+        )
+    )
+
+
 class ProcessMetadataMerger:
     def __init__(self, report: Callable = DEFAULT_REPORTER.report):
         self.report = report
@@ -390,9 +422,16 @@ class ProcessMetadataMerger:
                             f"Parameter {name!r} field {field!r} value {other_value!r} differs from merged {merged_value!r}",
                             backend_id=backend_id,
                             process_id=process_id,
+                            diff=json_diff(
+                                a=merged_value,
+                                b=other_value,
+                                a_name="merged",
+                                b_name=backend_id,
+                            ),
                         )
 
         return merged
+
 
     def _merge_process_returns(
         self, by_backend: Dict[str, dict], process_id: str

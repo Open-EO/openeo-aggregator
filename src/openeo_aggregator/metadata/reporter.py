@@ -1,7 +1,8 @@
 import inspect
 import logging
+import textwrap
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Tuple, List
 
 
 def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:
@@ -15,7 +16,7 @@ def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:
     return entity_id, kwargs
 
 
-class ValidationReporter:
+class MarkDownReporter:
     def __init__(self):
         self.warning_messages = []
         self.critical_messages = []
@@ -25,8 +26,11 @@ class ValidationReporter:
         level = kwargs.pop("level", "warning")
         caller = inspect.stack()[1]
         caller_file = Path(caller.filename).name.split("/")[-1]
-        msg = f"[{':'.join(entity_id)}] {caller_file}:{caller.lineno}: {msg}"
-        msg += f" ({kwargs})" if kwargs else ""
+        msg = f"*{' : '.join(entity_id)}* ({caller_file}:{caller.lineno}): {msg}"
+        diff = kwargs.pop("diff", None)
+        if diff:
+            msg += "\n\n" + textwrap.indent("".join(diff), " " * 8) + "\n"
+        msg += f"  ({kwargs})" if kwargs else ""
         if level == "critical":
             self.critical_messages.append(msg)
         else:
