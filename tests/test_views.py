@@ -377,11 +377,15 @@ class TestProcessing:
                     {
                         "id": "add",
                         "parameters": [
-                            {"name": "x", "schema": {}},
-                            {"name": "y", "schema": {}},
+                            {"name": "x", "schema": {"type": "number"}},
+                            {"name": "y", "schema": {"type": "number"}},
                         ],
                     },
-                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                    {
+                        "id": "mean",
+                        "parameters": [{"name": "data", "schema": {"type": "array"}}],
+                        "returns": {"schema": {"type": "number"}},
+                    },
                 ]
             },
         )
@@ -392,11 +396,14 @@ class TestProcessing:
                     {
                         "id": "multiply",
                         "parameters": [
-                            {"name": "x", "schema": {}},
-                            {"name": "y", "schema": {}},
+                            {"name": "x", "schema": {"type": "number"}},
+                            {"name": "y", "schema": {"type": "number"}},
                         ],
                     },
-                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                    {
+                        "id": "mean",
+                        "parameters": [{"name": "data", "schema": {"type": "array"}}],
+                    },
                 ]
             },
         )
@@ -407,8 +414,8 @@ class TestProcessing:
                     "id": "add",
                     "description": "add",
                     "parameters": [
-                        {"name": "x", "schema": {}, "description": "x"},
-                        {"name": "y", "schema": {}, "description": "y"},
+                        {"name": "x", "schema": {"type": "number"}, "description": "x"},
+                        {"name": "y", "schema": {"type": "number"}, "description": "y"},
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b1"],
@@ -417,17 +424,21 @@ class TestProcessing:
                     "id": "mean",
                     "description": "mean",
                     "parameters": [
-                        {"name": "data", "schema": {}, "description": "data"}
+                        {
+                            "name": "data",
+                            "schema": {"type": "array"},
+                            "description": "data",
+                        }
                     ],
-                    "returns": {"schema": {}},
+                    "returns": {"schema": {"type": "number"}},
                     "federation:backends": ["b1", "b2"],
                 },
                 {
                     "id": "multiply",
                     "description": "multiply",
                     "parameters": [
-                        {"name": "x", "schema": {}, "description": "x"},
-                        {"name": "y", "schema": {}, "description": "y"},
+                        {"name": "x", "schema": {"type": "number"}, "description": "x"},
+                        {"name": "y", "schema": {"type": "number"}, "description": "y"},
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b2"],

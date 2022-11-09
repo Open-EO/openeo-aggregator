@@ -130,63 +130,15 @@ class TestMergeProcessMetadata:
         }
         assert reporter.logs == []
 
-    def test_merge_parameter_basic(self, merger, reporter):
-        by_backend = {
-            "b1": {"name": "x", "schema": {"type": "number"}},
-            "b2": {"name": "x", "schema": {"type": "number"}},
-        }
-        merged = merger.merge_parameter(by_backend=by_backend, process_id="dummy")
-        assert merged == {"name": "x", "description": "x", "schema": {"type": "number"}}
-        assert reporter.logs == []
-
-    def test_merge_parameter_merging(self, merger, reporter):
-        by_backend = {
-            "b1": {"name": "x", "schema": {"type": "number"}},
-            "b2": {"name": "x", "description": "X value", "schema": {"type": "number"}},
-            "b3": {"name": "x", "schema": {"type": "number"}, "optional": False},
-        }
-        merged = merger.merge_parameter(by_backend=by_backend, process_id="dummy")
-        assert merged == {
-            "name": "x",
-            "description": "X value",
-            "schema": {"type": "number"},
-            "optional": False,
-        }
-        assert reporter.logs == []
-
-    def test_merge_parameter_differences(self, merger, reporter):
-        by_backend = {
-            "b1": {"name": "x", "schema": {"type": "number"}},
-            "b2": {"name": "x", "description": "X value", "schema": {"type": "number"}},
-            "b3": {"name": "x", "schema": {"type": "object"}, "optional": False},
-        }
-        merged = merger.merge_parameter(by_backend=by_backend, process_id="dummy")
-        assert merged == {
-            "name": "x",
-            "description": "X value",
-            "schema": {"type": "number"},
-            "optional": False,
-        }
-        assert reporter.logs == [
-            (
-                (
-                    "Parameter 'x' schema {'type': 'object'} is different from merged {'type': 'number'}",
-                ),
-                {"backend_id": "b3", "process_id": "dummy"},
-            )
-        ]
-
-    def test_merge_parameters_basic(self, merger, reporter):
+    def test_merge_process_parameters_basic(self, merger, reporter):
         spec = {
-            "add": {
-                "id": "add",
-                "parameters": [
-                    {"name": "x", "schema": {"type": "number"}},
-                    {"name": "y", "schema": {"type": "number"}},
-                ],
-            }
+            "id": "add",
+            "parameters": [
+                {"name": "x", "schema": {"type": "number"}},
+                {"name": "y", "schema": {"type": "number"}},
+            ],
         }
-        result = merger.merge_processes_metadata(
+        result = merger.merge_process_metadata(
             {
                 "b1": spec,
                 "b2": spec,
@@ -194,15 +146,57 @@ class TestMergeProcessMetadata:
         )
 
         assert result == {
-            "add": {
-                "id": "add",
-                "description": "add",
-                "parameters": [
-                    {"name": "x", "description": "x", "schema": {"type": "number"}},
-                    {"name": "y", "description": "y", "schema": {"type": "number"}},
-                ],
-                "returns": {"schema": {}},
-                "federation:backends": ["b1", "b2"],
-            }
+            "id": "add",
+            "description": "add",
+            "parameters": [
+                {"name": "x", "description": "x", "schema": {"type": "number"}},
+                {"name": "y", "description": "y", "schema": {"type": "number"}},
+            ],
+            "returns": {"schema": {}},
+            "federation:backends": ["b1", "b2"],
         }
         assert reporter.logs == []
+
+    def test_merge_process_parameters_differences(self, merger, reporter):
+        by_backend = {
+            "b1": {
+                "id": "cos",
+                "parameters": [
+                    {"name": "x", "schema": {"type": "number"}},
+                ],
+            },
+            "b2": {
+                "id": "cos",
+                "parameters": [
+                    {
+                        "name": "x",
+                        "description": "X value",
+                        "schema": {"type": "number"},
+                    },
+                ],
+            },
+            "b3": {
+                "id": "cos",
+                "parameters": [
+                    {"name": "x", "schema": {"type": "array"}},
+                ],
+            },
+        }
+        merged = merger.merge_process_metadata(by_backend=by_backend)
+        assert merged == {
+            "id": "cos",
+            "description": "cos",
+            "parameters": [
+                {"description": "x", "name": "x", "schema": {"type": "number"}}
+            ],
+            "returns": {"schema": {}},
+            "federation:backends": ["b1", "b2", "b3"],
+        }
+        assert reporter.logs == [
+            (
+                (
+                    "Parameter 'x' field 'schema' value {'type': 'array'} differs from merged {'type': 'number'}",
+                ),
+                {"backend_id": "b3", "process_id": "cos"},
+            )
+        ]
