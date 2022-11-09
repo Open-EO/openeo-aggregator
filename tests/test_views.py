@@ -15,7 +15,7 @@ from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, 
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
     RegexMatcher
-from .conftest import assert_dict_subset, get_api100, get_flask_app
+from .conftest import assert_dict_subset, get_api100, get_flask_app, set_backend_to_api_version
 
 
 class TestGeneral:
@@ -1661,6 +1661,100 @@ class TestSecondaryServices:
 
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500
+
+    def test_remove_service_succeeds(
+        self, api_tester, requests_mock, backend1, backend2, service_metadata_wmts_foo
+    ):
+        """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+
+        # Also test that it can skip backends that don't have the service
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            status_code=404
+        )
+        # Delete should succeed in backend2 so service should be present first.
+        requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_delete = requests_mock.delete(backend2 + "/services/wmts-foo", status_code=204)
+
+        resp = api_tester.delete("/services/wmts-foo")
+
+        assert resp.status_code == 204
+        # Make sure the aggregator asked the backend to remove the service.
+        assert mock_delete.called
+
+    # TODO: it fails for the test case where the backend reports HTTP 400, because along the way the aggregator turns it into a HTTP 500.
+    # Also, I'm not sure is this test is the way to go.
+    @pytest.mark.parametrize("backend_status_code", [400, 500])
+    def test_remove_service_backend_response_is_an_error_status(
+            self, api_tester, requests_mock, backend1, backend2,
+            service_metadata_wmts_foo, backend_status_code
+    ):
+        """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+
+        # Will find it on the first backend, and it should skip the second backend so we don't add it to backend2.
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_delete = requests_mock.delete(
+            backend1 + "/services/wmts-foo",
+            status_code=backend_status_code,
+            json={
+                "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
+                "code": "ErrorRemovingService",
+                "message": "Service 'wmts-foo' could not be removed.",
+                "url": "https://example.openeo.org/docs/errors/SampleError"
+            }
+        )
+
+        resp = api_tester.delete("/services/wmts-foo")
+
+        assert resp.status_code == backend_status_code
+        # Make sure the aggregator asked the backend to remove the service.
+        assert mock_delete.called
+
+    def test_remove_service_service_id_not_found(
+            self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+
+        # Neither backend has the service available, and the aggregator should detect this.
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=404
+        )
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404,
+            # json={
+            #     "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
+            #     "code": "ServiceNotFound",
+            #     "message": "Service 'wmts-foo' does not exist.",
+            #     "url": "https://example.openeo.org/docs/errors/SampleError"
+            # }
+        )
+
+        resp = api_tester.delete("/services/wmts-foo")
+
+        assert resp.status_code == 404
+        # Make sure the aggregator asked the backend to remove the service.
+        assert mock_get1.called
+        assert mock_get2.called
 
 
 class TestResilience:

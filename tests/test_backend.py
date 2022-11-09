@@ -447,40 +447,43 @@ class TestAggregatorSecondaryServices:
                 configuration={}
             )
 
-    def test_remove_service(
+    def test_remove_service_succeeds(
         self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
-        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+        """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
 
         # Also test that it can skip backends that don't have the service
-        m_get1 = requests_mock.get(
+        mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
             status_code=404
         )
         # Delete should succeed in backend2 so service should be present first.
-        m_get2 = requests_mock.get(
+        mock_get2 = requests_mock.get(
             backend2 + "/services/wmts-foo",
             json=service_metadata_wmts_foo.prepare_for_json(),
             status_code=200
         )
-        m_del = requests_mock.delete(backend2 + "/services/wmts-foo", status_code=204)
+        mock_delete = requests_mock.delete(backend2 + "/services/wmts-foo", status_code=204)
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
         # Make sure the aggregator asked the backend to remove the service.
-        assert m_del.called
+        assert mock_delete.called
 
         # Check the other mocks were called too, just to be sure.
-        assert m_get1.called
-        assert m_get2.called
+        assert mock_get1.called
+        assert mock_get2.called
 
+    # TODO: it fails for the test case where the backend reports HTTP 400, because along the way the aggregator turns it into a HTTP 500.
+    # Also, I'm not sure is this test is the way to go.
     @pytest.mark.parametrize("backend_status_code", [400, 500])
     def test_remove_service_backend_response_is_an_error_status(
             self, multi_backend_connection, config, backend1, requests_mock,
             service_metadata_wmts_foo, backend_status_code
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
+
         # Will find it on the first backend, and it should skip the second backend so we don't add it to backend2.
         requests_mock.get(
             backend1 + "/services/wmts-foo",
@@ -494,16 +497,14 @@ class TestAggregatorSecondaryServices:
             abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
         # If the backend reports HTTP 400/500, we would expect the same status code from the aggregator.
+        # TODO: Statement above is an assumption. Is that really what we expect?
         assert e.value.http_status_code == backend_status_code
 
     def test_remove_service_service_id_not_found(
             self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
-        requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
+
         # Neither backend has the service available, and the aggregator should detect this.
         requests_mock.get(
             backend1 + "/services/wmts-foo",
@@ -519,10 +520,10 @@ class TestAggregatorSecondaryServices:
         with pytest.raises(ServiceNotFoundException):
             abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
-    def test_update_service(
+    def test_update_service_succeeds(
         self, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
-        """When it gets a correct service ID, it returns the expected ServiceMetadata."""
+        """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
         # Also test that it can skip backends that don't have the service
         set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
