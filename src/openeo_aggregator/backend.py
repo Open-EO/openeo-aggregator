@@ -812,6 +812,7 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
+        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         all_services = []
         def merge(services, to_add):
@@ -837,6 +838,7 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
+        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         # TODO: can there ever be a service with the same ID in multiple back-ends? (For the same user)
         for con in self._backends:
@@ -855,6 +857,8 @@ class AggregatorSecondaryServices(SecondaryServices):
         """
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
         """
+        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
+        # TODO: configuration is not used. What to do with it?
 
         backend_id = self._processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
@@ -902,6 +906,8 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
+
         con = self._find_connection_with_service_id(service_id)
         if not con:
             raise ServiceNotFoundException(service_id)
@@ -921,6 +927,7 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
+        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         con = self._find_connection_with_service_id(service_id)
         if not con:
