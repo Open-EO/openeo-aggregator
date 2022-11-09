@@ -1,6 +1,7 @@
 import pytest
 
 from openeo_aggregator.metadata.merging import ProcessMetadataMerger, json_diff
+from openeo_aggregator.testing import same_repr
 
 
 class ListReporter:
@@ -9,8 +10,8 @@ class ListReporter:
     def __init__(self):
         self.logs = []
 
-    def __call__(self, *args, **kwargs):
-        self.logs.append((args, kwargs))
+    def __call__(self, msg, **kwargs):
+        self.logs.append({"msg": msg, **kwargs})
 
 
 @pytest.fixture
@@ -79,6 +80,42 @@ class TestMergeProcessMetadata:
         }
         assert reporter.logs == []
 
+    def test_merge_process_returns_difference(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {"id": "add", "returns": {"schema": {"type": "number"}}},
+                "b2": {"id": "add", "returns": {"schema": {"type": "array"}}},
+            }
+        )
+
+        assert result == {
+            "id": "add",
+            "description": "add",
+            "parameters": [],
+            "returns": {"schema": {"type": "number"}},
+            "federation:backends": ["b1", "b2"],
+        }
+        assert reporter.logs == [
+            {
+                "msg": "Returns schema is different from merged.",
+                "backend_id": "b2",
+                "process_id": "add",
+                "merged": {"schema": {"type": "number"}},
+                "value": {"schema": {"type": "array"}},
+                "diff": [
+                    "--- merged\n",
+                    "+++ b2\n",
+                    "@@ -1,5 +1,5 @@\n",
+                    " {\n",
+                    '   "schema": {\n',
+                    '-    "type": "number"\n',
+                    '+    "type": "array"\n',
+                    "   }\n",
+                    " }",
+                ],
+            }
+        ]
+
     def test_merge_process_exceptions(self, merger, reporter):
         result = merger.merge_process_metadata(
             {
@@ -109,13 +146,41 @@ class TestMergeProcessMetadata:
         }
         assert reporter.logs == []
 
-    def test_merge_process_categories(self, merger, reporter):
+    def test_merge_process_exceptions_invalid(self, merger, reporter):
         result = merger.merge_process_metadata(
             {
                 "b1": {
                     "id": "add",
-                    "categories": ["Math"],
+                    "exceptions": {"MathError": {"message": "Nope"}},
                 },
+                "b2": {
+                    "id": "add",
+                    "exceptions": 1234,
+                },
+            }
+        )
+
+        assert result == {
+            "id": "add",
+            "description": "add",
+            "parameters": [],
+            "returns": {"schema": {}},
+            "exceptions": {"MathError": {"message": "Nope"}},
+            "federation:backends": ["b1", "b2"],
+        }
+        assert reporter.logs == [
+            {
+                "msg": "Invalid process exceptions listing",
+                "process_id": "add",
+                "backend_id": "b2",
+                "exceptions": 1234,
+            }
+        ]
+
+    def test_merge_process_categories(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {"id": "add", "categories": ["Math"]},
                 "b2": {"id": "add", "categories": ["Math", "Maths"]},
             }
         )
@@ -129,6 +194,31 @@ class TestMergeProcessMetadata:
             "federation:backends": ["b1", "b2"],
         }
         assert reporter.logs == []
+
+    def test_merge_process_categories_invalid(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {"id": "add", "categories": ["Math"]},
+                "b2": {"id": "add", "categories": "Maths"},
+            }
+        )
+
+        assert result == {
+            "id": "add",
+            "description": "add",
+            "parameters": [],
+            "returns": {"schema": {}},
+            "categories": ["Math"],
+            "federation:backends": ["b1", "b2"],
+        }
+        assert reporter.logs == [
+            {
+                "msg": "Invalid process categories listing.",
+                "backend_id": "b2",
+                "process_id": "add",
+                "categories": "Maths",
+            }
+        ]
 
     def test_merge_process_parameters_basic(self, merger, reporter):
         spec = {
@@ -156,6 +246,78 @@ class TestMergeProcessMetadata:
             "federation:backends": ["b1", "b2"],
         }
         assert reporter.logs == []
+
+    def test_merge_process_parameters_invalid(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {
+                    "id": "cos",
+                    "parameters": [{"name": "x", "schema": {"type": "number"}}],
+                },
+                "b2": {"id": "cos", "parameters": [1324]},
+            }
+        )
+
+        assert result == {
+            "description": "cos",
+            "federation:backends": ["b1", "b2"],
+            "id": "cos",
+            "parameters": [
+                {"description": "x", "name": "x", "schema": {"type": "number"}}
+            ],
+            "returns": {"schema": {}},
+        }
+        assert reporter.logs == [
+            {
+                "msg": "Invalid parameter metadata",
+                "backend_id": "b2",
+                "process_id": "cos",
+                "exception": same_repr(TypeError("'int' object is not subscriptable")),
+                "parameter": 1324,
+            },
+            {
+                "msg": "Missing parameters.",
+                "backend_id": "b2",
+                "process_id": "cos",
+                "missing_parameters": {"x"},
+            },
+        ]
+
+    def test_merge_process_parameters_invalid_listing(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {
+                    "id": "cos",
+                    "parameters": [{"name": "x", "schema": {"type": "number"}}],
+                },
+                "b2": {"id": "cos", "parameters": 1324},
+            }
+        )
+
+        assert result == {
+            "description": "cos",
+            "federation:backends": ["b1", "b2"],
+            "id": "cos",
+            "parameters": [
+                {"description": "x", "name": "x", "schema": {"type": "number"}}
+            ],
+            "returns": {"schema": {}},
+        }
+        assert reporter.logs == [
+            {
+                "msg": "Invalid parameter listing",
+                "backend_id": "b2",
+                "process_id": "cos",
+                "exception": same_repr(TypeError("'int' object is not iterable")),
+                "parameters": 1324,
+            },
+            {
+                "msg": "Missing parameters.",
+                "backend_id": "b2",
+                "process_id": "cos",
+                "missing_parameters": {"x"},
+            },
+        ]
 
     def test_merge_process_parameters_differences(self, merger, reporter):
         by_backend = {
@@ -195,25 +357,22 @@ class TestMergeProcessMetadata:
             "federation:backends": ["b1", "b2", "b3"],
         }
         assert reporter.logs == [
-            (
-                (
-                    "Parameter 'x' field 'schema' value {'type': 'array'} differs from merged "
-                    "{'type': 'number'}",
-                ),
-                {
-                    "backend_id": "b3",
-                    "process_id": "cos",
-                    "diff": [
-                        "--- merged\n",
-                        "+++ b3\n",
-                        "@@ -1,3 +1,3 @@\n",
-                        " {\n",
-                        '-  "type": "number"\n',
-                        '+  "type": "array"\n',
-                        " }",
-                    ],
-                },
-            )
+            {
+                "msg": "Parameter 'x' field 'schema' value differs from merged.",
+                "backend_id": "b3",
+                "process_id": "cos",
+                "merged": {"type": "number"},
+                "value": {"type": "array"},
+                "diff": [
+                    "--- merged\n",
+                    "+++ b3\n",
+                    "@@ -1,3 +1,3 @@\n",
+                    " {\n",
+                    '-  "type": "number"\n',
+                    '+  "type": "array"\n',
+                    " }",
+                ],
+            }
         ]
 
     def test_merge_process_parameters_recursive(self, merger, reporter):
