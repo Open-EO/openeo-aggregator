@@ -1,9 +1,8 @@
-import inspect
-import logging
-from pathlib import Path
-
 import argparse
+import logging
 import requests
+from typing import List
+
 from openeo_aggregator.config import get_config, AggregatorConfig
 from openeo_aggregator.metadata.merging import (
     merge_collection_metadata,
@@ -78,11 +77,12 @@ def main():
 
 
 def compare_get_collections(backend_urls):
-    print("Comparing /collections")
+    print("\n\n## Comparing `/collections`\n")
     # Extract all collection objects from the backends
     backends_for_collection = {}
     for url in backend_urls:
         r = requests.get(url + "/collections")
+        r.raise_for_status()
         collections_result = r.json()
         for collection in collections_result["collections"]:
             if collection["id"] not in backends_for_collection:
@@ -91,41 +91,35 @@ def compare_get_collections(backend_urls):
 
     # Merge the different collection objects for each unique collection_id.
     reporter = MarkDownReporter()
-    merged_metadata = {}
-    for collection_id, backend_collection in backends_for_collection.items():
-        by_backend = {}
-        for url, collection in backend_collection.items():
-            by_backend[url] = collection
-        merged_metadata[collection_id] = merge_collection_metadata(
+    for collection_id, by_backend in backends_for_collection.items():
+        merge_collection_metadata(
             by_backend, full_metadata=False, report=reporter.report
         )
     reporter.print()
 
 
 def compare_get_collection_by_id(backend_urls, collection_id):
-    print("Comparing /collections/{}".format(collection_id))
+    # TODO: Only print header when there are issues to report?
+    print(f"\n\n## Comparing `/collections/{collection_id}`\n")
     by_backend = {}
     for url in backend_urls:
+        # TODO: skip request if we know collection is not available on backend
         r = requests.get(url + "/collections/{}".format(collection_id))
         if r.status_code == 200:
             by_backend[url] = r.json()
     reporter = MarkDownReporter()
-    merged_metadata = merge_collection_metadata(
-        by_backend, full_metadata=True, report=reporter.report
-    )
+    merge_collection_metadata(by_backend, full_metadata=True, report=reporter.report)
     reporter.print()
 
 
 def compare_get_processes(backend_urls):
-    print("## Comparing /processes")
+    print("\n\n## Comparing /processes\n")
     processes_per_backend = {}
     for url in backend_urls:
         r = requests.get(url + "/processes")
-        if r.status_code == 200:
-            processes = r.json().get("processes", [])
-            processes_per_backend[url] = {p["id"]: p for p in processes}
-        else:
-            print("WARNING: {} /processes does not return 200".format(url))
+        r.raise_for_status()
+        processes = r.json().get("processes", [])
+        processes_per_backend[url] = {p["id"]: p for p in processes}
     reporter = MarkDownReporter()
     ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(
         processes_per_backend
@@ -133,13 +127,14 @@ def compare_get_processes(backend_urls):
     reporter.print()
 
 
-def get_all_collections_ids(backend_urls):
-    collection_ids = []
+def get_all_collections_ids(backend_urls) -> List[str]:
+    collection_ids = set()
     for url in backend_urls:
         r = requests.get(url + "/collections")
+        r.raise_for_status()
         collections_result = r.json()
-        collection_ids.extend([c["id"] for c in collections_result["collections"]])
-    return collection_ids
+        collection_ids.update(c["id"] for c in collections_result["collections"])
+    return sorted(collection_ids)
 
 
 if __name__ == "__main__":
