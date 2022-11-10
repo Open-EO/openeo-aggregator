@@ -672,7 +672,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         # Collect all services from the backends.
         for con in self._backends:
-            # with con.authenticated_from_request(flask.request):
             with con.authenticated_from_request(request=flask.request, user=User(user_id)):
                 services_json = None
                 try:
@@ -692,13 +691,14 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         # TODO: can there ever be a service with the same ID in multiple back-ends? (For the same user)
         for con in self._backends:
-            try:
-                service_json = con.get(f"/services/{service_id}").json()
-            except Exception as e:
-                _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
-                continue
-            else:
-                return ServiceMetadata.from_dict(service_json)
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+                try:
+                    service_json = con.get(f"/services/{service_id}").json()
+                except Exception as e:
+                    _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
+                    continue
+                else:
+                    return ServiceMetadata.from_dict(service_json)
 
         raise ServiceNotFoundException(service_id)
 
@@ -716,70 +716,72 @@ class AggregatorSecondaryServices(SecondaryServices):
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         con = self._backends.get_connection(backend_id)
-        try:
-            # create_service can raise ServiceUnsupportedException and OpenEOApiException.
-            service = con.create_service(graph=process_graph, type=service_type)
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                # create_service can raise ServiceUnsupportedException and OpenEOApiException.
+                service = con.create_service(graph=process_graph, type=service_type)
 
-        # TODO: This exception handling was copy-pasted. What do we actually need here?
-        except OpenEoApiError as e:
-            for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
-                if e.code == exc_class.code:
-                    raise exc_class
-            raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
-        except (OpenEoRestError, OpenEoClientException) as e:
-            raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+            # TODO: This exception handling was copy-pasted. What do we actually need here?
+            except OpenEoApiError as e:
+                for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
+                    if e.code == exc_class.code:
+                        raise exc_class
+                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+            except (OpenEoRestError, OpenEoClientException) as e:
+                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
 
-        return service.service_id
+            return service.service_id
 
-    def _find_connection_with_service_id(self, service_id: str) -> BackendConnection:
+    def _find_connection_with_service_id(self, user_id: str, service_id: str) -> Optional[BackendConnection]:
         """Get connection for the backend that contains the service, return None if not found."""
 
         # Search all services on the backends.
         for con in self._backends:
-            try:
-                _ = con.get(f"/services/{service_id}")
-            except OpenEoApiError as e:
-                if e.http_status_code == 404:
-                    # Expected error
-                    _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
-                    continue
-                else:
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+                try:
+                    _ = con.get(f"/services/{service_id}")
+                except OpenEoApiError as e:
+                    if e.http_status_code == 404:
+                        # Expected error
+                        _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
+                        continue
+                    else:
+                        _log.warning(f"Failed to get service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                        raise e
+                except Exception as e:
                     _log.warning(f"Failed to get service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
                     raise e
-            except Exception as e:
-                _log.warning(f"Failed to get service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
-                raise e
-            else:
-                return con
-
+                else:
+                    return con
         return None
 
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
         # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
-        con = self._find_connection_with_service_id(service_id)
+        con = self._find_connection_with_service_id(user_id, service_id)
         if not con:
             raise ServiceNotFoundException(service_id)
 
-        try:
-            con.delete(f"/services/{service_id}", expected_status=204)
-        except (OpenEoApiError, OpenEOApiException) as e:
-            # TODO: maybe we should just let these exception straight go to the caller without logging it here.
-            # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
-            raise
-        except Exception as e:
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
-            raise OpenEOApiException(
-                f"Failed to delete service {service_id!r} on backend {con.id!r}: {e!r}"
-            ) from e
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                con.delete(f"/services/{service_id}", expected_status=204)
+            except (OpenEoApiError, OpenEOApiException) as e:
+                # TODO: maybe we should just let these exception straight go to the caller without logging it here.
+                # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
+                _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise
+            except Exception as e:
+                _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise OpenEOApiException(
+                    f"Failed to delete service {service_id!r} on backend {con.id!r}: {e!r}"
+                ) from e
 
     def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
         # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
-        con = self._find_connection_with_service_id(service_id)
+        con = self._find_connection_with_service_id(user_id, service_id)
         if not con:
             raise ServiceNotFoundException(service_id)
 
