@@ -141,95 +141,193 @@ class TestAggregatorCollectionCatalog:
         metadata = catalog.get_all_metadata()
         assert metadata == [
             {
-                'id': 'S2', 'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
-            ]
-            }, {
-                'id': 'S3', 'links': [
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}
-                ]
-            }]
-
-    def test_get_all_metadata_common_collections_minimal(
-            self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
-        metadata = catalog.get_all_metadata()
-        assert metadata == [
-            {
-                "id": "S3", 'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'}]
-            },
-            {
-                "id": "S4", "description": "S4", "title": "S4", "type": "Collection",
-                "stac_version": "0.9.0",
-                "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
-                "license": "proprietary",
-                "summaries": {"provider:backend": ["b1", "b2"]},
+                "id": "S2",
                 "links": [
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                    {'href': 'http://oeoa.test/openeo/1.1.0/collections/S4', 'rel': 'self'}
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "rel": "self",
+                    },
                 ],
             },
             {
-                "id": "S5", 'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S5', 'rel': 'self'}]
+                "id": "S3",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S3",
+                        "rel": "self",
+                    },
+                ],
+            },
+        ]
+
+    def test_get_all_metadata_common_collections_minimal(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections",
+            json={"collections": [{"id": "S3"}, {"id": "S4"}]},
+        )
+        requests_mock.get(
+            backend2 + "/collections",
+            json={"collections": [{"id": "S4"}, {"id": "S5"}]},
+        )
+        metadata = catalog.get_all_metadata()
+        assert metadata == [
+            {
+                "id": "S3",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S3",
+                        "rel": "self",
+                    },
+                ],
+            },
+            {
+                "id": "S4",
+                "description": "S4",
+                "title": "S4",
+                "type": "Collection",
+                "stac_version": "0.9.0",
+                "extent": {
+                    "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                    "temporal": {"interval": [[None, None]]},
+                },
+                "license": "proprietary",
+                "summaries": {
+                    "federation:backends": ["b1", "b2"],
+                    "provider:backend": ["b1", "b2"],
+                },
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S4",
+                        "rel": "self",
+                    },
+                ],
+            },
+            {
+                "id": "S5",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S5",
+                        "rel": "self",
+                    },
+                ],
             },
         ]
 
     def test_get_all_metadata_common_collections_merging(
-            self, catalog, backend1, backend2, requests_mock
+        self, catalog, backend1, backend2, requests_mock
     ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{
-            "id": "S4",
-            "stac_version": "0.9.0",
-            "title": "B1's S4", "description": "This is B1's S4",
-            "keywords": ["S4", "B1"],
-            "version": "1.2.3",
-            "license": "MIT",
-            "providers": [{"name": "ESA", "roles": ["producer"]}],
-            "extent": {
-                "spatial": {"bbox": [[-10, 20, 30, 50]]},
-                "temporal": {"interval": [["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"]]}
+        requests_mock.get(
+            backend1 + "/collections",
+            json={
+                "collections": [
+                    {
+                        "id": "S4",
+                        "stac_version": "0.9.0",
+                        "title": "B1's S4",
+                        "description": "This is B1's S4",
+                        "keywords": ["S4", "B1"],
+                        "version": "1.2.3",
+                        "license": "MIT",
+                        "providers": [{"name": "ESA", "roles": ["producer"]}],
+                        "extent": {
+                            "spatial": {"bbox": [[-10, 20, 30, 50]]},
+                            "temporal": {
+                                "interval": [
+                                    ["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"]
+                                ]
+                            },
+                        },
+                        "cube:dimensions": {
+                            "bands": {"type": "bands", "values": ["B01", "B02"]},
+                            "x": {"type": "spatial", "axis": "x", "extent": [3, 4]},
+                        },
+                        "links": [
+                            {
+                                "rel": "license",
+                                "href": "https://spdx.org/licenses/MIT.html",
+                            },
+                        ],
+                    }
+                ]
             },
-            "cube:dimensions": {
-                "bands": {"type": "bands", "values": ["B01", "B02"]},
-                "x": {"type": "spatial", "axis": "x", "extent": [3, 4]},
+        )
+        requests_mock.get(
+            backend2 + "/collections",
+            json={
+                "collections": [
+                    {
+                        "id": "S4",
+                        "stac_version": "0.9.0",
+                        "title": "B2's S4",
+                        "description": "This is B2's S4",
+                        "keywords": ["S4", "B2"],
+                        "version": "2.4.6",
+                        "license": "Apache-1.0",
+                        "providers": [{"name": "ESA", "roles": ["licensor"]}],
+                        "extent": {
+                            "spatial": {"bbox": [[-20, -20, 40, 40]]},
+                            "temporal": {
+                                "interval": [
+                                    ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]
+                                ]
+                            },
+                        },
+                        "cube:dimensions": {
+                            "bands": {"type": "bands", "values": ["B01", "B02"]},
+                            "y": {"type": "spatial", "axis": "y"},
+                        },
+                        "links": [
+                            {
+                                "rel": "license",
+                                "href": "https://spdx.org/licenses/Apache-1.0.html",
+                            },
+                        ],
+                    }
+                ]
             },
-            "links": [
-                {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
-            ],
-        }]})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{
-            "id": "S4",
-            "stac_version": "0.9.0",
-            "title": "B2's S4", "description": "This is B2's S4",
-            "keywords": ["S4", "B2"],
-            "version": "2.4.6",
-            "license": "Apache-1.0",
-            "providers": [{"name": "ESA", "roles": ["licensor"]}],
-            "extent": {
-                "spatial": {"bbox": [[-20, -20, 40, 40]]},
-                "temporal": {"interval": [["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}
-            },
-            "cube:dimensions": {
-                "bands": {"type": "bands", "values": ["B01", "B02"]},
-                "y": {"type": "spatial", "axis": "y"}
-            },
-            "links": [
-                {"rel": "license", "href": "https://spdx.org/licenses/Apache-1.0.html"},
-            ],
-        }]})
+        )
         metadata = catalog.get_all_metadata()
         assert metadata == [
             {
@@ -241,30 +339,61 @@ class TestAggregatorCollectionCatalog:
                 "stac_version": "0.9.0",
                 "extent": {
                     "spatial": {"bbox": [[-10, 20, 30, 50], [-20, -20, 40, 40]]},
-                    "temporal": {"interval": [["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"],
-                                              ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]}},
+                    "temporal": {
+                        "interval": [
+                            ["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"],
+                            ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"],
+                        ]
+                    },
+                },
                 "cube:dimensions": {
                     "bands": {"type": "bands", "values": ["B01", "B02"]},
-                    "x": {"type": "spatial", "extent": [3, 4], "axis": "x"},
-                    "y": {"type": "spatial", "axis": "y"}
+                    "x": {"type": "spatial", "extent": [3.0, 4.0], "axis": "x"},
+                    "y": {"type": "spatial", "axis": "y"},
                 },
                 "license": "various",
-                "providers": [{"name": "ESA", "roles": ["producer"]}, {"name": "ESA", "roles": ["licensor"]}],
-                "summaries": {"provider:backend": ["b1", "b2"]},
+                "providers": [
+                    {"name": "ESA", "roles": ["producer"]},
+                    {"name": "ESA", "roles": ["licensor"]},
+                ],
+                "summaries": {
+                    "federation:backends": ["b1", "b2"],
+                    "provider:backend": ["b1", "b2"],
+                },
                 "links": [
                     {"rel": "license", "href": "https://spdx.org/licenses/MIT.html"},
-                    {"rel": "license", "href": "https://spdx.org/licenses/Apache-1.0.html"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                    {"href": "http://oeoa.test/openeo/1.1.0/collections/S4", "rel": "self"},
+                    {
+                        "rel": "license",
+                        "href": "https://spdx.org/licenses/Apache-1.0.html",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S4",
+                        "rel": "self",
+                    },
                 ],
-                "type": "Collection"
+                "type": "Collection",
             },
         ]
 
-    def test_get_best_backend_for_collections_basic(self, catalog, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S3"}, {"id": "S4"}]})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S4"}, {"id": "S5"}]})
+    def test_get_best_backend_for_collections_basic(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections",
+            json={"collections": [{"id": "S3"}, {"id": "S4"}]},
+        )
+        requests_mock.get(
+            backend2 + "/collections",
+            json={"collections": [{"id": "S4"}, {"id": "S5"}]},
+        )
         with pytest.raises(OpenEOApiException, match="Empty collection set given"):
             catalog.get_backend_candidates_for_collections([])
         assert catalog.get_backend_candidates_for_collections(["S3"]) == ["b1"]
@@ -273,14 +402,26 @@ class TestAggregatorCollectionCatalog:
         assert catalog.get_backend_candidates_for_collections(["S3", "S4"]) == ["b1"]
         assert catalog.get_backend_candidates_for_collections(["S4", "S5"]) == ["b2"]
 
-        with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
+        with pytest.raises(
+            OpenEOApiException, match="Collections across multiple backends"
+        ):
             catalog.get_backend_candidates_for_collections(["S3", "S4", "S5"])
 
-    def test_get_collection_metadata_basic(self, catalog, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
-        requests_mock.get(backend2 + "/collections/S3", json={"id": "S3", "title": "b2's S3"})
+    def test_get_collection_metadata_basic(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"}
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S3"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S3", json={"id": "S3", "title": "b2's S3"}
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
@@ -304,47 +445,62 @@ class TestAggregatorCollectionCatalog:
         with pytest.raises(CollectionNotFoundException):
             catalog.get_collection_metadata("S5")
 
-    def test_get_collection_metadata_merging(self, catalog, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json=
-        {
-            "id": "S2", "title": "b1's S2",
-            "stac_version": "0.9.0",
-            "stac_extensions": ["datacube", "sar"],
-            "crs": ["http://www.opengis.net/def/crs/OGC/1.3/CRS84", "http://www.opengis.net/def/crs/EPSG/0/2154"],
-            "keywords": ["S2", "Sentinel Hub"],
-            "version": "1.1.0",
-            "license": "special",
-            "links": [
-                {"rel": "license", "href": "https://special.license.org"},
-            ],
-            "providers": [{"name": "provider1"}],
-            "sci:citation": "Modified Copernicus Sentinel data [Year]/Sentinel Hub",
-            "datasource_type": "1sentinel-2-grd",
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json=
-        {
-            "id": "S2", "title": "b2's S2",
-            "stac_version": "1.0.0",
-            "stac_extensions": [
-                "https://stac-extensions.github.io/datacube/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/sar/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/raster/v1.0.0/schema.json"
-            ],
-            "keywords": ["xcube", "SAR"],
-            "version": "0.8.0",
-            "deprecated": False,
-            "license": "proprietary",
-            'links': [
-                {"rel": "license", "href": "https://propietary.license"},
-            ],
-            "providers": [{"name": "provider2"}],
-            "datasource_type": "2sentinel-2-grd",
-            "sci:citation": "Second citation list."
-        })
+    def test_get_collection_metadata_merging(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "title": "b1's S2",
+                "stac_version": "0.9.0",
+                "stac_extensions": ["datacube", "sar"],
+                "crs": [
+                    "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+                    "http://www.opengis.net/def/crs/EPSG/0/2154",
+                ],
+                "keywords": ["S2", "Sentinel Hub"],
+                "version": "1.1.0",
+                "license": "special",
+                "links": [
+                    {"rel": "license", "href": "https://special.license.org"},
+                ],
+                "providers": [{"name": "provider1"}],
+                "sci:citation": "Modified Copernicus Sentinel data [Year]/Sentinel Hub",
+                "datasource_type": "1sentinel-2-grd",
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "title": "b2's S2",
+                "stac_version": "1.0.0",
+                "stac_extensions": [
+                    "https://stac-extensions.github.io/datacube/v1.0.0/schema.json",
+                    "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
+                    "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
+                    "https://stac-extensions.github.io/sar/v1.0.0/schema.json",
+                    "https://stac-extensions.github.io/raster/v1.0.0/schema.json",
+                ],
+                "keywords": ["xcube", "SAR"],
+                "version": "0.8.0",
+                "deprecated": False,
+                "license": "proprietary",
+                "links": [
+                    {"rel": "license", "href": "https://propietary.license"},
+                ],
+                "providers": [{"name": "provider2"}],
+                "datasource_type": "2sentinel-2-grd",
+                "sci:citation": "Second citation list.",
+            },
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
@@ -359,21 +515,30 @@ class TestAggregatorCollectionCatalog:
                 "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
                 "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
                 "https://stac-extensions.github.io/sar/v1.0.0/schema.json",
-                "https://stac-extensions.github.io/raster/v1.0.0/schema.json"
+                "https://stac-extensions.github.io/raster/v1.0.0/schema.json",
             ],
-            "crs": ["http://www.opengis.net/def/crs/OGC/1.3/CRS84", "http://www.opengis.net/def/crs/EPSG/0/2154"],
+            "crs": [
+                "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+                "http://www.opengis.net/def/crs/EPSG/0/2154",
+            ],
             "keywords": ["S2", "Sentinel Hub", "xcube", "SAR"],
             "version": "1.1.0",
             "deprecated": False,
-            "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}, "temporal": {"interval": [[None, None]]}},
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
+            },
             "license": "various",
-            "summaries": {"provider:backend": ["b1", "b2"]},
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
             "links": [
                 {"rel": "license", "href": "https://special.license.org"},
                 {"rel": "license", "href": "https://propietary.license"},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
             ],
             "providers": [{"name": "provider1"}, {"name": "provider2"}],
             "type": "Collection",
@@ -381,274 +546,465 @@ class TestAggregatorCollectionCatalog:
         }
 
     def test_get_collection_metadata_merging_summaries(
-            self, catalog, backend1, backend2, requests_mock
+        self, catalog, backend1, backend2, requests_mock
     ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "summaries": {
+                    "constellation": ["sentinel-1"],
+                    "instruments": ["c-sar"],
+                    "platform": ["sentinel-1a", "sentinel-1b"],
+                    "sar:center_frequency": [5.405],
+                    "sar:frequency_band": ["C"],
+                    "sar:instrument_mode": ["SM", "IW", "EW", "WV"],
+                    "sar:polarizations": [
+                        "SH",
+                        "SV",
+                        "DH",
+                        "DV",
+                        "HH",
+                        "HV",
+                        "VV",
+                        "VH",
+                    ],
+                    "sar:product_type": ["GRD"],
+                    "sar:resolution": [10, 25, 40],
+                    "sat:orbit_state": ["ascending", "descending"],
+                },
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "summaries": {
+                    "constellation": ["sentinel-1"],
+                    "instruments": ["c-sar"],
+                    "platform": ["sentinel-1"],
+                    "sar:center_frequency": [5.405],
+                    "sar:frequency_band": ["C"],
+                    "sar:instrument_mode": ["IW"],
+                    "sar:looks_azimuth": [1],
+                    "sar:looks_equivalent_number": [4.4],
+                    "sar:looks_range": [5],
+                    "sar:pixel_spacing_azimuth": [10],
+                    "sar:pixel_spacing_range": [10],
+                    "sar:polarizations": ["HH", "VV", "VV+VH", "HH+HV"],
+                    "sar:product_type": ["GRD"],
+                    "sar:resolution_azimuth": [22],
+                    "sar:resolution_range": [20],
+                },
+            },
+        )
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            "description": "S2",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
+            },
             "id": "S2",
+            "license": "proprietary",
+            "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+            ],
+            "stac_version": "0.9.0",
             "summaries": {
                 "constellation": ["sentinel-1"],
                 "instruments": ["c-sar"],
-                "platform": ["sentinel-1a", "sentinel-1b"],
+                "platform": ["sentinel-1a", "sentinel-1b", "sentinel-1"],
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
                 "sar:center_frequency": [5.405],
                 "sar:frequency_band": ["C"],
                 "sar:instrument_mode": ["SM", "IW", "EW", "WV"],
-                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH"],
-                "sar:product_type": ["GRD"],
-                "sar:resolution": [10, 25, 40],
-                "sat:orbit_state": ["ascending", "descending"],
-            },
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2",
-            "summaries": {
-                "constellation": ["sentinel-1"],
-                "instruments": ["c-sar"],
-                "platform": ["sentinel-1"],
-                "sar:center_frequency": [5.405],
-                "sar:frequency_band": ["C"],
-                "sar:instrument_mode": ["IW"],
                 "sar:looks_azimuth": [1],
                 "sar:looks_equivalent_number": [4.4],
                 "sar:looks_range": [5],
                 "sar:pixel_spacing_azimuth": [10],
                 "sar:pixel_spacing_range": [10],
-                "sar:polarizations": ["HH", "VV", "VV+VH", "HH+HV"],
-                "sar:product_type": ["GRD"],
-                "sar:resolution_azimuth": [22],
-                "sar:resolution_range": [20],
-            }
-        })
-        metadata = catalog.get_collection_metadata("S2")
-        assert metadata == {
-            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-            'license': 'proprietary',
-            'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'}
-            ],
-            'summaries': {
-                'provider:backend': ['b1', 'b2'],
-                "constellation": ["sentinel-1"],
-                "instruments": ["c-sar"],
-                "platform": ["sentinel-1a", "sentinel-1b", "sentinel-1"],
-                "sar:center_frequency": [5.405],
-                "sar:frequency_band": ["C"],
-                "sar:instrument_mode": ["SM", "IW", "EW", "WV"],
-                "sar:polarizations": ["SH", "SV", "DH", "DV", "HH", "HV", "VV", "VH", "VV+VH", "HH+HV"],
+                "sar:polarizations": [
+                    "SH",
+                    "SV",
+                    "DH",
+                    "DV",
+                    "HH",
+                    "HV",
+                    "VV",
+                    "VH",
+                    "VV+VH",
+                    "HH+HV",
+                ],
                 "sar:product_type": ["GRD"],
                 "sar:resolution": [10, 25, 40],
+                "sar:resolution_azimuth": [22],
+                "sar:resolution_range": [20],
                 "sat:orbit_state": ["ascending", "descending"],
-                'sar:looks_azimuth': [1],
-                'sar:looks_equivalent_number': [4.4],
-                'sar:looks_range': [5],
-                'sar:pixel_spacing_azimuth': [10],
-                'sar:pixel_spacing_range': [10],
-                'sar:resolution_azimuth': [22],
-                "sar:resolution_range": [20]
-            }
+            },
+            "title": "S2",
+            "type": "Collection",
         }
 
-    def test_get_collection_metadata_merging_extent(self, catalog, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={
-            "id": "S2", "extent": {
-                "spatial": {
-                    "bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]
-                }, "temporal": {
-                    "interval": [["2014-10-03T04:14:15Z", None]]
-                }
+    def test_get_collection_metadata_merging_extent(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "extent": {
+                    "spatial": {"bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
+                    "temporal": {"interval": [["2014-10-03T04:14:15Z", None]]},
+                },
             },
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2", "extent": {
-                "spatial": {
-                    "bbox": [[-180, -90, 180, 90]]
-                }, "temporal": {
-                    "interval": [["2014-10-03T04:14:15Z", None], [None, None, ]]
-                }
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "extent": {
+                    "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                    "temporal": {
+                        "interval": [
+                            ["2014-10-03T04:14:15Z", None],
+                            [
+                                None,
+                                None,
+                            ],
+                        ]
+                    },
+                },
             },
-        })
+        )
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-            'license': 'proprietary', 'extent': {
-                'spatial': {'bbox': [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
-                'temporal': {'interval': [['2014-10-03T04:14:15Z', None], [None, None]]}
+            "id": "S2",
+            "stac_version": "0.9.0",
+            "title": "S2",
+            "description": "S2",
+            "type": "Collection",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
+                "temporal": {"interval": [["2014-10-03T04:14:15Z", None]]},
             },
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
-            ],
-            'summaries': {'provider:backend': ['b1', 'b2']}
-        }
-
-    def test_get_collection_metadata_merging_links(self, catalog, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={
-            "id": "S2", "links": [
+            "links": [
                 {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
                 {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
                 {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-                {"href": "http://some.license", "rel": "license"}
             ],
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2", "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-            ],
-        })
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
+        }
+
+    def test_get_collection_metadata_merging_links(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "rel": "self",
+                    },
+                    {"href": "http://some.license", "rel": "license"},
+                ],
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "rel": "self",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                ],
+            },
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2', 'stac_version': '0.9.0', 'title': 'S2', 'description': 'S2', 'type': 'Collection',
-            'license': 'proprietary',
-            'extent': {
-                'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}
+            "id": "S2",
+            "stac_version": "0.9.0",
+            "title": "S2",
+            "description": "S2",
+            "type": "Collection",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
             },
-            'links': [
-                {'href': 'http://some.license', 'rel': 'license'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
+            "links": [
+                {"href": "http://some.license", "rel": "license"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
             ],
-            'summaries': {'provider:backend': ['b1', 'b2']},
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
         }
 
     def test_get_collection_metadata_merging_cubedimensions(
-            self, catalog, backend1, backend2, requests_mock
+        self, catalog, backend1, backend2, requests_mock
     ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={
-            "id": "S2", "cube:dimensions": {
-                "bands": {
-                    "type": "bands", "values": ["VV", "VH", "HV", "HH"]
-                }, "t": {
-                    "extent": ["2013-10-03T04:14:15Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                }, "x": {
-                    "axis": "x", "extent": [-20, 130], "reference_system": {"name": "PROJJSON object."},
-                    "step": 10, "type": "spatial"
-                }, "y": {
-                    "axis": "y", "extent": [-10, 20], "reference_system": {"name": "PROJJSON object."},
-                    "step": 10, "type": "spatial"
-                }
-            }
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2", "cube:dimensions": {
-                "bands": {
-                    "type": "bands", "values": ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"]
-                }, "t": {
-                    "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                }, "x": {
-                    "axis": "x", "extent": [-40, 120], "type": "spatial",
-                    "reference_system": {"name": "PROJJSON object."}
-                }, "y": {
-                    "axis": "y", "extent": [0, 45], "type": "spatial", "reference_system": {"name": "PROJJSON object."}
-                }
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "cube:dimensions": {
+                    "bands": {"type": "bands", "values": ["VV", "VH", "HV", "HH"]},
+                    "t": {
+                        "extent": ["2013-10-03T04:14:15Z", "2020-04-03T00:00:00Z"],
+                        "step": 1,
+                        "type": "temporal",
+                    },
+                    "x": {
+                        "axis": "x",
+                        "extent": [-20, 130],
+                        "reference_system": {"name": "PROJJSON object."},
+                        "step": 10,
+                        "type": "spatial",
+                    },
+                    "y": {
+                        "axis": "y",
+                        "extent": [-10, 20],
+                        "reference_system": {"name": "PROJJSON object."},
+                        "step": 10,
+                        "type": "spatial",
+                    },
+                },
             },
-        })
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "cube:dimensions": {
+                    "bands": {
+                        "type": "bands",
+                        "values": ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"],
+                    },
+                    "t": {
+                        "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"],
+                        "step": 1,
+                        "type": "temporal",
+                    },
+                    "x": {
+                        "axis": "x",
+                        "extent": [-40, 120],
+                        "type": "spatial",
+                        "reference_system": {"name": "PROJJSON object."},
+                    },
+                    "y": {
+                        "axis": "y",
+                        "extent": [0, 45],
+                        "type": "spatial",
+                        "reference_system": {"name": "PROJJSON object."},
+                    },
+                },
+            },
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2',
-            'stac_version': '0.9.0',
-            'title': 'S2',
-            'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
+            "id": "S2",
+            "stac_version": "0.9.0",
+            "title": "S2",
+            "description": "S2",
+            "type": "Collection",
+            "license": "proprietary",
             "cube:dimensions": {
                 "bands": {
-                    "type": "bands", "values": ["VV", "VH"],
+                    "type": "bands",
+                    "values": ["VV", "VH"],
                 },
                 "t": {
-                    "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"], "step": 1, "type": "temporal"
-                }, "x": {
-                    "axis": "x", "extent": [-40, 130], "reference_system": {"name": "PROJJSON object."},
-                    "step": 10, "type": "spatial"
-                }, "y": {
-                    "axis": "y", "extent": [-10, 45], "reference_system": {"name": "PROJJSON object."},
-                    "step": 10, "type": "spatial"
-                }
+                    "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"],
+                    "step": 1,
+                    "type": "temporal",
+                },
+                "x": {
+                    "axis": "x",
+                    "extent": [-40, 130],
+                    "reference_system": {"name": "PROJJSON object."},
+                    "step": 10,
+                    "type": "spatial",
+                },
+                "y": {
+                    "axis": "y",
+                    "extent": [-10, 45],
+                    "reference_system": {"name": "PROJJSON object."},
+                    "step": 10,
+                    "type": "spatial",
+                },
             },
-            'summaries': {'provider:backend': ['b1', 'b2']},
-            'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
-            ]
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
+            },
+            "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+            ],
         }
 
-    @pytest.mark.parametrize(["b1_bands", "b2_bands", "expected_bands"], [
-        (["VV", "HH"], ["VV", "HH"], ["VV", "HH"]),
-        (["VV", "HH"], ["VV", "HH", "HH+VH"], ["VV", "HH"]),
-        (["VV", "HH"], ["VV", "VH"], ["VV"]),
-        (["VV", "VH", "HV", "HH"], ["HH", "VV", "HH+HV", "VV+VH"], ["VV", "VH", "HV", "HH"]),
-    ])
+    @pytest.mark.parametrize(
+        ["b1_bands", "b2_bands", "expected_bands"],
+        [
+            (["VV", "HH"], ["VV", "HH"], ["VV", "HH"]),
+            (["VV", "HH"], ["VV", "HH", "HH+VH"], ["VV", "HH"]),
+            (["VV", "HH"], ["VV", "VH"], ["VV"]),
+            (
+                ["VV", "VH", "HV", "HH"],
+                ["HH", "VV", "HH+HV", "VV+VH"],
+                ["VV", "VH", "HV", "HH"],
+            ),
+        ],
+    )
     def test_get_collection_metadata_merging_bands_prefix(
-            self, catalog, backend1, backend2, requests_mock, b1_bands, b2_bands, expected_bands
+        self,
+        catalog,
+        backend1,
+        backend2,
+        requests_mock,
+        b1_bands,
+        b2_bands,
+        expected_bands,
     ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend1 + "/collections/S2", json={
-            "id": "S2", "cube:dimensions": {
-                "bands": {"type": "bands", "values": b1_bands},
-            }
-        })
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={
-            "id": "S2", "cube:dimensions": {
-                "bands": {"type": "bands", "values": b2_bands},
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "cube:dimensions": {
+                    "bands": {"type": "bands", "values": b1_bands},
+                },
             },
-        })
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "cube:dimensions": {
+                    "bands": {"type": "bands", "values": b2_bands},
+                },
+            },
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2',
-            'stac_version': '0.9.0',
-            'title': 'S2',
-            'description': 'S2', 'type': 'Collection', 'license': 'proprietary',
+            "id": "S2",
+            "stac_version": "0.9.0",
+            "title": "S2",
+            "description": "S2",
+            "type": "Collection",
+            "license": "proprietary",
             "cube:dimensions": {
-                "bands": {"type": "bands", "values": expected_bands, },
+                "bands": {
+                    "type": "bands",
+                    "values": expected_bands,
+                },
             },
-            'summaries': {'provider:backend': ['b1', 'b2']},
-            'extent': {'spatial': {'bbox': [[-180, -90, 180, 90]]}, 'temporal': {'interval': [[None, None]]}},
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
-            ]
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
+            },
+            "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+            ],
         }
 
     def test_get_collection_metadata_merging_with_error(
-            self, catalog, backend1, backend2, requests_mock
+        self, catalog, backend1, backend2, requests_mock
     ):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
         requests_mock.get(backend1 + "/collections/S2", status_code=500)
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
-        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"}
+        )
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
             "id": "S2",
             "title": "b2's S2",
-            'links': [{
-                'href': 'http://oeoa.test/openeo/1.1.0/collections',
-                'rel': 'root'
-            }, {
-                'href': 'http://oeoa.test/openeo/1.1.0/collections',
-                'rel': 'parent'
-            }, {
-                'href': 'http://oeoa.test/openeo/1.1.0/collections/S2',
-                'rel': 'self'
-            }]
+            "links": [
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+            ],
         }
         # TODO: test that caching of result is different from merging without error? (#2)
 
@@ -737,22 +1093,77 @@ class TestJobIdMapping:
 
 
 class TestAggregatorProcessing:
-
-    def test_get_process_registry(self, catalog, multi_backend_connection, config, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/processes", json={"processes": [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-        ]})
-        requests_mock.get(backend2 + "/processes", json={"processes": [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-        ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+    def test_get_process_registry(
+        self,
+        catalog,
+        multi_backend_connection,
+        config,
+        backend1,
+        backend2,
+        requests_mock,
+    ):
+        requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "add",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "multiply",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "data", "schema": {}}]},
+                ]
+            },
+        )
+        processing = AggregatorProcessing(
+            backends=multi_backend_connection, catalog=catalog, config=config
+        )
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "data"}]},
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {
+                "id": "add",
+                "description": "add",
+                "parameters": [
+                    {"name": "x", "schema": {}, "description": "x"},
+                    {"name": "y", "schema": {}, "description": "y"},
+                ],
+                "returns": {"schema": {}},
+                "federation:backends": ["b1"],
+            },
+            {
+                "id": "mean",
+                "description": "mean",
+                "parameters": [{"name": "data", "schema": {}, "description": "data"}],
+                "returns": {"schema": {}},
+                "federation:backends": ["b1", "b2"],
+            },
+            {
+                "id": "multiply",
+                "description": "multiply",
+                "parameters": [
+                    {"name": "x", "schema": {}, "description": "x"},
+                    {"name": "y", "schema": {}, "description": "y"},
+                ],
+                "returns": {"schema": {}},
+                "federation:backends": ["b2"],
+            },
         ]
 
     @pytest.mark.parametrize("memoizer_config", [
@@ -787,18 +1198,66 @@ class TestAggregatorProcessing:
             self, catalog, multi_backend_connection, config, backend1, backend2,
             requests_mock,
     ):
-        requests_mock.get(backend1 + "/processes", json={"processes": [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "array"}]},
-        ]})
-        requests_mock.get(backend2 + "/processes", json={"processes": [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "values"}]},
-        ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "add",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "array", "schema": {}}]},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {
+                        "id": "multiply",
+                        "parameters": [
+                            {"name": "x", "schema": {}},
+                            {"name": "y", "schema": {}},
+                        ],
+                    },
+                    {"id": "mean", "parameters": [{"name": "values", "schema": {}}]},
+                ]
+            },
+        )
+        processing = AggregatorProcessing(
+            backends=multi_backend_connection, catalog=catalog, config=config
+        )
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-            {"id": "mean", "parameters": [{"name": "array"}]},
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+            {
+                "id": "add",
+                "description": "add",
+                "parameters": [
+                    {"name": "x", "schema": {}, "description": "x"},
+                    {"name": "y", "schema": {}, "description": "y"},
+                ],
+                "returns": {"schema": {}},
+                "federation:backends": ["b1"],
+            },
+            {
+                "id": "mean",
+                "description": "mean",
+                "parameters": [{"name": "array", "schema": {}, "description": "array"}],
+                "returns": {"schema": {}},
+                "federation:backends": ["b1", "b2"],
+            },
+            {
+                "id": "multiply",
+                "description": "multiply",
+                "parameters": [
+                    {"name": "x", "schema": {}, "description": "x"},
+                    {"name": "y", "schema": {}, "description": "y"},
+                ],
+                "returns": {"schema": {}},
+                "federation:backends": ["b2"],
+            },
         ]

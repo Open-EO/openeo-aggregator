@@ -4,7 +4,7 @@ import json
 import pathlib
 import pytest
 import time
-from typing import Union, Optional
+from typing import Union, Optional, Any
 from unittest import mock
 
 import kazoo
@@ -116,6 +116,22 @@ def approx_str_contains(body: str) -> ApproxStr:
 
 def approx_str_suffix(suffix: str) -> ApproxStr:
     return ApproxStr(suffix=suffix)
+
+
+class SameRepr:
+    """
+    Pytest assert helper to check if actual value has same `repr` serialization as expected.
+    """
+
+    def __init__(self, expected: Any):
+        self.expected = expected
+
+    def __eq__(self, other):
+        return repr(other) == repr(self.expected)
+
+
+# Function looking alias
+same_repr = SameRepr
 
 
 def clock_mock(
