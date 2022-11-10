@@ -583,9 +583,10 @@ class TestAggregatorSecondaryServices:
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
-        # Also test that it can skip backends that don't have the service
         set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+        
+        # Also test that it can skip backends that don't have the service
         mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
             status_code=404
@@ -629,7 +630,6 @@ class TestAggregatorSecondaryServices:
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
 
-        # Also test that it can skip backends that don't have the service
         set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
         mock_get1 = requests_mock.get(
@@ -664,6 +664,36 @@ class TestAggregatorSecondaryServices:
             # Check the other mocks were called too, just to be sure.
             assert mock_get1.called
             assert mock_get2.called
+
+    def test_update_service_backend_response_is_an_error_status(
+        self, flask_app, api_tester, multi_backend_connection, config,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
+
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_patch = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            status_code=500,
+        )
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        headers = TEST_USER_AUTH_HEADER
+
+        with flask_app.test_request_context(headers=headers):
+            with pytest.raises(OpenEoApiError) as e:
+                abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
+
+            assert e.value.http_status_code == 500
+            assert mock_patch.called
+
 
 
 class TestInternalCollectionMetadata:
