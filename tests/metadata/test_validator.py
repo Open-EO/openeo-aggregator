@@ -28,7 +28,7 @@ def test_compare_get_processes_parameter_mismatch(requests_mock, capsys):
 
     captured = capsys.readouterr()
     stdout = captured.out
-    assert "\n- *https://oeo2.test : cos* (merging.py" in stdout
+    assert "\n- [ ] **https://oeo2.test : cos** (merging.py" in stdout
     assert "Parameter 'x' field 'schema' value differs from merged." in stdout
     assert "\n    - merged `{'type': 'number'}`\n" in stdout
     assert "\n    - value `{'type': 'string'}`\n" in stdout

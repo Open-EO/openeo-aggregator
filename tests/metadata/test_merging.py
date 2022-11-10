@@ -111,7 +111,7 @@ class TestMergeProcessMetadata:
                     '-    "type": "number"\n',
                     '+    "type": "array"\n',
                     "   }\n",
-                    " }",
+                    " }\n",
                 ],
             }
         ]
@@ -370,7 +370,7 @@ class TestMergeProcessMetadata:
                     " {\n",
                     '-  "type": "number"\n',
                     '+  "type": "array"\n',
-                    " }",
+                    " }\n",
                 ],
             }
         ]
