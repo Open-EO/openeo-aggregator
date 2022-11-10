@@ -27,12 +27,12 @@ class MarkDownReporter:
         level = kwargs.pop("level", "warning")
         caller = inspect.stack()[1]
         caller_file = Path(caller.filename).name.split("/")[-1]
-        msg = f"- *{' : '.join(entity_id)}* ({caller_file}:{caller.lineno}): {msg}"
+        msg = f"- [ ] **{' : '.join(entity_id)}** ({caller_file}:{caller.lineno}): {msg}"
         diff = kwargs.pop("diff", None)
         if kwargs:
-            msg += "\n\n" + ("\n".join(f"    - {k} `{v!r}`" for k, v in kwargs.items()))
+            msg += "\n" + ("\n".join(f"    - {k} `{v!r}`" for k, v in kwargs.items()))
         if diff:
-            msg += "\n\n" + textwrap.indent("".join(diff), " " * 8)
+            msg += "\n    - JSON diff:\n\n" + textwrap.indent("".join(diff), " " * 10)
         if "\n" in msg:
             # Multi-line message with sublist of code block: add extra newline
             msg += "\n"

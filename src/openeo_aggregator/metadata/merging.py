@@ -252,8 +252,8 @@ def json_diff(
         else:
             return x
 
-    a_json = json.dumps(sort_dicts(a), indent=2)
-    b_json = json.dumps(sort_dicts(b), indent=2)
+    a_json = json.dumps(sort_dicts(a), indent=2) + "\n"
+    b_json = json.dumps(sort_dicts(b), indent=2) + "\n"
     return list(
         difflib.unified_diff(
             a_json.splitlines(keepends=True),

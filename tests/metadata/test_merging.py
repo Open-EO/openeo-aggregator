@@ -624,3 +624,13 @@ def test_json_diff_dict_difference():
         '       "5": 6\n',
         "     }\n",
     ]
+
+
+def test_json_diff_scalar_difference():
+    assert json_diff(
+        "string",
+        None,
+        a_name="orig",
+        b_name="changed",
+        context=1,
+    ) == ["--- orig\n", "+++ changed\n", "@@ -1 +1 @@\n", '-"string"\n', "+null\n"]

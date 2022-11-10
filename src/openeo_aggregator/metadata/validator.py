@@ -89,7 +89,7 @@ def compare_get_collection_by_id(backend_urls, collection_id):
 
 
 def compare_get_processes(backend_urls):
-    print("Comparing /processes")
+    print("## Comparing /processes")
     processes_per_backend = {}
     for url in backend_urls:
         r = requests.get(url + "/processes")
