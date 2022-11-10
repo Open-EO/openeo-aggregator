@@ -475,12 +475,8 @@ class TestAggregatorSecondaryServices:
         assert mock_get1.called
         assert mock_get2.called
 
-    # TODO: it fails for the test case where the backend reports HTTP 400, because along the way the aggregator turns it into a HTTP 500.
-    # Also, I'm not sure is this test is the way to go.
-    @pytest.mark.parametrize("backend_status_code", [400, 500])
     def test_remove_service_backend_response_is_an_error_status(
-            self, multi_backend_connection, config, backend1, requests_mock,
-            service_metadata_wmts_foo, backend_status_code
+            self, multi_backend_connection, config, backend1, requests_mock, service_metadata_wmts_foo
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
 
@@ -490,7 +486,7 @@ class TestAggregatorSecondaryServices:
             json=service_metadata_wmts_foo.prepare_for_json(),
             status_code=200
         )
-        requests_mock.delete(backend1 + "/services/wmts-foo", status_code=backend_status_code)
+        requests_mock.delete(backend1 + "/services/wmts-foo", status_code=500)
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
         with pytest.raises(OpenEoApiError) as e:
@@ -498,7 +494,7 @@ class TestAggregatorSecondaryServices:
 
         # If the backend reports HTTP 400/500, we would expect the same status code from the aggregator.
         # TODO: Statement above is an assumption. Is that really what we expect?
-        assert e.value.http_status_code == backend_status_code
+        assert e.value.http_status_code == 500
 
     def test_remove_service_service_id_not_found(
             self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo

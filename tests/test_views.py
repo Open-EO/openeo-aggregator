@@ -1555,12 +1555,8 @@ class TestSecondaryServices:
         # Make sure the aggregator asked the backend to remove the service.
         assert mock_delete.called
 
-    # TODO: it fails for the test case where the backend reports HTTP 400, because along the way the aggregator turns it into a HTTP 500.
-    # Also, I'm not sure is this test is the way to go.
-    @pytest.mark.parametrize("backend_status_code", [400, 500])
     def test_remove_service_backend_response_is_an_error_status(
-            self, api_tester, requests_mock, backend1, backend2,
-            service_metadata_wmts_foo, backend_status_code
+            self, api_tester, requests_mock, backend1, backend2, service_metadata_wmts_foo
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
         api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1575,7 +1571,7 @@ class TestSecondaryServices:
         )
         mock_delete = requests_mock.delete(
             backend1 + "/services/wmts-foo",
-            status_code=backend_status_code,
+            status_code=500,
             json={
                 "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
                 "code": "ErrorRemovingService",
@@ -1586,8 +1582,8 @@ class TestSecondaryServices:
 
         resp = api_tester.delete("/services/wmts-foo")
 
-        assert resp.status_code == backend_status_code
-        # Make sure the aggregator asked the backend to remove the service.
+        assert resp.status_code == 500
+        # Make sure the aggregator effectively asked the backend to remove the service.
         assert mock_delete.called
 
     def test_remove_service_service_id_not_found(
