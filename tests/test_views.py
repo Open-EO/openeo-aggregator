@@ -1671,13 +1671,13 @@ class TestSecondaryServices:
         set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
 
-        # Also test that it can skip backends that don't have the service
-        requests_mock.get(
+        # Also test that it skips backends that don't have the service2
+        mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
             status_code=404
         )
         # Delete should succeed in backend2 so service should be present first.
-        requests_mock.get(
+        mock_get2 = requests_mock.get(
             backend2 + "/services/wmts-foo",
             json=service_metadata_wmts_foo.prepare_for_json(),
             status_code=200
@@ -1689,6 +1689,9 @@ class TestSecondaryServices:
         assert resp.status_code == 204
         # Make sure the aggregator asked the backend to remove the service.
         assert mock_delete.called
+        # Verify the aggregator did query the backends to find the service.
+        assert mock_get1.called
+        assert mock_get1.called 
 
     def test_remove_service_service_id_not_found(
             self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo
@@ -1762,7 +1765,7 @@ class TestSecondaryServices:
         set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
         set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
         
-        # Also test that it can skip backends that don't have the service
+        # Also test that it skips backends that don't have the service.
         mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
             status_code=404
@@ -1842,6 +1845,46 @@ class TestSecondaryServices:
         assert mock_get1.called
         assert mock_get2.called
 
+    @pytest.mark.parametrize("backend_http_status", [400, 500])
+    def test_update_service_backend_response_is_an_error_status(
+        self, flask_app, api_tester, multi_backend_connection, config,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo,
+        backend_http_status
+    ):
+        """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_patch = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            status_code=backend_http_status,
+            json={
+                "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
+                "code": "ErrorUpdatingService",
+                "message": "Service 'wmts-foo' could not be updated.",
+                "url": "https://example.openeo.org/docs/errors/SampleError"
+            }
+        )
+
+        comp_version = ComparableVersion(api_tester.api_version)
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        if comp_version <  ComparableVersion((1, 0, 0)):
+            json_payload = {"process_graph": process_graph}
+        else:
+            json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api_tester.patch("/services/wmts-foo", json=json_payload)
+
+        assert resp.status_code == backend_http_status
+        assert mock_patch.called
+        assert mock_patch.last_request.json() == json_payload
+        
 
 class TestResilience:
 

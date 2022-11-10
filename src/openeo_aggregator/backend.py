@@ -660,7 +660,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
-        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         all_services = []
         def merge(services, to_add):
@@ -687,7 +686,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
-        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         # TODO: can there ever be a service with the same ID in multiple back-ends? (For the same user)
         for con in self._backends:
@@ -707,7 +705,6 @@ class AggregatorSecondaryServices(SecondaryServices):
         """
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
         """
-        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
         # TODO: configuration is not used. What to do with it?
 
         backend_id = self._processing.get_backend_for_process_graph(
@@ -757,7 +754,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def remove_service(self, user_id: str, service_id: str) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
-        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         con = self._find_connection_with_service_id(user_id, service_id)
         if not con:
@@ -779,29 +775,29 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
-        # TODO: user_id is not used, how to authenticate when we use the BackendConnection?
 
         con = self._find_connection_with_service_id(user_id, service_id)
         if not con:
             raise ServiceNotFoundException(service_id)
 
-        api_version = self._backends.api_version
-        try:
-            if api_version <  ComparableVersion((1, 0, 0)):
-                json = {"process_graph": process_graph}
-            else:
-                json = {"process": {"process_graph": process_graph}}
-            con.patch(f"/services/{service_id}", json=json, expected_status=204)
-        except (OpenEoApiError, OpenEOApiException) as e:
-            # TODO: maybe we should just let these exception straight go to the caller without logging it here.
-            # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
-            _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
-            raise
-        except Exception as e:
-            _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
-            raise OpenEOApiException(
-                f"Failed to update service {service_id!r} from {con.id!r}: {e!r}"
-            ) from e
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            api_version = self._backends.api_version
+            try:
+                if api_version <  ComparableVersion((1, 0, 0)):
+                    json = {"process_graph": process_graph}
+                else:
+                    json = {"process": {"process_graph": process_graph}}
+                con.patch(f"/services/{service_id}", json=json, expected_status=204)
+            except (OpenEoApiError, OpenEOApiException) as e:
+                # TODO: maybe we should just let these exception straight go to the caller without logging it here.
+                # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
+                _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise
+            except Exception as e:
+                _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise OpenEOApiException(
+                    f"Failed to update service {service_id!r} from {con.id!r}: {e!r}"
+                ) from e
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
