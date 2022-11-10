@@ -63,7 +63,6 @@ def merge_collection_metadata(
     :param by_backend: mapping of backend id to collection metadata dict
     :param full_metadata: indicates whether to work with full collection metadata (instead of basic).
     :param report: function to report issues in the merging process
-    It takes in a message and level (e.g. "warning", "error") as arguments.
     """
     getter = MultiDictGetter(by_backend.values())
 
@@ -79,7 +78,6 @@ def merge_collection_metadata(
                         f"Missing {required_field} in collection metadata.",
                         collection_id=cid,
                         backend_id=backend_id,
-                        level="error",
                     )
 
     # Start with some initial/required fields
@@ -110,7 +108,7 @@ def merge_collection_metadata(
             summary = StacSummaries.from_dict(cube_dim_dict)
             summaries_list.append((f"{backend_id}:{cid}", summary))
         except Exception as e:
-            report(repr(e), collection_id=cid, backend_id=backend_id, level="warning")
+            report(repr(e), collection_id=cid, backend_id=backend_id)
     result["summaries"] = StacSummaries.merge_all(summaries_list, report).to_dict()
 
     # Assets
@@ -132,7 +130,7 @@ def merge_collection_metadata(
             extent = Extent.from_dict(extent_dict)
             extents.append((f"{backend_id}:{cid}", extent))
         except Exception as e:
-            report(repr(e), collection_id=cid, backend_id=backend_id, level="warning")
+            report(repr(e), collection_id=cid, backend_id=backend_id)
     result["extent"] = Extent.merge_all(extents).to_dict()
 
     if getter.has_key("cube:dimensions"):
@@ -144,9 +142,7 @@ def merge_collection_metadata(
             try:
                 CubeDimensions.from_dict(cube_dim_dict)
             except Exception as e:
-                report(
-                    repr(e), collection_id=cid, backend_id=backend_id, level="warning"
-                )
+                report(repr(e), collection_id=cid, backend_id=backend_id)
 
         # Then merge the cube:dimensions objects into one.
         result["cube:dimensions"] = {}
@@ -161,7 +157,6 @@ def merge_collection_metadata(
                 report(
                     f"Failed to merge cube:dimensions.{dim}.extent: {e!r}",
                     collection_id=cid,
-                    level="warning",
                 )
         # Temporal dimension
         t_dim = "t"

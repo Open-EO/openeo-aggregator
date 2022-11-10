@@ -17,14 +17,12 @@ def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:
 
 
 class MarkDownReporter:
+    # TODO: add support for level/severity?
     def __init__(self):
-        # TODO Handle warning/critical level generically instead of with two lists?
-        self.warning_messages = []
-        self.critical_messages = []
+        self.items = []
 
     def report(self, msg: str, **kwargs):
         entity_id, kwargs = _extract_entity_id(**kwargs)
-        level = kwargs.pop("level", "warning")
         caller = inspect.stack()[1]
         caller_file = Path(caller.filename).name.split("/")[-1]
         msg = f"- [ ] **{' : '.join(entity_id)}** ({caller_file}:{caller.lineno}): {msg}"
@@ -37,17 +35,10 @@ class MarkDownReporter:
             # Multi-line message with sublist of code block: add extra newline
             msg += "\n"
 
-        if level == "critical":
-            self.critical_messages.append(msg)
-        else:
-            self.warning_messages.append(msg)
+        self.items.append(msg)
 
     def print(self):
-        print(f"Critical messages ({len(self.critical_messages)}):")
-        for msg in self.critical_messages:
-            print(msg)
-        print(f"Warning messages ({len(self.warning_messages)}):")
-        for msg in self.warning_messages:
+        for msg in self.items:
             print(msg)
 
 
@@ -59,5 +50,5 @@ class LoggerReporter:
         entity_id, kwargs = _extract_entity_id(**kwargs)
         msg = f"[{':'.join(entity_id)}] {msg}"
         msg += f" ({kwargs})" if kwargs else ""
-        # TODO: use report "level" to determine log level?
+        # TODO: allow setting log level?
         self.logger.warning(msg)
