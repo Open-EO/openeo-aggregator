@@ -12,13 +12,18 @@ from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException
     ServiceNotFoundException
 from openeo_driver.testing import DictSubSet
 from openeo_driver.users.oidc import OidcProvider
+from openeo_driver.users.auth import HttpAuthHandler
 from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
+from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from .conftest import DEFAULT_MEMOIZER_CONFIG, set_backend_to_api_version
-  
+
 
 TEST_USER = "Mr.Test"
-
+TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
+TEST_USER_AUTH_HEADER = {
+    "Authorization": "Bearer " + TEST_USER_BEARER_TOKEN
+}
 
 class TestAggregatorBackendImplementation:
 
@@ -228,49 +233,60 @@ class TestAggregatorSecondaryServices:
         )
 
     def test_list_services_simple(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock,
         service_metadata_wmts_foo
     ):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
         """
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        headers = TEST_USER_AUTH_HEADER
+
         services1 = {"services": [service_metadata_wmts_foo.prepare_for_json()], "links": []}
         services2 = {}
-        requests_mock.get(backend1 + "/services", json=services1)
-        requests_mock.get(backend2 + "/services", json=services2)
+        requests_mock.get(backend1 + "/services", json=services1, headers=headers)
+        requests_mock.get(backend2 + "/services", json=services2, headers=headers)
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        actual_services = abe_implementation.list_services(user_id=TEST_USER)
+        with flask_app.test_request_context(headers=headers):
+            actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
-        # Construct expected result. We have get just data from the service in services1
-        # (there is only one) for conversion to a ServiceMetadata.
-        the_service = services1["services"][0]
-        expected_services = [
-            ServiceMetadata.from_dict(the_service)
-        ]
-        assert actual_services == expected_services
+            # Construct expected result. We have get just data from the service in services1
+            # (there is only one) for conversion to a ServiceMetadata.
+            the_service = services1["services"][0]
+            expected_services = [
+                ServiceMetadata.from_dict(the_service)
+            ]
+            assert actual_services == expected_services
 
     def test_list_services_merged(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        headers = TEST_USER_AUTH_HEADER
+
         services1 = {"services": [service_metadata_wmts_foo.prepare_for_json()], "links": []}
         services2 = {"services": [service_metadata_wms_bar.prepare_for_json()], "links": []}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
         abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
 
-        actual_services = abe_implementation.list_services(user_id=TEST_USER)
+        with flask_app.test_request_context(headers=headers):
+            actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
-        expected_services = [service_metadata_wmts_foo, service_metadata_wms_bar]
-        assert sorted(actual_services) == sorted(expected_services)
+            expected_services = [service_metadata_wmts_foo, service_metadata_wms_bar]
+            assert sorted(actual_services) == sorted(expected_services)
 
     def test_list_services_merged_multiple(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given multiple services across 2 backends, the aggregator lists all service types from all backends."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        headers = TEST_USER_AUTH_HEADER
+
         services1 = {
             "services": [{
                 "id": "wms-nvdi",
@@ -318,20 +334,21 @@ class TestAggregatorSecondaryServices:
             backends=multi_backend_connection, config=config
         )
 
-        actual_services = abe_implementation.list_services(user_id=TEST_USER)
+        with flask_app.test_request_context(headers=headers):
+            actual_services = abe_implementation.list_services(user_id=TEST_USER)
 
-        # Construct expected result. We have get just data from the service in
-        # services1 (there is only one) for conversion to a ServiceMetadata.
-        # TODO: do we need to take care of the links part in the JSON as well?
-        service1 = services1["services"][0]
-        service1_md = ServiceMetadata.from_dict(service1)
-        expected_services = [
-            service1_md, service_metadata_wmts_foo, service_metadata_wms_bar
-        ]
+            # Construct expected result. We have get just data from the service in
+            # services1 (there is only one) for conversion to a ServiceMetadata.
+            # TODO: do we need to take care of the links part in the JSON as well?
+            service1 = services1["services"][0]
+            service1_md = ServiceMetadata.from_dict(service1)
+            expected_services = [
+                service1_md, service_metadata_wmts_foo, service_metadata_wms_bar
+            ]
 
-        assert sorted(actual_services) == sorted(expected_services)
+            assert sorted(actual_services) == sorted(expected_services)
 
-    def test_service_info(
+    def test_service_info_succeeds(
         self, multi_backend_connection, config, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
@@ -363,7 +380,7 @@ class TestAggregatorSecondaryServices:
         with pytest.raises(ServiceNotFoundException):
             abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
-    def test_create_service(self, api_tester, multi_backend_connection, config, backend1, requests_mock):
+    def test_create_service_succeeds(self, api_tester, multi_backend_connection, config, backend1, requests_mock):
         """When it gets a correct params for a new service, it successfully creates it."""
 
         # Set up responses for creating the service in backend 1
@@ -475,6 +492,42 @@ class TestAggregatorSecondaryServices:
         assert mock_get1.called
         assert mock_get2.called
 
+    def test_remove_service_service_id_not_found(
+            self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
+
+        # Neither backend has the service available, and the aggregator should detect this.
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=404
+        )
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404
+        )
+        
+        # These requests should not be executed, so check they are not called. 
+        mock_delete1 = requests_mock.delete(
+            backend2 + "/services/wmts-foo",
+            status_code=204
+        )
+        mock_delete2 = requests_mock.delete(
+            backend2 + "/services/wmts-foo",
+            status_code=204
+        )
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+        with pytest.raises(ServiceNotFoundException):
+            abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+
+        assert not mock_delete1.called
+        assert not mock_delete2.called 
+        # Check the other mocks were called too, just to be sure.
+        assert mock_get1.called
+        assert mock_get2.called
+
     def test_remove_service_backend_response_is_an_error_status(
             self, multi_backend_connection, config, backend1, requests_mock, service_metadata_wmts_foo
     ):
@@ -496,26 +549,7 @@ class TestAggregatorSecondaryServices:
         # TODO: Statement above is an assumption. Is that really what we expect?
         assert e.value.http_status_code == 500
 
-    def test_remove_service_service_id_not_found(
-            self, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
-    ):
-        """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
-
-        # Neither backend has the service available, and the aggregator should detect this.
-        requests_mock.get(
-            backend1 + "/services/wmts-foo",
-            json=service_metadata_wmts_foo.prepare_for_json(),
-            status_code=404
-        )
-        requests_mock.get(
-            backend2 + "/services/wmts-foo",
-            status_code=404
-        )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
-
-        with pytest.raises(ServiceNotFoundException):
-            abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
-
+    # TODO: this test still fails with API version 1.0.0
     def test_update_service_succeeds(
         self, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
@@ -528,8 +562,7 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services/wmts-foo",
             status_code=404
         )
-        # Update should succeed in backend2 so service should be present first.
-        service_metadata_wmts_foo
+        # Update should succeed in backend2 so service should be present 
         mock_get2 = requests_mock.get(
             backend2 + "/services/wmts-foo",
             json=service_metadata_wmts_foo.prepare_for_json(),
@@ -546,7 +579,7 @@ class TestAggregatorSecondaryServices:
 
         # # Make sure the aggregator asked the backend to remove the service.
         assert mock_patch.called
-        from openeo.capabilities import ComparableVersion
+        # TODO: I am not too sure this json payload is correct. Check with codebases of other backend drivers. 
         comp_api_version = ComparableVersion(api_tester.api_version)
         if comp_api_version < ComparableVersion((1, 0, 0)):
             expected_process = {"process_graph": process_graph_after}
@@ -555,6 +588,44 @@ class TestAggregatorSecondaryServices:
         
         assert mock_patch.last_request.json() == expected_process
 
+        # Check the other mocks were called too, just to be sure.
+        assert mock_get1.called
+        assert mock_get2.called
+
+    def test_update_service_service_id_not_found(
+        self, api_tester, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
+
+        # Also test that it can skip backends that don't have the service
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            status_code=404
+        )
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404
+        )
+        
+        # These requests should not be executed, so check they are not called.
+        mock_patch1 = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            status_code=204,
+        )
+        mock_patch2 = requests_mock.patch(
+            backend2 + "/services/wmts-foo",
+            status_code=204,
+        )
+        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
+
+        with pytest.raises(ServiceNotFoundException):
+            abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
+
+        assert not mock_patch1.called
+        assert not mock_patch2.called 
         # Check the other mocks were called too, just to be sure.
         assert mock_get1.called
         assert mock_get2.called

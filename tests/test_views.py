@@ -6,6 +6,7 @@ from typing import Tuple, List
 import pytest
 import requests
 
+from openeo.capabilities import ComparableVersion
 from openeo.rest.connection import url_join
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo_aggregator.backend import AggregatorCollectionCatalog
@@ -1555,6 +1556,38 @@ class TestSecondaryServices:
         # Make sure the aggregator asked the backend to remove the service.
         assert mock_delete.called
 
+    def test_remove_service_service_id_not_found(
+            self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+
+        # Neither backend has the service available, and the aggregator should detect this.
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=404
+        )
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            status_code=404,
+        )
+        mock_delete = requests_mock.delete(
+            backend2 + "/services/wmts-foo",
+            status_code=204,  # deliberately avoid 404 so we know 404 comes from aggregator.
+        ) 
+
+        resp = api_tester.delete("/services/wmts-foo")
+
+        assert resp.status_code == 404
+        # Verify the aggregator did not call the backend to remove the service.
+        assert not mock_delete.called
+        # Verify the aggregator did query the backends to find the service.
+        assert mock_get1.called
+        assert mock_get2.called
+
     def test_remove_service_backend_response_is_an_error_status(
             self, api_tester, requests_mock, backend1, backend2, service_metadata_wmts_foo
     ):
@@ -1583,10 +1616,53 @@ class TestSecondaryServices:
         resp = api_tester.delete("/services/wmts-foo")
 
         assert resp.status_code == 500
-        # Make sure the aggregator effectively asked the backend to remove the service.
+        # Verify the aggregator effectively asked the backend to remove the service,
+        # so we can reasonably assume that is where the error came from.
         assert mock_delete.called
 
-    def test_remove_service_service_id_not_found(
+    def test_update_service_service_succeeds(
+            self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo
+    ):
+        """When it receives an existing service ID and a correct payload, it updates the expected service."""
+        api_tester.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        set_backend_to_api_version(requests_mock, backend1, api_tester.api_version)
+        set_backend_to_api_version(requests_mock, backend2, api_tester.api_version)
+        
+        # Also test that it can skip backends that don't have the service
+        mock_get1 = requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            status_code=404
+        )
+        mock_get2 = requests_mock.get(
+            backend2 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_patch = requests_mock.patch(
+            backend2 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=204
+        )
+
+        comp_version = ComparableVersion(api_tester.api_version)
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        if comp_version <  ComparableVersion((1, 0, 0)):
+            json_payload = {"process_graph": process_graph}
+        else:
+            json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api_tester.patch("/services/wmts-foo", json=json_payload)
+
+        assert resp.status_code == 204
+        # Make sure the aggregator asked the backend to update the service.
+        assert mock_patch.called
+        assert mock_patch.last_request.json() == json_payload
+        
+        # Check other mocks were called, to be sure it searched before updating. 
+        assert mock_get1.called
+        assert mock_get2.called
+
+    def test_update_service_service_id_not_found(
             self, api_tester, backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
@@ -1603,18 +1679,32 @@ class TestSecondaryServices:
         mock_get2 = requests_mock.get(
             backend2 + "/services/wmts-foo",
             status_code=404,
-            # json={
-            #     "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
-            #     "code": "ServiceNotFound",
-            #     "message": "Service 'wmts-foo' does not exist.",
-            #     "url": "https://example.openeo.org/docs/errors/SampleError"
-            # }
         )
+        # The aggregator should not execute a HTTP patch, so we check that it does not call these two.
+        mock_patch1 = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=204
+        )
+        mock_patch2 = requests_mock.patch(
+            backend2 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=204  # deliberately avoid 404 so we know 404 comes from aggregator.
+        )
+        comp_version = ComparableVersion(api_tester.api_version)
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        if comp_version <  ComparableVersion((1, 0, 0)):
+            json_payload = {"process_graph": process_graph}
+        else:
+            json_payload = {"process": {"process_graph": process_graph}}
 
-        resp = api_tester.delete("/services/wmts-foo")
+        resp = api_tester.patch("/services/wmts-foo", json=json_payload)
 
         assert resp.status_code == 404
-        # Make sure the aggregator asked the backend to remove the service.
+        # Verify that the aggregator did not try to call patch on the backend.
+        assert not mock_patch1.called
+        assert not mock_patch2.called
+        # Verify that the aggregator asked the backend to remove the service.
         assert mock_get1.called
         assert mock_get2.called
 
