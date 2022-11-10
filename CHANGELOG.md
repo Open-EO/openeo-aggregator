@@ -5,9 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.x]
+## [0.6.x]
 
 ### Added
+
+### Changed
+
+- Refactored/improved metadata merging/validation of collections and processes 
+  ([#76](https://github.com/Open-EO/openeo-aggregator/issues/76), [#77](https://github.com/Open-EO/openeo-aggregator/issues/77))
+
+### Fixed
+
+
+## [0.5.x]
 
 ### Changed
 

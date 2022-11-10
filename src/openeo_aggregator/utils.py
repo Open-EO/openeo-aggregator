@@ -2,7 +2,7 @@ import datetime
 import functools
 import logging
 import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple, Set
+from typing import Callable, Iterable, Iterator, List, NamedTuple, Set, Any
 
 import shapely.geometry
 
@@ -28,6 +28,13 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
+    def single_value_for(self, key:str)-> Any:
+        """Get value for given key and ensure that it is same everywhere"""
+        values = set(self.get(key=key))
+        if len(values) != 1:
+            raise ValueError(f"Single value expected, but got {values}")
+        return values.pop()
+
     def keys(self) -> Set[str]:
         return functools.reduce(lambda a, b: a.union(b), (d.keys() for d in self.dictionaries), set())
 
@@ -49,7 +56,9 @@ class MultiDictGetter:
                         continue
                     result.append(item)
             else:
-                _log.warning(f"Skipping unexpected type in MultiDictGetter.concat: {items}")
+                _log.warning(
+                    f"MultiDictGetter.concat with {key=}: skipping unexpected type {items}"
+                )
         return result
 
     def first(self, key, default=None):
