@@ -672,15 +672,17 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         # Collect all services from the backends.
         for con in self._backends:
-            services_json = None
-            try:
-                services_json = con.get("/services").json()
-            except Exception as e:
-                _log.warning(f"Failed to get services from {con.id}: {e!r}", exc_info=True)
-                continue
+            # with con.authenticated_from_request(flask.request):
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+                services_json = None
+                try:
+                    services_json = con.get("/services").json()
+                except Exception as e:
+                    _log.warning(f"Failed to get services from {con.id}: {e!r}", exc_info=True)
+                    continue
 
-            if services_json:
-                merge(all_services, services_json)
+                if services_json:
+                    merge(all_services, services_json)
 
         return all_services
 
@@ -739,13 +741,13 @@ class AggregatorSecondaryServices(SecondaryServices):
             except OpenEoApiError as e:
                 if e.http_status_code == 404:
                     # Expected error
-                    _log.debug(f"No service with ID={service_id} in backend with ID={con.id}: {e!r}", exc_info=True)
+                    _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
                     continue
                 else:
-                    _log.warning(f"Failed to get service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                    _log.warning(f"Failed to get service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
                     raise e
             except Exception as e:
-                _log.warning(f"Failed to get service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+                _log.warning(f"Failed to get service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
                 raise e
             else:
                 return con
@@ -765,12 +767,12 @@ class AggregatorSecondaryServices(SecondaryServices):
         except (OpenEoApiError, OpenEOApiException) as e:
             # TODO: maybe we should just let these exception straight go to the caller without logging it here.
             # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
             raise
         except Exception as e:
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            _log.warning(f"Failed to delete service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
             raise OpenEOApiException(
-                f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
+                f"Failed to delete service {service_id!r} on backend {con.id!r}: {e!r}"
             ) from e
 
     def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
@@ -783,17 +785,20 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         api_version = self._backends.api_version
         try:
-            key = "process_graph" if api_version < ComparableVersion((1, 0, 0)) else "process"
-            con.patch(f"/services/{service_id}", json={key: process_graph}, expected_status=204)
+            if api_version <  ComparableVersion((1, 0, 0)):
+                json = {"process_graph": process_graph}
+            else:
+                json = {"process": {"process_graph": process_graph}}
+            con.patch(f"/services/{service_id}", json=json, expected_status=204)
         except (OpenEoApiError, OpenEOApiException) as e:
             # TODO: maybe we should just let these exception straight go to the caller without logging it here.
             # Logging it here seems prudent and more consistent with the handling of unexpected exceptions below.
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
             raise
         except Exception as e:
-            _log.warning(f"Failed to delete service {service_id!r} from {con.id}: {e!r}", exc_info=True)
+            _log.warning(f"Failed to update service {service_id!r} from {con.id!r}: {e!r}", exc_info=True)
             raise OpenEOApiException(
-                f"Failed to delete secondary service with id {service_id!r} on backend {con.id!r}: {e!r}"
+                f"Failed to update service {service_id!r} from {con.id!r}: {e!r}"
             ) from e
 
 
