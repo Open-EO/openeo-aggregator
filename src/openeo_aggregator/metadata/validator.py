@@ -17,36 +17,64 @@ _log = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-b",
-        "--backends",
-        nargs="+",
-        help="List of backends to use",
-    )
-    parser.add_argument(
         "-e",
         "--environment",
-        help="Environment to use (e.g. 'dev', 'prod', 'local', ...)",
+        help="Environment to load configuration for (e.g. 'dev', 'prod', 'local', ...)",
         default="dev",
     )
+    parser.add_argument(
+        "-b",
+        "--backends",
+        metavar="BACKEND_ID",
+        nargs="+",
+        help="List of backends to use (backend_id as used in configuration). Default: all backends from configuration",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
+    target_group = parser.add_argument_group(
+        "Target", "Which checks to run (if none specified, all checks will be run)."
+    )
+    target_group.add_argument(
+        "-c", "--collections", action="store_true", help="Check collection metadata"
+    )
+    target_group.add_argument(
+        "-p", "--processes", action="store_true", help="Check process metadata"
+    )
     args = parser.parse_args()
-    print("Requested backends: {}".format(args.backends))
-    print("Requested environment: {}".format(args.environment))
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
+    _log.info(f"{args=}")
+
+    # Load config
     config: AggregatorConfig = get_config(args.environment)
-    backends = args.backends
-    if not backends or len(backends) == 0:
-        backends = config.aggregator_backends.keys()
 
-    urls = [url for b, url in config.aggregator_backends.items() if b in backends]
-    print("Using backends:\n  * {}".format("\n  * ".join(urls)))
+    # Determine backend ids/urls
+    backend_ids = args.backends or list(config.aggregator_backends.keys())
+    try:
+        backend_urls = [config.aggregator_backends[b] for b in backend_ids]
+    except KeyError:
+        raise ValueError(
+            f"Invalid backend ids {backend_ids}, should be subset of {list(config.aggregator_backends.keys())}."
+        )
+    print("\nRunning metadata merging checks against backend urls:")
+    print("\n".join(f"- {bid}: {url}" for bid, url in zip(backend_ids, backend_urls)))
+    print("\n")
 
-    # TODO: cli options to toggle these different checks
-    # 1. Compare /collections
-    compare_get_collections(urls)
-    # 2. Compare /collections/{collection_id}
-    for collection_id in get_all_collections_ids(urls):
-        compare_get_collection_by_id(urls, collection_id)
-    # 3. Compare /processes
-    compare_get_processes(urls)
+    check_collections = args.collections
+    check_processes = args.processes
+    if not any([check_collections, check_processes]):
+        check_collections = check_processes = True
+
+    if check_collections:
+        # Compare /collections
+        compare_get_collections(backend_urls=backend_urls)
+        # Compare /collections/{collection_id}
+        for collection_id in get_all_collections_ids(backend_urls=backend_urls):
+            compare_get_collection_by_id(
+                backend_urls=backend_urls, collection_id=collection_id
+            )
+    if check_processes:
+        # Compare /processes
+        compare_get_processes(backend_urls=backend_urls)
 
 
 def compare_get_collections(backend_urls):
