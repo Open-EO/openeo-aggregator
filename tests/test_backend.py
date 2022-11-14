@@ -15,7 +15,7 @@ from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.users.auth import HttpAuthHandler
 from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
 from openeo.rest import OpenEoApiError, OpenEoRestError
-from .conftest import DEFAULT_MEMOIZER_CONFIG, set_backend_to_api_version
+from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 
 TEST_USER = "Mr.Test"
@@ -393,7 +393,6 @@ class TestAggregatorSecondaryServices:
         """When it gets a correct params for a new service, it successfully creates it."""
 
         # Set up responses for creating the service in backend 1
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
         expected_openeo_id = "wmts-foo"
         location_backend_1 = backend1 + "/services/" + expected_openeo_id
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -429,8 +428,6 @@ class TestAggregatorSecondaryServices:
 
         # Set up responses for creating the service in backend 1:
         # This time the backend raises an error, one that will be reported as a OpenEOApiException. 
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
@@ -464,7 +461,6 @@ class TestAggregatorSecondaryServices:
 
         # Set up responses for creating the service in backend 1
         # This time the backend raises an error, one that will simply be re-raised/passed on as it is.
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
@@ -593,9 +589,6 @@ class TestAggregatorSecondaryServices:
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
-
         # Also test that it can skip backends that don't have the service
         mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
@@ -637,8 +630,6 @@ class TestAggregatorSecondaryServices:
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
 
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
         mock_get1 = requests_mock.get(
             backend1 + "/services/wmts-foo",
             status_code=404
@@ -679,8 +670,6 @@ class TestAggregatorSecondaryServices:
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
 
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
         requests_mock.get(
             backend1 + "/services/wmts-foo",
             json=service_metadata_wmts_foo.prepare_for_json(),

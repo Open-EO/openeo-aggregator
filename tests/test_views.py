@@ -15,7 +15,7 @@ from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, 
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
     RegexMatcher
-from .conftest import assert_dict_subset, get_api100, get_flask_app, set_backend_to_api_version
+from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
 class TestGeneral:
@@ -1557,8 +1557,6 @@ class TestSecondaryServices:
     ):
         """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
 
         # Also test that it skips backends that don't have the service2
         mock_get1 = requests_mock.get(
@@ -1587,8 +1585,6 @@ class TestSecondaryServices:
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
 
         # Neither backend has the service available, and the aggregator should detect this.
         mock_get1 = requests_mock.get(
@@ -1619,8 +1615,6 @@ class TestSecondaryServices:
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
 
         # Will find it on the first backend, and it should skip the second backend so we don't add it to backend2.
         requests_mock.get(
@@ -1651,8 +1645,6 @@ class TestSecondaryServices:
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
         
         # Also test that it skips backends that don't have the service.
         mock_get1 = requests_mock.get(
@@ -1688,8 +1680,6 @@ class TestSecondaryServices:
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
 
         # Neither backend has the service available, and the aggregator should detect this.
         mock_get1 = requests_mock.get(
@@ -1733,8 +1723,6 @@ class TestSecondaryServices:
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        set_backend_to_api_version(requests_mock, backend1, "1.0.0")
-        set_backend_to_api_version(requests_mock, backend2, "1.0.0")
 
         requests_mock.get(
             backend1 + "/services/wmts-foo",
