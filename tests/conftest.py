@@ -13,7 +13,7 @@ from openeo_driver.users.oidc import OidcProvider
 
 
 @pytest.fixture
-def backend1(requests_mock,) -> str:
+def backend1(requests_mock) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
     requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
@@ -34,9 +34,7 @@ def backend2(requests_mock) -> str:
 
 
 # as "lib_requests_mock": make a distinction with the pytest fixture that has the same name 
-import requests_mock as lib_requests_mock
-
-def set_backend_to_api_version(requests_mock: lib_requests_mock.Mocker, domain: str, api_version: str) -> str:
+def set_backend_to_api_version(requests_mock, domain: str, api_version: str) -> str:
     """Helper function to make the backend connection use the expected API version."""
 
     # TODO: would like a nicer solution to make the backend fixtures match the expected API version.
