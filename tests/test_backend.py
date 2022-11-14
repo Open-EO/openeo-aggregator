@@ -1,5 +1,4 @@
-from sys import implementation
-from datetime import datetime
+import datetime as dt
 
 import pytest
 
@@ -215,7 +214,7 @@ class TestAggregatorSecondaryServices:
             configuration={"version": "0.5.8"},
             attributes={},
             title="Test WMTS service",
-            created=datetime(2020, 4, 9, 15, 5, 8)
+            created=dt.datetime(2020, 4, 9, 15, 5, 8)
         )
 
     @pytest.fixture
@@ -229,7 +228,7 @@ class TestAggregatorSecondaryServices:
             configuration={"version": "0.5.8"},
             attributes={},
             title="Test WMS service",
-            created=datetime(2022, 2, 1, 13, 30, 3)
+            created=dt.datetime(2022, 2, 1, 13, 30, 3)
         )
 
     def test_list_services_simple(
