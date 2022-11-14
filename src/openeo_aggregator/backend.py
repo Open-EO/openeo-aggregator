@@ -781,12 +781,8 @@ class AggregatorSecondaryServices(SecondaryServices):
             raise ServiceNotFoundException(service_id)
 
         with con.authenticated_from_request(request=flask.request, user=User(user_id)):
-            api_version = self._backends.api_version
             try:
-                if api_version <  ComparableVersion((1, 0, 0)):
-                    json = {"process_graph": process_graph}
-                else:
-                    json = {"process": {"process_graph": process_graph}}
+                json = {"process": {"process_graph": process_graph}}
                 con.patch(f"/services/{service_id}", json=json, expected_status=204)
             except (OpenEoApiError, OpenEOApiException) as e:
                 # TODO: maybe we should just let these exception straight go to the caller without logging it here.

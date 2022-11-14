@@ -145,37 +145,8 @@ def backend_implementation(flask_app) -> AggregatorBackendImplementation:
     return flask_app.config["OPENEO_BACKEND_IMPLEMENTATION"]
 
 
-@pytest.fixture(params=["0.4.0", "1.0.0"])
-def api_version_fixture(request):
-    """To go through all relevant API versions"""
-    return request.param
-
-
-def get_api_tester(flask_app, api_version) -> ApiTester:
-    return ApiTester(api_version=api_version, client=flask_app.test_client())
-
-
-def get_api040(flask_app: flask.Flask) -> ApiTester:
-    return ApiTester(api_version="0.4.0", client=flask_app.test_client())
-
-
 def get_api100(flask_app: flask.Flask) -> ApiTester:
     return ApiTester(api_version="1.0.0", client=flask_app.test_client())
-
-
-@pytest.fixture
-def api_tester(flask_app, api_version_fixture) -> ApiTester:
-    """Get an ApiTester for each version.
-
-    Useful when it easy to test several API versions with (mostly) the same test code.
-    But when the difference is too big, just keep it simple and write separate tests.
-    """
-    return get_api_tester(flask_app, api_version_fixture)
-
-
-@pytest.fixture
-def api040(flask_app: flask.Flask) -> ApiTester:
-    return get_api040(flask_app)
 
 
 @pytest.fixture
