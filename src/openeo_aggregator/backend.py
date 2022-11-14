@@ -620,6 +620,24 @@ class AggregatorBatchJobs(BatchJobs):
             return con.job(backend_job_id).logs(offset=offset)
 
 
+class ServiceIdMapping:
+    """Mapping between aggregator service ids and backend job ids"""
+
+    @staticmethod
+    def get_aggregator_service_id(backend_service_id: str, backend_id: str) -> str:
+        """Construct aggregator service id from given backend job id and backend id"""
+        return f"{backend_id}-{backend_service_id}"
+
+    @classmethod
+    def parse_aggregator_service_id(cls, backends: MultiBackendConnection, aggregator_service_id: str) -> Tuple[str, str]:
+        """Given aggregator service id: extract backend service id and backend id"""
+        for prefix in [f"{con.id}-" for con in backends]:
+            if aggregator_service_id.startswith(prefix):
+                backend_id, backend_job_id = aggregator_service_id.split("-", maxsplit=1)
+                return backend_job_id, backend_id
+        raise ServiceNotFoundException(service_id=aggregator_service_id)
+
+
 class AggregatorSecondaryServices(SecondaryServices):
     """
     Aggregator implementation of the Secondary Services "microservice"
@@ -634,6 +652,18 @@ class AggregatorSecondaryServices(SecondaryServices):
         super(AggregatorSecondaryServices, self).__init__()
         self._backends = backends
         self._processing = processing
+
+    def _get_connection_and_backend_service_id(
+            self,
+            aggregator_service_id: str
+    ) -> Tuple[Union[BackendConnection, BackendConnection], str]:
+        backend_service_id, backend_id = ServiceIdMapping.parse_aggregator_service_id(
+            backends=self._backends,
+            aggregator_service_id=aggregator_service_id
+        )
+
+        con = self._backends.get_connection(backend_id)
+        return con, backend_service_id
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
@@ -661,6 +691,7 @@ class AggregatorSecondaryServices(SecondaryServices):
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
 
+        # TODO: use ServiceIdMapping to prepend all service IDs with their backend-id
         all_services = []
         def merge(services, to_add):
             # For now ignore the links
@@ -687,7 +718,17 @@ class AggregatorSecondaryServices(SecondaryServices):
     def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
 
-        # TODO: can there ever be a service with the same ID in multiple back-ends? (For the same user)
+        # con, backend_service_id = self._get_connection_and_backend_service_id(service_id)
+        # with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+        #     try:
+        #         service_json = con.get(f"/services/{backend_service_id}").json()
+        #     except Exception as e:
+        #         _log.debug(f"Failed to get service with ID={backend_service_id} from backend with ID={con.id}: {e!r}", exc_info=True)
+        #         raise
+        #     else:
+        #         service_json["id"] = ServiceIdMapping.get_aggregator_service_id(service_json["id"], con.id)
+        #         return ServiceMetadata.from_dict(service_json)
+
         for con in self._backends:
             with con.authenticated_from_request(request=flask.request, user=User(user_id)):
                 try:
@@ -980,27 +1021,3 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # TODO: standardize this field?
         capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities
-
-    def service_types(self) -> dict:
-        return self.secondary_services.service_types()
-
-    def list_services(self, user_id: str) -> List[ServiceMetadata]:
-        return self.secondary_services.list_services(user_id=user_id)
-
-    def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
-        return self.secondary_services.service_info(user_id=user_id, service_id=service_id)
-
-    def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
-                       configuration: dict) -> str:
-        return self.secondary_services.create_service(user_id=user_id, process_graph=process_graph,
-            service_type=service_type, api_version=api_version, configuration=configuration)
-
-    def remove_service(self, user_id: str, service_id: str) -> None:
-        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
-        self.secondary_services.remove_service(user_id=user_id, service_id=service_id)
-
-    def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
-        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
-        self.secondary_services.update_service(
-            user_id=user_id, service_id=service_id, process_graph=process_graph
-        )

@@ -3,7 +3,8 @@ import datetime as dt
 import pytest
 
 from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
-    AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping
+    AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping, \
+    AggregatorSecondaryServices
 from openeo_aggregator.caching import DictMemoizer
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.backend import ServiceMetadata
@@ -126,7 +127,9 @@ class TestAggregatorBackendImplementation:
 
 class TestAggregatorSecondaryServices:
 
-    def test_service_types_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    def test_service_types_simple(
+        self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock
+    ):
         """Given 2 backends and only 1 backend has a single service type, then the aggregator
             returns that 1 service type's metadata.
         """
@@ -152,14 +155,14 @@ class TestAggregatorSecondaryServices:
             }
         }
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
-        requests_mock.get(backend2 + "/service_types", json=single_service_type)
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
-        service_types = abe_implementation.service_types()
+        requests_mock.get(backend2 + "/service_types", json={})
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+
+        service_types = implementation.service_types()
         assert service_types == single_service_type
 
-    def test_service_types_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    def test_service_types_merging(self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock):
         """Given 2 backends with each 1 service type, then the aggregator lists both service types."""
         service_type_1 = {
             "WMTS": {
@@ -192,11 +195,10 @@ class TestAggregatorSecondaryServices:
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
-        actual_service_types = abe_implementation.service_types()
+        actual_service_types = implementation.service_types()
 
         expected_service_types = dict(service_type_1)
         expected_service_types.update(service_type_2)
@@ -231,7 +233,7 @@ class TestAggregatorSecondaryServices:
         )
 
     def test_list_services_simple(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         service_metadata_wmts_foo
     ):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
@@ -241,23 +243,25 @@ class TestAggregatorSecondaryServices:
         services2 = {}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            actual_services = abe_implementation.list_services(user_id=TEST_USER)
+            actual_services = implementation.list_services(user_id=TEST_USER)
 
             # Construct expected result. We have get just data from the service in services1
             # (there is only one) for conversion to a ServiceMetadata.
-            the_service = services1["services"][0]
-            expected_services = [
-                ServiceMetadata.from_dict(the_service)
-            ]
+            the_service = dict(services1["services"][0])
+
+            # TODO: prepend the backend's service_id with the backend_id
+            # the_service["id"] = "<backend_id>-wmts-foo"
+            expected_services = [ServiceMetadata.from_dict(the_service)]
             assert actual_services == expected_services
 
     def test_list_services_merged(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
@@ -266,18 +270,20 @@ class TestAggregatorSecondaryServices:
         services2 = {"services": [service_metadata_wms_bar.prepare_for_json()], "links": []}
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            actual_services = abe_implementation.list_services(user_id=TEST_USER)
+            actual_services = implementation.list_services(user_id=TEST_USER)
 
             expected_services = [service_metadata_wmts_foo, service_metadata_wms_bar]
             assert sorted(actual_services) == sorted(expected_services)
 
     def test_list_services_merged_multiple(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given multiple services across 2 backends, the aggregator lists all service types from all backends."""
@@ -324,14 +330,13 @@ class TestAggregatorSecondaryServices:
         }
         requests_mock.get(backend1 + "/services", json=services1)
         requests_mock.get(backend2 + "/services", json=services2)
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            actual_services = abe_implementation.list_services(user_id=TEST_USER)
+            actual_services = implementation.list_services(user_id=TEST_USER)
 
             # Construct expected result. We have get just data from the service in
             # services1 (there is only one) for conversion to a ServiceMetadata.
@@ -345,47 +350,45 @@ class TestAggregatorSecondaryServices:
             assert sorted(actual_services) == sorted(expected_services)
 
     def test_service_info_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """When it gets a correct service ID, it returns the expected ServiceMetadata."""
         requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service_metadata_wms_bar.prepare_for_json())
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         # Check the expected metadata on *both* of the services.
         with flask_app.test_request_context(headers=headers):
-            actual_service1 = abe_implementation.service_info(user_id=TEST_USER, service_id="wmts-foo")
+            actual_service1 = implementation.service_info(user_id=TEST_USER, service_id="wmts-foo")
             assert actual_service1 == service_metadata_wmts_foo
 
         with flask_app.test_request_context(headers=headers):
-            actual_service2 = abe_implementation.service_info(user_id=TEST_USER, service_id="wms-bar")
+            actual_service2 = implementation.service_info(user_id=TEST_USER, service_id="wms-bar")
             assert actual_service2 == service_metadata_wms_bar
 
     def test_service_info_wrong_id(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock,
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
 
         requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
         requests_mock.get(backend2 + "/services/wms-bar", json=service_metadata_wms_bar.prepare_for_json())
-        abe_implementation = AggregatorBackendImplementation(
-            backends=multi_backend_connection, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(ServiceNotFoundException):
-                abe_implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
+                implementation.service_info(user_id=TEST_USER, service_id="doesnotexist")
 
     def test_create_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, backend1, requests_mock
+        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, requests_mock
     ):
         """When it gets a correct params for a new service, it successfully creates it."""
 
@@ -402,13 +405,13 @@ class TestAggregatorSecondaryServices:
             },
             status_code=201
         )
-
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            actual_openeo_id = abe_implementation.create_service(
+            actual_openeo_id = implementation.create_service(
                 user_id=TEST_USER,
                 process_graph=process_graph,
                 service_type="WMTS",
@@ -419,7 +422,8 @@ class TestAggregatorSecondaryServices:
 
     @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
     def test_create_service_backend_raises_openeoapiexception(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock, exception_class
+        self, flask_app, api100, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, exception_class
     ):
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
 
@@ -432,13 +436,14 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error"),
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(OpenEOApiException):
-                abe_implementation.create_service(
+                implementation.create_service(
                     user_id=TEST_USER,
                     process_graph=process_graph,
                     service_type="WMTS",
@@ -450,7 +455,8 @@ class TestAggregatorSecondaryServices:
         [ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException]
     )
     def test_create_service_backend_reraises(
-        self, flask_app, api100, multi_backend_connection, config, backend1, requests_mock, exception_class
+        self, flask_app, api100, multi_backend_connection, config, catalog,
+        backend1, requests_mock, exception_class
     ):
         """When the backend raises exception types that indicate client error / bad input data,
         the aggregator raises and OpenEOApiException.
@@ -464,14 +470,15 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error")
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             # These exception types should be re-raised, not become an OpenEOApiException.
             with pytest.raises(exception_class):
-                abe_implementation.create_service(
+                implementation.create_service(
                     user_id=TEST_USER,
                     process_graph=process_graph,
                     service_type="WMTS",
@@ -480,7 +487,7 @@ class TestAggregatorSecondaryServices:
                 )
 
     def test_remove_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, 
+        self, flask_app, api100, multi_backend_connection, config, catalog,
         backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
@@ -497,12 +504,13 @@ class TestAggregatorSecondaryServices:
             status_code=200
         )
         mock_delete = requests_mock.delete(backend2 + "/services/wmts-foo", status_code=204)
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+            implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
             # Make sure the aggregator asked the backend to remove the service.
             assert mock_delete.called
@@ -512,7 +520,7 @@ class TestAggregatorSecondaryServices:
             assert mock_get2.called
 
     def test_remove_service_service_id_not_found(
-            self, flask_app, api100, multi_backend_connection, config,
+            self, flask_app, api100, multi_backend_connection, config, catalog,
             backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
@@ -537,13 +545,14 @@ class TestAggregatorSecondaryServices:
             backend2 + "/services/wmts-foo",
             status_code=204
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(ServiceNotFoundException):
-                abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+                implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
             assert not mock_delete1.called
             assert not mock_delete2.called 
@@ -552,7 +561,8 @@ class TestAggregatorSecondaryServices:
             assert mock_get2.called
 
     def test_remove_service_backend_response_is_an_error_status(
-            self, flask_app, api100, multi_backend_connection, config, backend1, requests_mock, service_metadata_wmts_foo
+            self, flask_app, api100, multi_backend_connection, config, catalog,
+            backend1, requests_mock, service_metadata_wmts_foo
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
 
@@ -563,13 +573,14 @@ class TestAggregatorSecondaryServices:
             status_code=200
         )
         requests_mock.delete(backend1 + "/services/wmts-foo", status_code=500)
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(OpenEoApiError) as e:
-                abe_implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
+                implementation.remove_service(user_id=TEST_USER, service_id="wmts-foo")
 
             # If the backend reports HTTP 400/500, we would expect the same status code from the aggregator.
             # TODO: Statement above is an assumption. Is that really what we expect?
@@ -577,7 +588,8 @@ class TestAggregatorSecondaryServices:
 
     # TODO: this test still fails with API version 1.0.0
     def test_update_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, backend1, backend2, requests_mock, service_metadata_wmts_foo
+        self, flask_app, api100, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
@@ -599,13 +611,14 @@ class TestAggregatorSecondaryServices:
             backend2 + "/services/wmts-foo",
             status_code=204,
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
-            abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
+            implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
 
             # Make sure the aggregator asked the backend to remove the service.
             assert mock_patch.called
@@ -619,8 +632,8 @@ class TestAggregatorSecondaryServices:
             assert mock_get2.called
 
     def test_update_service_service_id_not_found(
-        self, flask_app, api100, multi_backend_connection, config,
-        backend1, backend2, requests_mock, service_metadata_wmts_foo
+        self, flask_app, api100, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock
     ):
         """When the service ID does not exist then the aggregator raises an ServiceNotFoundException."""
 
@@ -644,14 +657,15 @@ class TestAggregatorSecondaryServices:
             backend2 + "/services/wmts-foo",
             status_code=204,
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(ServiceNotFoundException):
-                abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
+                implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=process_graph_after)
 
             assert not mock_patch1.called
             assert not mock_patch2.called
@@ -660,7 +674,7 @@ class TestAggregatorSecondaryServices:
             assert mock_get2.called
 
     def test_update_service_backend_response_is_an_error_status(
-        self, flask_app, api100, multi_backend_connection, config,
+        self, flask_app, api100, multi_backend_connection, config, catalog,
         backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
@@ -676,18 +690,18 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services/wmts-foo",
             status_code=500,
         )
-        abe_implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         new_process_graph = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         headers = TEST_USER_AUTH_HEADER
 
         with flask_app.test_request_context(headers=headers):
             with pytest.raises(OpenEoApiError) as e:
-                abe_implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=new_process_graph)
+                implementation.update_service(user_id=TEST_USER, service_id="wmts-foo", process_graph=new_process_graph)
 
             assert e.value.http_status_code == 500
             assert mock_patch.called
-
 
 
 class TestInternalCollectionMetadata:
