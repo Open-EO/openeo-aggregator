@@ -33,15 +33,6 @@ def backend2(requests_mock) -> str:
     return domain
 
 
-# as "lib_requests_mock": make a distinction with the pytest fixture that has the same name 
-def set_backend_to_api_version(requests_mock, domain: str, api_version: str) -> str:
-    """Helper function to make the backend connection use the expected API version."""
-
-    # TODO: would like a nicer solution to make the backend fixtures match the expected API version.
-    # Good enough for now tough, just have to remember to call it in your test.
-    return requests_mock.get(f"{domain}/", json={"api_version": api_version})
-
-
 @pytest.fixture
 def main_test_oidc_issuer() -> str:
     """
