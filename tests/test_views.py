@@ -1407,9 +1407,7 @@ class TestSecondaryServices:
         expected_service_types.update(service_type_2)
         assert actual_service_types == expected_service_types
 
-    def test_service_info(
-        self, api100, backend1, requests_mock
-    ):
+    def test_service_info(self, api100, backend1, requests_mock):
         """When it gets a correct service ID, it returns the expected service's metadata as JSON."""
 
         json_wmts_foo = {
@@ -1534,9 +1532,7 @@ class TestSecondaryServices:
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500
 
-    def test_remove_service_succeeds(
-        self, api100, requests_mock, backend1
-    ):
+    def test_remove_service_succeeds(self, api100, requests_mock, backend1):
         """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1558,9 +1554,7 @@ class TestSecondaryServices:
 
         assert resp.status_code == 404
 
-    def test_remove_service_but_service_id_not_found(
-            self, api100, backend1, requests_mock
-    ):
+    def test_remove_service_but_service_id_not_found(self, api100, backend1, requests_mock):
         """When the service ID does not exist then the aggregator responds with HTTP 404, not found."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1575,7 +1569,7 @@ class TestSecondaryServices:
         assert mock_delete.called
 
     def test_remove_service_backend_response_is_an_error_status(
-            self, api100, requests_mock, backend1, service_metadata_wmts_foo
+        self, api100, requests_mock, backend1, service_metadata_wmts_foo
     ):
         """When the backend response is an error, HTTP 500, then the aggregator also responds with HTTP 500 status."""
 
@@ -1604,7 +1598,7 @@ class TestSecondaryServices:
         assert mock_delete.called
 
     def test_update_service_service_succeeds(
-            self, api100, backend1, requests_mock, service_metadata_wmts_foo
+        self, api100, backend1, requests_mock, service_metadata_wmts_foo
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
@@ -1626,9 +1620,7 @@ class TestSecondaryServices:
         assert mock_patch.last_request.json() == json_payload
 
 
-    def test_update_service_but_backend_id_not_found(
-        self, api100
-    ):
+    def test_update_service_but_backend_id_not_found(self, api100):
         """When the service ID does not exist because the backend prefix is wrong, then the aggregator responds with HTTP 404, not found."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1640,7 +1632,7 @@ class TestSecondaryServices:
         assert resp.status_code == 404
 
     def test_update_service_service_id_not_found(
-            self, api100, backend1, requests_mock, service_metadata_wmts_foo
+        self, api100, backend1, requests_mock, service_metadata_wmts_foo
     ):
         """When the service ID does not exist for the specified backend, then the aggregator responds with HTTP 404, not found."""
 

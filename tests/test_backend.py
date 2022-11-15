@@ -162,7 +162,9 @@ class TestAggregatorSecondaryServices:
         service_types = implementation.service_types()
         assert service_types == single_service_type
 
-    def test_service_types_merging(self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock):
+    def test_service_types_merging(self, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock
+    ):
         """Given 2 backends with each 1 service type, then the aggregator lists both service types."""
         service_type_1 = {
             "WMTS": {
@@ -233,8 +235,8 @@ class TestAggregatorSecondaryServices:
         )
 
     def test_list_services_simple(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
-        service_metadata_wmts_foo
+        self, flask_app, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo
     ):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
@@ -259,8 +261,8 @@ class TestAggregatorSecondaryServices:
             assert actual_services == expected_services
 
     def test_list_services_merged(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
-        service_metadata_wmts_foo, service_metadata_wms_bar
+        self, flask_app, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
 
@@ -278,8 +280,8 @@ class TestAggregatorSecondaryServices:
             assert sorted(actual_services) == sorted(expected_services)
 
     def test_list_services_merged_multiple(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
-        service_metadata_wmts_foo, service_metadata_wms_bar
+        self, flask_app, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """Given multiple services across 2 backends, the aggregator lists all service types from all backends."""
         services1 = {
@@ -343,8 +345,8 @@ class TestAggregatorSecondaryServices:
             assert sorted(actual_services) == sorted(expected_services)
 
     def test_service_info_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
-        service_metadata_wmts_foo, service_metadata_wms_bar
+        self, flask_app, multi_backend_connection, config, catalog, 
+        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
     ):
         """When it gets a correct service ID, it returns the expected ServiceMetadata."""
         json_wmts_foo = service_metadata_wmts_foo.prepare_for_json()
@@ -374,7 +376,7 @@ class TestAggregatorSecondaryServices:
             assert actual_service2 == expected_service2
 
     def test_service_info_wrong_backend_id(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, requests_mock,
+        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock,
         service_metadata_wmts_foo
     ):
         """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
@@ -388,7 +390,7 @@ class TestAggregatorSecondaryServices:
                 implementation.service_info(user_id=TEST_USER, service_id="backenddoesnotexist-wtms-foo")
 
     def test_service_info_wrong_service_id(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, requests_mock,
+        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock,
     ):
         """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
 
@@ -403,7 +405,7 @@ class TestAggregatorSecondaryServices:
         assert requests_mock.called
 
     def test_create_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, requests_mock
+        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock
     ):
         """When it gets a correct params for a new service, it successfully creates it."""
 
@@ -437,7 +439,7 @@ class TestAggregatorSecondaryServices:
 
     @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
     def test_create_service_backend_raises_openeoapiexception(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
+        self, flask_app, multi_backend_connection, config, catalog,
         backend1, requests_mock, exception_class
     ):
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
@@ -466,7 +468,7 @@ class TestAggregatorSecondaryServices:
         [ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException]
     )
     def test_create_service_backend_reraises(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
+        self, flask_app, multi_backend_connection, config, catalog,
         backend1, requests_mock, exception_class
     ):
         """When the backend raises exception types that indicate client error / bad input data,
@@ -495,7 +497,7 @@ class TestAggregatorSecondaryServices:
                 )
 
     def test_remove_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, catalog, backend1, requests_mock
+        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock
     ):
         """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
 
@@ -510,7 +512,7 @@ class TestAggregatorSecondaryServices:
             assert mock_delete.called
 
     def test_remove_service_but_backend_id_not_found(
-            self, flask_app, api100, multi_backend_connection, config, catalog,
+            self, flask_app, multi_backend_connection, config, catalog,
     ):
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
@@ -523,7 +525,7 @@ class TestAggregatorSecondaryServices:
                 implementation.remove_service(user_id=TEST_USER, service_id="doesnotexist-wmts-foo")
 
     def test_remove_service_but_service_id_not_found(
-            self, flask_app, api100, multi_backend_connection, config, catalog,
+            self, flask_app, multi_backend_connection, config, catalog,
             backend1, requests_mock
     ):
         """When the service ID does not exist for the specified backend then the aggregator raises an ServiceNotFoundException."""
@@ -544,7 +546,7 @@ class TestAggregatorSecondaryServices:
             assert mock_delete1.called
 
     def test_remove_service_backend_response_is_an_error_status(
-            self, flask_app, api100, multi_backend_connection, config, catalog,
+            self, flask_app, multi_backend_connection, config, catalog,
             backend1, requests_mock
         ):
         """When the backend response is an HTTP error status then the aggregator raises an OpenEoApiError."""
@@ -562,7 +564,7 @@ class TestAggregatorSecondaryServices:
             assert e.value.http_status_code == 500
 
     def test_update_service_succeeds(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
+        self, flask_app, multi_backend_connection, config, catalog,
         backend1, requests_mock
     ):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
@@ -586,7 +588,7 @@ class TestAggregatorSecondaryServices:
             assert mock_patch.last_request.json() == expected_process
 
     def test_update_service_but_backend_id_does_not_exist(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
+        self, flask_app, multi_backend_connection, config, catalog,
     ):
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
@@ -599,8 +601,8 @@ class TestAggregatorSecondaryServices:
                 implementation.update_service(user_id=TEST_USER, service_id="doesnotexist-wmts-foo", process_graph=process_graph_after)
 
     def test_update_service_but_service_id_not_found(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
-        backend1, backend2, requests_mock
+        self, flask_app, multi_backend_connection, config, catalog,
+        backend1, requests_mock
     ):
         """When the service ID does not exist for the specified backend then the aggregator raises an ServiceNotFoundException."""
 
@@ -620,7 +622,7 @@ class TestAggregatorSecondaryServices:
             assert mock_patch1.called
 
     def test_update_service_backend_response_is_an_error_status(
-        self, flask_app, api100, multi_backend_connection, config, catalog,
+        self, flask_app, multi_backend_connection, config, catalog,
         backend1, requests_mock
     ):
         """When the backend response is an HTTP error status then the aggregator raises an OpenEoApiError."""
