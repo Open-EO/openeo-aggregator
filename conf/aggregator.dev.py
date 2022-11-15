@@ -74,7 +74,7 @@ config = AggregatorConfig(
             "parts": [
                 {
                     "type": "dict",
-                    "config": {"default_ttl": 60 * 60}
+                    "config": {"default_ttl": 5 * 60}
                 },
                 {
                     "type": "zookeeper",
