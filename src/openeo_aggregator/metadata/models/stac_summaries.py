@@ -181,5 +181,5 @@ class StacSummaries:
                     )
                 merged_addition_properties[summary_name] = eo_bands
             else:
-                report(f"Unhandled merging of summary {summary_name!r}")
+                report(f"Unhandled merging of summary {summary_name!r}", collection_id=collection_id)
         return StacSummaries(additional_properties=merged_addition_properties)

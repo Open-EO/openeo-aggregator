@@ -104,9 +104,10 @@ def merge_collection_metadata(
     summaries_by_backend = {}
     for backend_id, collection in by_backend.items():
         try:
-            summaries_by_backend[backend_id] = StacSummaries.from_dict(
-                collection.get("summaries")
-            )
+            if "summaries" in collection:
+                summaries_by_backend[backend_id] = StacSummaries.from_dict(
+                    collection.get("summaries")
+                )
         except Exception as e:
             report("Failed to parse summaries", collection_id=cid, backend_id=backend_id, exception=e)
     result["summaries"] = StacSummaries.merge_all(
