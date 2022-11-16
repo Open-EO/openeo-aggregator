@@ -4,8 +4,10 @@ from typing import Any, Dict, List, Type, TypeVar, Union, cast, Set, Tuple, Call
 
 import attr
 
+from openeo_aggregator.metadata.models.stac_eo import EoBand
 from openeo_aggregator.metadata.models.statistics import Statistics
 from openeo_aggregator.metadata.utils import merge_lists_skip_duplicates
+from openeo_aggregator.utils import common_prefix
 
 T = TypeVar("T", bound="StacSummaries")
 
@@ -42,6 +44,8 @@ class StacSummaries:
       It is generally allowed to add custom fields.
 
     """
+
+    # TODO: this is a confusing name, why not just "summaries"?
     additional_properties: Dict[str, Union[List[Any], Statistics, Dict]] = attr.ib(init=True, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -111,36 +115,71 @@ class StacSummaries:
 
     @staticmethod
     def merge_all(
-            summaries_list: List[Tuple[str, "StacSummaries"]],
-            report
+        summaries_by_backend: Dict[str, "StacSummaries"],
+        report,
+        collection_id: str,
     ) -> "StacSummaries":
         """
         Merge all summaries into one.
 
-        :param summaries_list: List of summaries to merge each as a tuple of (collection_identifier, summary).
+        :param summaries_list: List of summaries to merge each as a tuple of (backend_id, summary).
         :param report: logging function to report errors
 
         :return: Merged summaries
         """
-        additional_properties = [(cid, x.additional_properties) for cid, x in summaries_list]
+        by_backend = {
+            k: v.additional_properties for k, v in summaries_by_backend.items()
+        }
         # Calculate the unique summary names.
-        unique_summary_names: Set[str] = functools.reduce(lambda a, b: a.union(b), (d.keys() for _, d in additional_properties), set())
+        unique_summary_names: Set[str] = functools.reduce(
+            lambda a, b: a.union(b), (d.keys() for d in by_backend.values()), set()
+        )
 
         merged_addition_properties = {}
         for summary_name in unique_summary_names:
             if (
-                summary_name in ["constellation", "platform", "instruments"]
+                summary_name
+                in [
+                    "constellation",
+                    "platform",
+                    "instruments",
+                    "gsd",
+                ]
                 or summary_name.startswith("sar:")
                 or summary_name.startswith("sat:")
             ):
-                summary_lists = [d.get(summary_name, []) for _, d in additional_properties]
+                summary_lists = [d.get(summary_name, []) for d in by_backend.values()]
                 merged_addition_properties[summary_name] = merge_lists_skip_duplicates(summary_lists)
+            elif summary_name == "eo:bands":
+                eo_bands_lists = []
+                for collection_summaries in by_backend.values():
+                    try:
+                        if summary_name in collection_summaries:
+                            eo_bands_lists.append(
+                                [
+                                    EoBand.from_dict(b)
+                                    for b in collection_summaries.get(summary_name)
+                                ]
+                            )
+                    except Exception as e:
+                        report(
+                            f"Failed to parse summary {summary_name!r}: {e!r}",
+                            collection_id=collection_id,
+                        )
+                prefix: List[EoBand] = common_prefix(eo_bands_lists)
+                if len(prefix) > 0:
+                    eo_bands = [b.to_dict() for b in prefix]
+                else:
+                    report(
+                        f"Empty prefix for {summary_name!r}, falling back to first back-end's {summary_name!r}",
+                        collection_id=collection_id,
+                    )
+                    eo_bands = next(
+                        d.get(summary_name)
+                        for d in by_backend.values()
+                        if summary_name in d
+                    )
+                merged_addition_properties[summary_name] = eo_bands
             else:
-                backends = ",".join(
-                    [cid for cid, d in additional_properties if summary_name in d]
-                )
-                report(
-                    f"Unhandled merging of StacSummaries for summary_name: {summary_name!r}",
-                    backend_id=backends,
-                )
+                report(f"Unhandled merging of summary {summary_name!r}")
         return StacSummaries(additional_properties=merged_addition_properties)

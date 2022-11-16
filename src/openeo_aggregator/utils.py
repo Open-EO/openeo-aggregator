@@ -1,3 +1,5 @@
+import itertools
+
 import datetime
 import functools
 import logging
@@ -188,3 +190,18 @@ def timestamp_to_rfc3339(timestamp: float) -> str:
 
 def normalize_issuer_url(url: str) -> str:
     return url.rstrip("/").lower()
+
+
+def common_prefix(lists: Iterable[Iterable[Any]]) -> List[Any]:
+    """Find common prefix of a set of sequences."""
+    list_iterator = iter(lists)
+    try:
+        prefix = list(next(list_iterator))
+    except StopIteration:
+        prefix = []
+    for other in list_iterator:
+        prefix = [
+            t[0]
+            for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, other))
+        ]
+    return prefix

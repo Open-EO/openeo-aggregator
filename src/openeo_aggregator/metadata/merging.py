@@ -21,7 +21,7 @@ from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
 from openeo_aggregator.metadata.reporter import LoggerReporter
-from openeo_aggregator.utils import MultiDictGetter
+from openeo_aggregator.utils import MultiDictGetter, common_prefix
 from openeo_driver.errors import OpenEOApiException
 
 _log = logging.getLogger(__name__)
@@ -101,15 +101,17 @@ def merge_collection_metadata(
         result[field] = getter.first(field)
 
     # Summary merging
-    summaries_list = []
-    for i, cube_dim_dict in enumerate(getter.select("summaries").dictionaries):
-        backend_id = list(by_backend.keys())[i]
+    summaries_by_backend = {}
+    for backend_id, collection in by_backend.items():
         try:
-            summary = StacSummaries.from_dict(cube_dim_dict)
-            summaries_list.append((f"{backend_id}:{cid}", summary))
+            summaries_by_backend[backend_id] = StacSummaries.from_dict(
+                collection.get("summaries")
+            )
         except Exception as e:
-            report(repr(e), collection_id=cid, backend_id=backend_id)
-    result["summaries"] = StacSummaries.merge_all(summaries_list, report).to_dict()
+            report("Failed to parse summaries", collection_id=cid, backend_id=backend_id, exception=e)
+    result["summaries"] = StacSummaries.merge_all(
+        summaries_by_backend=summaries_by_backend, report=report, collection_id=cid
+    ).to_dict()
 
     # Assets
     if getter.has_key("assets"):
@@ -182,15 +184,7 @@ def merge_collection_metadata(
             try:
                 # Find common prefix of bands
                 # TODO: better approach? e.g. keep everything and rewrite process graphs on the fly?
-                bands_iterator = cube_dim_getter.select(dim).get("values")
-                prefix = next(bands_iterator)
-                for bands in bands_iterator:
-                    prefix = [t[0] for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, bands))]
-                    if bands != prefix:
-                        report(
-                            f"Trimming bands {bands} to common prefix {prefix}",
-                            collection_id=cid,
-                        )
+                prefix = common_prefix(cube_dim_getter.select(dim).get("values"))
                 if len(prefix) > 0:
                     result["cube:dimensions"][dim]["values"] = prefix
                 else:

@@ -1,8 +1,17 @@
 import pytest
 import shapely.geometry
 
-from openeo_aggregator.utils import normalize_issuer_url, MultiDictGetter, subdict, dict_merge, EventHandler, \
-    BoundingBox, strip_join, timestamp_to_rfc3339
+from openeo_aggregator.utils import (
+    normalize_issuer_url,
+    MultiDictGetter,
+    subdict,
+    dict_merge,
+    EventHandler,
+    BoundingBox,
+    strip_join,
+    timestamp_to_rfc3339,
+    common_prefix,
+)
 
 
 class TestMultiDictGetter:
@@ -218,3 +227,35 @@ def test_timestamp_to_rfc3339():
 def test_normalize_issuer_url():
     assert normalize_issuer_url("https://example.com/oidc/") == "https://example.com/oidc"
     assert normalize_issuer_url("https://example.com/OidC/") == "https://example.com/oidc"
+
+
+def test_common_prefix_empty():
+    assert common_prefix([]) == []
+
+
+def test_common_prefix_single():
+    assert common_prefix([[1, 2, 3]]) == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    ["first", "second", "expected"],
+    [
+        ([1, 2, 3, 4], [1, 2, 3, 5], [1, 2, 3]),
+        ([1, 2, 3, 4], [2, 3, 4, 1], []),
+        ([1, 2, 3], [1, 2, "3"], [1, 2]),
+        (range(5), range(4), [0, 1, 2, 3]),
+    ],
+)
+def test_common_prefix_basic(first, second, expected):
+    assert common_prefix([first, second]) == expected
+
+
+def test_common_prefix_multiple():
+    assert common_prefix(
+        (
+            [1, 2, 3, 4],
+            (1, 2, 3, 5),
+            (x for x in [1, 2, 3, 6]),
+            range(1, 9),
+        )
+    ) == [1, 2, 3]

@@ -6,7 +6,8 @@ After that, additional validation rules and merging logic was added manually.
 
 You can follow these steps to generate the models yourself:
 1. Install the openapi-generator: `pip install openapi-generator-cli`
-2. Convert the [openapi.yaml](https://github.com/Open-EO/openeo-api/blob/master/openapi.yaml) file to json.
+2. Convert the [openEO API openapi.yaml file](https://github.com/Open-EO/openeo-api/blob/master/openapi.yaml)
+   to json.
 
         sudo openapi-generator-cli generate -g openapi -i openapi.yaml -o .
 

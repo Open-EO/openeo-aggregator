@@ -796,12 +796,13 @@ class TestAggregatorCollectionCatalog:
         requests_mock.get(
             backend1 + "/collections", json={"collections": [{"id": "S2"}]}
         )
+        b1_bands = ["VV", "VH", "HV", "HH"]
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
                 "id": "S2",
                 "cube:dimensions": {
-                    "bands": {"type": "bands", "values": ["VV", "VH", "HV", "HH"]},
+                    "bands": {"type": "bands", "values": b1_bands},
                     "t": {
                         "extent": ["2013-10-03T04:14:15Z", "2020-04-03T00:00:00Z"],
                         "step": 1,
@@ -822,11 +823,13 @@ class TestAggregatorCollectionCatalog:
                         "type": "spatial",
                     },
                 },
+                "summaries": {"eo:bands": [{"name": b} for b in b1_bands]},
             },
         )
         requests_mock.get(
             backend2 + "/collections", json={"collections": [{"id": "S2"}]}
         )
+        b2_bands = ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"]
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -834,7 +837,7 @@ class TestAggregatorCollectionCatalog:
                 "cube:dimensions": {
                     "bands": {
                         "type": "bands",
-                        "values": ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"],
+                        "values": b2_bands,
                     },
                     "t": {
                         "extent": ["2013-04-03T00:00:00Z", "2019-04-03T00:00:00Z"],
@@ -854,10 +857,12 @@ class TestAggregatorCollectionCatalog:
                         "reference_system": {"name": "PROJJSON object."},
                     },
                 },
+                "summaries": {"eo:bands": [{"name": b} for b in b2_bands]},
             },
         )
 
         metadata = catalog.get_collection_metadata("S2")
+        expected_bands = ["VV", "VH"]
         assert metadata == {
             "id": "S2",
             "stac_version": "0.9.0",
@@ -868,7 +873,7 @@ class TestAggregatorCollectionCatalog:
             "cube:dimensions": {
                 "bands": {
                     "type": "bands",
-                    "values": ["VV", "VH"],
+                    "values": expected_bands,
                 },
                 "t": {
                     "extent": ["2013-04-03T00:00:00Z", "2020-04-03T00:00:00Z"],
@@ -893,6 +898,7 @@ class TestAggregatorCollectionCatalog:
             "summaries": {
                 "federation:backends": ["b1", "b2"],
                 "provider:backend": ["b1", "b2"],
+                "eo:bands": [{"name": b} for b in expected_bands],
             },
             "extent": {
                 "spatial": {"bbox": [[-180, -90, 180, 90]]},
@@ -938,6 +944,7 @@ class TestAggregatorCollectionCatalog:
                 "cube:dimensions": {
                     "bands": {"type": "bands", "values": b1_bands},
                 },
+                "summaries": {"eo:bands": [{"name": b} for b in b1_bands]},
             },
         )
         requests_mock.get(
@@ -950,6 +957,7 @@ class TestAggregatorCollectionCatalog:
                 "cube:dimensions": {
                     "bands": {"type": "bands", "values": b2_bands},
                 },
+                "summaries": {"eo:bands": [{"name": b} for b in b2_bands]},
             },
         )
 
@@ -970,6 +978,7 @@ class TestAggregatorCollectionCatalog:
             "summaries": {
                 "federation:backends": ["b1", "b2"],
                 "provider:backend": ["b1", "b2"],
+                "eo:bands": [{"name": b} for b in expected_bands],
             },
             "extent": {
                 "spatial": {"bbox": [[-180, -90, 180, 90]]},

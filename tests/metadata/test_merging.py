@@ -3,22 +3,6 @@ import pytest
 from openeo_aggregator.metadata.merging import ProcessMetadataMerger, json_diff
 from openeo_aggregator.testing import same_repr
 
-
-class ListReporter:
-    """Reporter for testing"""
-
-    def __init__(self):
-        self.logs = []
-
-    def __call__(self, msg, **kwargs):
-        self.logs.append({"msg": msg, **kwargs})
-
-
-@pytest.fixture
-def reporter() -> ListReporter:
-    return ListReporter()
-
-
 class TestMergeProcessMetadata:
     @pytest.fixture
     def merger(self, reporter) -> ProcessMetadataMerger:
