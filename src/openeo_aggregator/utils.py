@@ -93,12 +93,16 @@ def dict_merge(*args, **kwargs) -> dict:
     return result
 
 
-def remove_key(container, key):
-    if type(container) is dict:
-        if key in container:
-            del container[key]
-        for v in container.values():
-            remove_key(v, key)
+def drop_dict_keys(data: Any, keys: List[Any]) -> Any:
+    """Recursively drop given keys from (nested) dictionaries"""
+    if isinstance(data, dict):
+        return {
+            k: drop_dict_keys(v, keys=keys) for k, v in data.items() if k not in keys
+        }
+    elif isinstance(data, (list, tuple)):
+        return type(data)(drop_dict_keys(v, keys=keys) for v in data)
+    else:
+        return data
 
 
 class EventHandler:

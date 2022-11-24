@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import difflib
 import flask
-import itertools
+import functools
 import json
 import logging
 from typing import Dict, Optional, Callable, Any, List
@@ -21,7 +21,7 @@ from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
 from openeo_aggregator.metadata.reporter import LoggerReporter
-from openeo_aggregator.utils import MultiDictGetter, common_prefix, remove_key
+from openeo_aggregator.utils import MultiDictGetter, common_prefix, drop_dict_keys
 from openeo_driver.errors import OpenEOApiException
 
 _log = logging.getLogger(__name__)
@@ -255,6 +255,10 @@ def json_diff(
     )
 
 
+def ignore_description(data: Any) -> Any:
+    return drop_dict_keys(data, keys=["description"])
+
+
 class ProcessMetadataMerger:
     def __init__(self, report: Callable = DEFAULT_REPORTER.report):
         self.report = report
@@ -444,11 +448,10 @@ class ProcessMetadataMerger:
         getter = MultiDictGetter(by_backend.values())
         # TODO: real merge instead of taking first schema as "merged" schema?
         merged = getter.first("returns", {"schema": {}})
-        remove_key(merged, "description")
+
         for backend_id, process_metadata in by_backend.items():
             other_returns = process_metadata.get("returns", {"schema": {}})
-            remove_key(other_returns, "description")
-            if other_returns != merged:
+            if ignore_description(other_returns) != ignore_description(merged):
                 self.report(
                     f"Returns schema is different from merged.",
                     backend_id=backend_id,

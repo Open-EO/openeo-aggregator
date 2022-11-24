@@ -11,6 +11,7 @@ from openeo_aggregator.utils import (
     strip_join,
     timestamp_to_rfc3339,
     common_prefix,
+    drop_dict_keys,
 )
 
 
@@ -259,3 +260,39 @@ def test_common_prefix_multiple():
             range(1, 9),
         )
     ) == [1, 2, 3]
+
+
+def test_drop_dict_keys():
+    assert drop_dict_keys({}, keys=["foo"]) == {}
+    assert drop_dict_keys({"foo": 2, "bar": 3}, keys=["foo"]) == {"bar": 3}
+    assert drop_dict_keys(
+        [{"foo": 2, "bar": 3}, {"baz": 5}, {"meh": 8}], keys=["foo", "baz"]
+    ) == [{"bar": 3}, {}, {"meh": 8}]
+    assert drop_dict_keys(
+        {
+            "foo": {1: 1, 2: 2, 3: 3},
+            "bar": {2: 22, 3: 33, 4: 44},
+            "baz": {3: 333, 2: 222, 5: 555},
+        },
+        keys=[1, 2, 4, "bar"],
+    ) == {
+        "foo": {3: 3},
+        "baz": {3: 333, 5: 555},
+    }
+    assert drop_dict_keys(
+        [
+            [{1: 1}, {2: 2, 3: 3}],
+            ({3: 3}, {4: 4, 5: 5}),
+        ],
+        keys=[3, 5],
+    ) == [
+        [{1: 1}, {2: 2}],
+        ({}, {4: 4}),
+    ]
+
+
+def test_drop_dict_keys_copy():
+    d = {"foo": 1, "bar": 2}
+    res = drop_dict_keys(d, keys=["foo"])
+    assert d == {"foo": 1, "bar": 2}
+    assert res == {"bar": 2}

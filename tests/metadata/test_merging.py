@@ -65,9 +65,7 @@ class TestMergeProcessMetadata:
                     "returns": {
                         "schema": {
                             "type": "array",
-                            "items": {
-                                "description": "All data type are allowed."
-                            }
+                            "items": {"description": "All data types are allowed."},
                         },
                         "description": "some description"
                     }
@@ -91,10 +89,11 @@ class TestMergeProcessMetadata:
             "description": "add",
             "parameters": [],
             'returns': {
-                'schema': {
-                    'type': 'array',
-                    'items': {}
-                }
+                "description": "some description",
+                "schema": {
+                    "type": "array",
+                    "items": {"description": "All data types are allowed."},
+                },
             },
             "federation:backends": ["b1", "b2"],
             'deprecated': False,
