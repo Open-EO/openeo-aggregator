@@ -324,10 +324,10 @@ class ProcessMetadataMerger:
             merged, "categories", self._merge_process_categories(by_backend=by_backend)
         )
 
-        merged["deprecated"] = any(v for v in getter.get("deprecated") if v is True)
-        merged["experimental"] = any(v for v in getter.get("experimental") if v is True)
-        merged["examples"] = list(set(getter.get("examples")))
-        merged["links"] = list(set(getter.get("links")))
+        merged["deprecated"] = any(getter.get("deprecated"))
+        merged["experimental"] = any(getter.get("experimental"))
+        merged["examples"] = getter.concat("examples", skip_duplicates=True)
+        merged["links"] = getter.concat("links", skip_duplicates=True)
 
         return merged
 

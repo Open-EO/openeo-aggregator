@@ -2,6 +2,8 @@ import pytest
 
 from openeo_aggregator.metadata.merging import ProcessMetadataMerger, json_diff
 from openeo_aggregator.testing import same_repr
+from openeo_driver.testing import DictSubSet
+
 
 class TestMergeProcessMetadata:
     @pytest.fixture
@@ -608,6 +610,64 @@ class TestMergeProcessMetadata:
         }
 
         assert reporter.logs == []
+
+    @pytest.mark.parametrize(
+        ["flag", "v1", "v2", "expected"],
+        [
+            ("experimental", False, False, False),
+            ("experimental", False, True, True),
+            ("deprecated", False, False, False),
+            ("deprecated", True, False, True),
+        ],
+    )
+    def test_merge_process_flags(self, merger, reporter, flag, v1, v2, expected):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {"id": "add", flag: v1},
+                "b2": {"id": "add", flag: v2},
+            }
+        )
+        assert result == DictSubSet({"id": "add", flag: expected})
+
+    def test_merge_process_examples(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {
+                    "id": "add",
+                    "examples": [{"arguments": {"x": 3, "y": 5}, "returns": 8}],
+                },
+                "b2": {
+                    "id": "add",
+                    "examples": [{"arguments": {"x": 1, "y": 1}, "returns": 2}],
+                },
+            }
+        )
+        assert result == DictSubSet(
+            {
+                "id": "add",
+                "examples": [
+                    {"arguments": {"x": 3, "y": 5}, "returns": 8},
+                    {"arguments": {"x": 1, "y": 1}, "returns": 2},
+                ],
+            }
+        )
+
+    def test_merge_process_links(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {"id": "add", "links": [{"rel": "about", "href": "/a"}]},
+                "b2": {"id": "add", "links": [{"rel": "about", "href": "/b"}]},
+            }
+        )
+        assert result == DictSubSet(
+            {
+                "id": "add",
+                "links": [
+                    {"rel": "about", "href": "/a"},
+                    {"rel": "about", "href": "/b"},
+                ],
+            }
+        )
 
 
 def test_json_diff_empty():
