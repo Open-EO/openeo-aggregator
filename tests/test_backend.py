@@ -1710,6 +1710,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
             {
                 "id": "mean",
@@ -1717,6 +1721,10 @@ class TestAggregatorProcessing:
                 "parameters": [{"name": "data", "schema": {}, "description": "data"}],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1", "b2"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
             {
                 "id": "multiply",
@@ -1727,6 +1735,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b2"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
         ]
 
@@ -1806,6 +1818,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
             {
                 "id": "mean",
@@ -1813,6 +1829,10 @@ class TestAggregatorProcessing:
                 "parameters": [{"name": "array", "schema": {}, "description": "array"}],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1", "b2"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
             {
                 "id": "multiply",
@@ -1823,5 +1843,9 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b2"],
+                'deprecated': False,
+                'experimental': False,
+                'examples': [],
+                'links': []
             },
         ]

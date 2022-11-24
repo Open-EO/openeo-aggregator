@@ -420,6 +420,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b1"],
+                    'deprecated': False,
+                    'experimental': False,
+                    'examples': [],
+                    'links': []
                 },
                 {
                     "id": "mean",
@@ -433,6 +437,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {"type": "number"}},
                     "federation:backends": ["b1", "b2"],
+                    'deprecated': False,
+                    'experimental': False,
+                    'examples': [],
+                    'links': []
                 },
                 {
                     "id": "multiply",
@@ -443,6 +451,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b2"],
+                    'deprecated': False,
+                    'experimental': False,
+                    'examples': [],
+                    'links': []
                 },
             ],
             "links": [],
@@ -464,6 +476,10 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b1"],
+                        'deprecated': False,
+                        'experimental': False,
+                        'examples': [],
+                        'links': []
                     },
                     {
                         "id": "mean",
@@ -473,6 +489,10 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b1"],
+                        'deprecated': False,
+                        'experimental': False,
+                        'examples': [],
+                        'links': []
                     },
                 ],
             ),
@@ -489,6 +509,10 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
+                        'deprecated': False,
+                        'experimental': False,
+                        'examples': [],
+                        'links': []
                     },
                     {
                         "id": "mean",
@@ -498,6 +522,10 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
+                        'deprecated': False,
+                        'experimental': False,
+                        'examples': [],
+                        'links': []
                     },
                 ],
             ),
