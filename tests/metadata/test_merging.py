@@ -267,8 +267,16 @@ class TestMergeProcessMetadata:
         spec = {
             "id": "add",
             "parameters": [
-                {"name": "x", "schema": {"type": "number"}},
-                {"name": "y", "schema": {"type": "number"}},
+                {
+                    "name": "x",
+                    "schema": {"type": "number"},
+                    "description": "The x value.",
+                },
+                {
+                    "name": "y",
+                    "schema": {"type": "number"},
+                    "description": "The y value.",
+                },
             ],
         }
         result = merger.merge_process_metadata(
@@ -282,8 +290,16 @@ class TestMergeProcessMetadata:
             "id": "add",
             "description": "add",
             "parameters": [
-                {"name": "x", "description": "x", "schema": {"type": "number"}},
-                {"name": "y", "description": "y", "schema": {"type": "number"}},
+                {
+                    "name": "x",
+                    "description": "The x value.",
+                    "schema": {"type": "number"},
+                },
+                {
+                    "name": "y",
+                    "description": "The y value.",
+                    "schema": {"type": "number"},
+                },
             ],
             "returns": {"schema": {}},
             "federation:backends": ["b1", "b2"],
@@ -299,7 +315,13 @@ class TestMergeProcessMetadata:
             {
                 "b1": {
                     "id": "cos",
-                    "parameters": [{"name": "x", "schema": {"type": "number"}}],
+                    "parameters": [
+                        {
+                            "name": "x",
+                            "schema": {"type": "number"},
+                            "description": "x value",
+                        }
+                    ],
                 },
                 "b2": {"id": "cos", "parameters": [1324]},
             }
@@ -310,13 +332,13 @@ class TestMergeProcessMetadata:
             "federation:backends": ["b1", "b2"],
             "id": "cos",
             "parameters": [
-                {"description": "x", "name": "x", "schema": {"type": "number"}}
+                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
             ],
             "returns": {"schema": {}},
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -334,12 +356,77 @@ class TestMergeProcessMetadata:
             },
         ]
 
+    def test_merge_process_parameters_missing_required(self, merger, reporter):
+        result = merger.merge_process_metadata(
+            {
+                "b1": {
+                    "id": "cos",
+                    "parameters": [
+                        {
+                            "name": "x",
+                            "schema": {"type": "number"},
+                            "description": "x value",
+                        }
+                    ],
+                },
+                "b2": {"id": "cos", "parameters": [{"name": "x"}]},
+            }
+        )
+
+        assert result == {
+            "description": "cos",
+            "federation:backends": ["b1", "b2"],
+            "id": "cos",
+            "parameters": [
+                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
+            ],
+            "returns": {"schema": {}},
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
+        }
+        assert reporter.logs == [
+            {
+                "backend_id": "b2",
+                "msg": "Missing required field 'schema' in parameter metadata {'name': 'x'}",
+                "process_id": "cos",
+            },
+            {
+                "backend_id": "b2",
+                "msg": "Missing required field 'description' in parameter metadata {'name': 'x'}",
+                "process_id": "cos",
+            },
+            {
+                "backend_id": "b2",
+                "msg": "Parameter 'x' field 'schema' value differs from merged.",
+                "diff": [
+                    "--- merged\n",
+                    "+++ b2\n",
+                    "@@ -1,3 +1 @@\n",
+                    "-{\n",
+                    '-  "type": "number"\n',
+                    "-}\n",
+                    "+{}\n",
+                ],
+                "merged": {"type": "number"},
+                "process_id": "cos",
+                "value": {},
+            },
+        ]
+
     def test_merge_process_parameters_invalid_listing(self, merger, reporter):
         result = merger.merge_process_metadata(
             {
                 "b1": {
                     "id": "cos",
-                    "parameters": [{"name": "x", "schema": {"type": "number"}}],
+                    "parameters": [
+                        {
+                            "name": "x",
+                            "schema": {"type": "number"},
+                            "description": "x value",
+                        }
+                    ],
                 },
                 "b2": {"id": "cos", "parameters": 1324},
             }
@@ -350,7 +437,7 @@ class TestMergeProcessMetadata:
             "federation:backends": ["b1", "b2"],
             "id": "cos",
             "parameters": [
-                {"description": "x", "name": "x", "schema": {"type": "number"}}
+                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
             ],
             "returns": {"schema": {}},
             'deprecated': False,
@@ -379,7 +466,11 @@ class TestMergeProcessMetadata:
             "b1": {
                 "id": "cos",
                 "parameters": [
-                    {"name": "x", "schema": {"type": "number"}},
+                    {
+                        "name": "x",
+                        "schema": {"type": "number"},
+                        "description": "The X value.",
+                    },
                 ],
             },
             "b2": {
@@ -387,7 +478,6 @@ class TestMergeProcessMetadata:
                 "parameters": [
                     {
                         "name": "x",
-                        "description": "X value",
                         "schema": {"type": "number"},
                         "deprecated": False,
                         "optional": False,
@@ -406,7 +496,11 @@ class TestMergeProcessMetadata:
             "id": "cos",
             "description": "cos",
             "parameters": [
-                {"description": "x", "name": "x", "schema": {"type": "number"}}
+                {
+                    "name": "x",
+                    "schema": {"type": "number"},
+                    "description": "The X value.",
+                }
             ],
             "returns": {"schema": {}},
             "federation:backends": ["b1", "b2", "b3"],
@@ -416,6 +510,16 @@ class TestMergeProcessMetadata:
             'links': [],
         }
         assert reporter.logs == [
+            {
+                "backend_id": "b2",
+                "msg": "Missing required field 'description' in parameter metadata {'name': 'x', 'schema': {'type': 'number'}, 'deprecated': False, 'optional': False}",
+                "process_id": "cos",
+            },
+            {
+                "backend_id": "b3",
+                "msg": "Missing required field 'description' in parameter metadata {'name': 'x', 'schema': {'type': 'array'}}",
+                "process_id": "cos",
+            },
             {
                 "msg": "Parameter 'x' field 'schema' value differs from merged.",
                 "backend_id": "b3",
@@ -445,10 +549,13 @@ class TestMergeProcessMetadata:
                 "parameters": [
                     {
                         "name": "process",
+                        "description": "Callback",
                         "schema": {
                             "type": "object",
                             "subtype": "process-graph",
-                            "parameters": [{"name": "x", "schema": {}}],
+                            "parameters": [
+                                {"name": "x", "schema": {}, "description": "the x"}
+                            ],
                             "returns": {"schema": {}},
                         },
                     },
@@ -459,6 +566,7 @@ class TestMergeProcessMetadata:
                 "parameters": [
                     {
                         "name": "process",
+                        "description": "A Callback",
                         "schema": {
                             "type": "object",
                             "subtype": "process-graph",
@@ -466,6 +574,7 @@ class TestMergeProcessMetadata:
                                 {
                                     "name": "x",
                                     "schema": {},
+                                    "description": "The x",
                                     "optional": False,
                                     "deprecated": False,
                                     "experimental": False,
@@ -487,11 +596,13 @@ class TestMergeProcessMetadata:
             "parameters": [
                 {
                     "name": "process",
-                    "description": "process",
+                    "description": "Callback",
                     "schema": {
                         "type": "object",
                         "subtype": "process-graph",
-                        "parameters": [{"name": "x", "description": "x", "schema": {}}],
+                        "parameters": [
+                            {"name": "x", "description": "the x", "schema": {}}
+                        ],
                         "returns": {"schema": {}},
                     },
                 }
@@ -514,12 +625,19 @@ class TestMergeProcessMetadata:
             "b1": {
                 "id": "count",
                 "parameters": [
-                    {"name": "data", "schema": {"type": "array"}},
+                    {
+                        "name": "data",
+                        "schema": {"type": "array"},
+                        "description": "Data",
+                    },
                     {
                         "name": "condition",
+                        "description": "what to count",
                         "schema": [
                             {
-                                "parameters": [{"name": "x", "schema": {}}],
+                                "parameters": [
+                                    {"name": "x", "schema": {}, "description": "X."}
+                                ],
                                 "returns": {"schema": {"type": "boolean"}},
                                 "subtype": "process-graph",
                                 "type": "object",
@@ -548,6 +666,7 @@ class TestMergeProcessMetadata:
                     },
                     {
                         "name": "condition",
+                        "description": "Condition callback.",
                         "deprecated": False,
                         "experimental": False,
                         "optional": True,
@@ -581,10 +700,10 @@ class TestMergeProcessMetadata:
             "description": "count",
             "federation:backends": ["b1", "b2"],
             "parameters": [
-                {"name": "data", "description": "data", "schema": {"type": "array"}},
+                {"name": "data", "description": "Data", "schema": {"type": "array"}},
                 {
                     "name": "condition",
-                    "description": "condition",
+                    "description": "what to count",
                     "default": None,
                     "optional": True,
                     "schema": [
@@ -592,7 +711,7 @@ class TestMergeProcessMetadata:
                             "type": "object",
                             "subtype": "process-graph",
                             "parameters": [
-                                {"name": "x", "description": "x", "schema": {}}
+                                {"name": "x", "description": "X.", "schema": {}}
                             ],
                             "returns": {"schema": {"type": "boolean"}},
                         },

@@ -374,8 +374,11 @@ class ProcessMetadataMerger:
             params = process_metadata.get("parameters", [])
             if params:
                 normalizer = ProcessParameterNormalizer(
-                    backend_id, process_id,
-                    strip_description=False, add_optionals=False
+                    strip_description=False,
+                    add_optionals=False,
+                    report=functools.partial(
+                        self.report, backend_id=backend_id, process_id=process_id
+                    ),
                 )
                 merged = normalizer.normalize_parameters(params)
 
@@ -408,9 +411,11 @@ class ProcessMetadataMerger:
                 )
             for name in set(merged_params_by_name).intersection(params_by_name):
                 normalizer = ProcessParameterNormalizer(
-                    backend_id, process_id,
                     strip_description=True,
                     add_optionals=True,
+                    report=functools.partial(
+                        self.report, backend_id=backend_id, process_id=process_id
+                    ),
                 )
                 merged_param = normalizer.normalize_parameter(
                     merged_params_by_name[name]
@@ -505,20 +510,25 @@ class ProcessParameterNormalizer:
     e.g. for comparison purposes.
     """
 
-    __slots__ = ["backend_id", "process_id", "strip_description", "add_optionals", "report"]
+    __slots__ = ["strip_description", "add_optionals", "report"]
 
-    def __init__(self, backend_id, process_id,
-                 strip_description: bool = False, add_optionals: bool = True,
-                 report: Callable = DEFAULT_REPORTER.report):
-        self.backend_id = backend_id
-        self.process_id = process_id
+    def __init__(
+        self,
+        strip_description: bool = False,
+        add_optionals: bool = True,
+        report: Callable = DEFAULT_REPORTER.report,
+    ):
         self.strip_description = strip_description
         self.add_optionals = add_optionals
         self.report = report
 
     def normalize_parameter(self, param: dict) -> dict:
         """Normalize a parameter metadata dict"""
-        # TODO: report missing name/description/schema?
+        for required in ["name", "schema", "description"]:
+            if required not in param:
+                self.report(
+                    f"Missing required field {required!r} in parameter metadata {param!r}"
+                )
         normalized = {
             "name": param.get("name", "n/a"),
             "schema": param.get("schema", {}),
@@ -526,12 +536,7 @@ class ProcessParameterNormalizer:
         if self.strip_description:
             normalized["description"] = "-"
         else:
-            normalized["description"] = param.get("description", "")
-            if normalized["description"] == "":
-                self.report("Missing description for parameter",
-                    backend_id = self.backend_id, process_id = self.process_id, parameter = normalized["name"]
-                )
-                normalized["description"] = normalized["name"]
+            normalized["description"] = param.get("description", normalized["name"])
         for field, default_value in [
             ("optional", False),
             ("deprecated", False),
