@@ -16,12 +16,31 @@ def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:
     return entity_id, kwargs
 
 
-class MarkDownReporter:
+class Reporter:
+    def report(self, message: str, **kwargs):
+        """
+        Formats the message then outputs it to some channel.
+        Args:
+            message: The message to report.
+            **kwargs: Extra reporting parameters depending on reporter type.
+        """
+        raise NotImplementedError
+
+
+class MarkDownReporter(Reporter):
     # TODO: add support for level/severity?
-    def __init__(self):
-        self.items = []
 
     def report(self, msg: str, **kwargs):
+        """
+        Formats the message as markdown then outputs it to the console.
+        Args:
+            msg: The message to report.
+            **kwargs: Extra reporting parameters provided as key-value pairs.
+                - diff: a list of strings representing a JSON diff
+                - backend_id: the backend identifier
+                - collection_id: the collection identifier
+                - process_id: the process identifier
+        """
         entity_id, kwargs = _extract_entity_id(**kwargs)
         caller = inspect.stack()[1]
         caller_file = Path(caller.filename).name.split("/")[-1]
@@ -34,19 +53,25 @@ class MarkDownReporter:
         if "\n" in msg:
             # Multi-line message with sublist of code block: add extra newline
             msg += "\n"
-
-        self.items.append(msg)
-
-    def print(self):
-        for msg in self.items:
-            print(msg)
+        print(msg)
 
 
-class LoggerReporter:
+class LoggerReporter(Reporter):
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
     def report(self, msg: str, **kwargs):
+        """
+        Outputs the message as a warning to the logger.
+
+        Args:
+            msg: The message to report.
+            **kwargs: Extra reporting parameters provided as key-value pairs.
+                - backend_id: the backend identifier
+                - collection_id: the collection identifier
+                - process_id: the process identifier
+                - Any other parameters are printed as key-value pairs
+        """
         entity_id, kwargs = _extract_entity_id(**kwargs)
         msg = f"[{':'.join(entity_id)}] {msg}"
         msg += f" ({kwargs})" if kwargs else ""

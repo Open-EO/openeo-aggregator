@@ -95,7 +95,6 @@ def compare_get_collections(backend_urls):
         merge_collection_metadata(
             by_backend, full_metadata=False, report=reporter.report
         )
-    reporter.print()
 
 
 def compare_get_collection_by_id(backend_urls, collection_id):
@@ -109,7 +108,6 @@ def compare_get_collection_by_id(backend_urls, collection_id):
             by_backend[url] = r.json()
     reporter = MarkDownReporter()
     merge_collection_metadata(by_backend, full_metadata=True, report=reporter.report)
-    reporter.print()
 
 
 def compare_get_processes(backend_urls):
@@ -124,7 +122,6 @@ def compare_get_processes(backend_urls):
     ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(
         processes_per_backend
     )
-    reporter.print()
 
 
 def get_all_collections_ids(backend_urls) -> List[str]:
@@ -133,7 +130,12 @@ def get_all_collections_ids(backend_urls) -> List[str]:
         r = requests.get(url + "/collections")
         r.raise_for_status()
         collections_result = r.json()
-        collection_ids.update(c["id"] for c in collections_result["collections"])
+        collection_ids = set()
+        for c in collections_result["collections"]:
+            cid = c["id"]
+            if cid != "":
+                collection_ids.add(cid)
+        collection_ids.update(collection_ids)
     return sorted(collection_ids)
 
 
