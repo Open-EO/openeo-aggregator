@@ -21,7 +21,7 @@ from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
 from openeo_aggregator.metadata.reporter import LoggerReporter
-from openeo_aggregator.utils import MultiDictGetter, common_prefix
+from openeo_aggregator.utils import MultiDictGetter, common_prefix, remove_key
 from openeo_driver.errors import OpenEOApiException
 
 _log = logging.getLogger(__name__)
@@ -442,9 +442,10 @@ class ProcessMetadataMerger:
         getter = MultiDictGetter(by_backend.values())
         # TODO: real merge instead of taking first schema as "merged" schema?
         merged = getter.first("returns", {"schema": {}})
+        remove_key(merged, "description")
         for backend_id, process_metadata in by_backend.items():
             other_returns = process_metadata.get("returns", {"schema": {}})
-            # TODO: ignore description
+            remove_key(other_returns, "description")
             if other_returns != merged:
                 self.report(
                     f"Returns schema is different from merged.",

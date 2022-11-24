@@ -58,8 +58,29 @@ class TestMergeProcessMetadata:
     def test_merge_process_returns(self, merger, reporter):
         result = merger.merge_process_metadata(
             {
-                "b1": {"id": "add", "returns": {"schema": {"type": "number"}}},
-                "b2": {"id": "add", "returns": {"schema": {"type": "number"}}},
+                "b1": {
+                    "id": "add",
+                    "returns": {
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "description": "All data type are allowed."
+                            }
+                        },
+                        "description": "some description"
+                    }
+                },
+                "b2": {
+                    "id": "add",
+                    "returns": {
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "description": "Any data type is allowed."
+                            }
+                        }
+                    }
+                },
             }
         )
 
@@ -67,7 +88,12 @@ class TestMergeProcessMetadata:
             "id": "add",
             "description": "add",
             "parameters": [],
-            "returns": {"schema": {"type": "number"}},
+            'returns': {
+                'schema': {
+                    'type': 'array',
+                    'items': {}
+                }
+            },
             "federation:backends": ["b1", "b2"],
             'deprecated': False,
             'experimental': False,

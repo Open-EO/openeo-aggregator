@@ -93,6 +93,14 @@ def dict_merge(*args, **kwargs) -> dict:
     return result
 
 
+def remove_key(container, key):
+    if type(container) is dict:
+        if key in container:
+            del container[key]
+        for v in container.values():
+            remove_key(v, key)
+
+
 class EventHandler:
     """Simple event handler that allows to collect callbacks to call on a certain event."""
 
