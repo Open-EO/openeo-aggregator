@@ -30,11 +30,11 @@ from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection,
 from openeo_aggregator.utils import subdict, dict_merge, normalize_issuer_url
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider, BatchJobs, BatchJobMetadata
+    OidcProvider, BatchJobs, BatchJobMetadata, SecondaryServices, ServiceMetadata
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
     JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
-    FeatureUnsupportedException
+    FeatureUnsupportedException, ServiceNotFoundException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -620,6 +620,200 @@ class AggregatorBatchJobs(BatchJobs):
             return con.job(backend_job_id).logs(offset=offset)
 
 
+class ServiceIdMapping:
+    """Mapping between aggregator service ids and backend job ids"""
+
+    @staticmethod
+    def get_aggregator_service_id(backend_service_id: str, backend_id: str) -> str:
+        """Construct aggregator service id from given backend job id and backend id"""
+        return f"{backend_id}-{backend_service_id}"
+
+    @classmethod
+    def parse_aggregator_service_id(cls, backends: MultiBackendConnection, aggregator_service_id: str) -> Tuple[str, str]:
+        """Given aggregator service id: extract backend service id and backend id"""
+        for prefix in [f"{con.id}-" for con in backends]:
+            if aggregator_service_id.startswith(prefix):
+                backend_id, backend_job_id = aggregator_service_id.split("-", maxsplit=1)
+                return backend_job_id, backend_id
+        raise ServiceNotFoundException(service_id=aggregator_service_id)
+
+
+class AggregatorSecondaryServices(SecondaryServices):
+    """
+    Aggregator implementation of the Secondary Services "microservice"
+    https://openeo.org/documentation/1.0/developers/api/reference.html#tag/Secondary-Services
+    """
+
+    def __init__(
+            self,
+            backends: MultiBackendConnection,
+            processing: AggregatorProcessing
+    ):
+        super(AggregatorSecondaryServices, self).__init__()
+        self._backends = backends
+        self._processing = processing
+
+    def _get_connection_and_backend_service_id(
+            self,
+            aggregator_service_id: str
+    ) -> Tuple[BackendConnection, str]:
+        """Get connection to the backend and the corresponding service ID in that backend.
+
+        raises: ServiceNotFoundException when service_id does not exist in any of the backends.
+        """
+        backend_service_id, backend_id = ServiceIdMapping.parse_aggregator_service_id(
+            backends=self._backends,
+            aggregator_service_id=aggregator_service_id
+        )
+
+        con = self._backends.get_connection(backend_id)
+        return con, backend_service_id
+
+    def service_types(self) -> dict:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
+
+        service_types = {}
+
+        def merge(formats: dict, to_add: dict):
+            for name, data in to_add.items():
+                if name.lower() not in {k.lower() for k in formats.keys()}:
+                    formats[name] = data
+
+        # Collect all service types from the backends.
+        for con in self._backends:
+            try:
+                types_to_add = con.get("/service_types").json()
+            except Exception as e:
+                # TODO: fail instead of warn?
+                _log.warning(f"Failed to get service_types from {con.id}: {e!r}", exc_info=True)
+                continue
+            # TODO #1 smarter merging:  parameter differences?
+            merge(service_types, types_to_add)
+
+        return service_types
+
+    def list_services(self, user_id: str) -> List[ServiceMetadata]:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
+
+        # TODO: use ServiceIdMapping to prepend all service IDs with their backend-id
+        all_services = []
+        def merge(services, to_add):
+            # For now ignore the links
+            services_to_add = to_add.get("services")
+            if services_to_add:
+                services_metadata = [ServiceMetadata.from_dict(s) for s in services_to_add]
+                services.extend(services_metadata)
+
+        # Collect all services from the backends.
+        for con in self._backends:
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+                services_json = None
+                try:
+                    services_json = con.get("/services").json()
+                except Exception as e:
+                    _log.warning(f"Failed to get services from {con.id}: {e!r}", exc_info=True)
+                    continue
+
+                if services_json:
+                    merge(all_services, services_json)
+
+        return all_services
+
+    def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
+
+        con, backend_service_id = self._get_connection_and_backend_service_id(service_id)
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                service_json = con.get(f"/services/{backend_service_id}").json()
+            except (OpenEoApiError) as e:
+                if e.http_status_code == 404:
+                    # Expected error
+                    _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
+                    raise ServiceNotFoundException(service_id=service_id) from e
+                raise
+            except Exception as e:
+                _log.debug(f"Failed to get service with ID={backend_service_id} from backend with ID={con.id}: {e!r}", exc_info=True)
+                raise
+            else:
+                # Adapt the service ID so it points to the aggregator, with the backend ID included.
+                service_json["id"] = ServiceIdMapping.get_aggregator_service_id(service_json["id"], con.id)
+                return ServiceMetadata.from_dict(service_json)
+
+    def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
+                       configuration: dict) -> str:
+        """
+        https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
+        """
+        # TODO: configuration is not used. What to do with it?
+
+        backend_id = self._processing.get_backend_for_process_graph(
+            process_graph=process_graph, api_version=api_version
+        )
+        process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+
+        con = self._backends.get_connection(backend_id)
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                # create_service can raise ServiceUnsupportedException and OpenEOApiException.
+                service = con.create_service(graph=process_graph, type=service_type)
+
+            # TODO: This exception handling was copy-pasted. What do we actually need here?
+            except OpenEoApiError as e:
+                for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
+                    if e.code == exc_class.code:
+                        raise exc_class
+                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+            except (OpenEoRestError, OpenEoClientException) as e:
+                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+
+            return ServiceIdMapping.get_aggregator_service_id(service.service_id, backend_id)
+
+    def remove_service(self, user_id: str, service_id: str) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/delete-service"""
+
+        # Will raise ServiceNotFoundException if service_id does not exist in any of the backends.
+        con, backend_service_id = self._get_connection_and_backend_service_id(service_id)
+
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                con.delete(f"/services/{backend_service_id}", expected_status=204)
+            except (OpenEoApiError) as e:
+                if e.http_status_code == 404:
+                    # Expected error
+                    _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
+                    raise ServiceNotFoundException(service_id=service_id) from e
+                _log.warning(f"Failed to delete service {backend_service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise
+            except Exception as e:
+                _log.warning(f"Failed to delete service {backend_service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise OpenEOApiException(
+                    f"Failed to delete service {backend_service_id!r} on backend {con.id!r}: {e!r}"
+                ) from e
+
+    def update_service(self, user_id: str, service_id: str, process_graph: dict) -> None:
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/update-service"""
+
+        # Will raise ServiceNotFoundException if service_id does not exist in any of the backends.
+        con, backend_service_id = self._get_connection_and_backend_service_id(service_id)
+
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)):
+            try:
+                json = {"process": {"process_graph": process_graph}}
+                con.patch(f"/services/{backend_service_id}", json=json, expected_status=204)
+            except (OpenEoApiError) as e:
+                if e.http_status_code == 404:
+                    # Expected error
+                    _log.debug(f"No service with ID={backend_service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
+                    raise ServiceNotFoundException(service_id=service_id) from e
+                raise
+            except Exception as e:
+                _log.warning(f"Failed to update service {backend_service_id!r} from {con.id!r}: {e!r}", exc_info=True)
+                raise OpenEOApiException(
+                    f"Failed to update service {backend_service_id!r} from {con.id!r}: {e!r}"
+                ) from e
+
+
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
@@ -645,10 +839,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             processing=processing,
             partitioned_job_tracker=partitioned_job_tracker
         )
+
+        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing)
+
         super().__init__(
             catalog=catalog,
             processing=processing,
-            secondary_services=None,
+            secondary_services=secondary_services,
             batch_jobs=batch_jobs,
             user_defined_processes=None,
         )

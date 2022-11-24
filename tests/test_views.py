@@ -1,5 +1,4 @@
 import logging
-import logging
 import re
 from typing import Tuple, List
 
@@ -7,11 +6,13 @@ import pytest
 import requests
 
 from openeo.rest.connection import url_join
+from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
-    ProcessGraphInvalidException
+    ProcessGraphInvalidException, ProcessGraphMissingException
+from openeo_driver.backend import ServiceMetadata
 from openeo_driver.testing import ApiTester, TEST_USER_AUTH_HEADER, TEST_USER, TEST_USER_BEARER_TOKEN, DictSubSet, \
     RegexMatcher
 from .conftest import assert_dict_subset, get_api100, get_flask_app
@@ -1316,6 +1317,366 @@ class TestBatchJobs:
             }}}
         ]
 
+
+class TestSecondaryServices:
+
+    @pytest.fixture
+    def service_metadata_wmts_foo(self):
+        return ServiceMetadata(
+            id="wmts-foo",
+            process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            url='https://oeo.net/wmts/foo',
+            type="WMTS",
+            enabled=True,
+            configuration={"version": "0.5.8"},
+            attributes={},
+            title="Test WMTS service"
+            # not setting "created": This is used to test creating a service.
+        )
+
+
+    def test_service_types_simple(self, api100, backend1, backend2, requests_mock):
+        """Given 2 backends but only 1 backend has a single service, then the aggregator
+            returns that 1 service's metadata.
+        """
+        single_service_type = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        requests_mock.get(backend2 + "/service_types", json=single_service_type)
+
+        resp = api100.get('/service_types').assert_status_code(200)
+        assert resp.json == single_service_type
+
+    def test_service_types_merging(self, api100, backend1, backend2, requests_mock):
+        """Given 2 backends with each 1 service, then the aggregator lists both services."""
+        service_type_1 = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        service_type_2 = {
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {},
+                "process_parameters": [],
+                "links": []
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=service_type_1)
+        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+
+        resp = api100.get("/service_types").assert_status_code(200)
+        actual_service_types = resp.json
+
+        expected_service_types = dict(service_type_1)
+        expected_service_types.update(service_type_2)
+        assert actual_service_types == expected_service_types
+
+    def test_service_info(self, api100, backend1, requests_mock):
+        """When it gets a correct service ID, it returns the expected service's metadata as JSON."""
+
+        json_wmts_foo = {
+            "id": "wmts-foo",
+            "process": {"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
+            "url": "https://oeo.net/wmts/foo",
+            "type": "WMTS",
+            "enabled": "True",
+            "configuration": {"version": "0.5.8"},
+            "attributes": {},
+            "title": "Test WMTS service"
+        }
+        requests_mock.get(backend1 + "/services/wmts-foo", json=json_wmts_foo)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        resp = api100.get("/services/b1-wmts-foo").assert_status_code(200)
+
+        expected_json_wmts_foo = dict(json_wmts_foo)
+        expected_json_wmts_foo["id"] = "b1-" + json_wmts_foo["id"]
+        assert resp.json == expected_json_wmts_foo
+
+    def test_service_info_wrong_id(self, api100):
+        """When it gets a non-existent service ID, the aggregator responds with HTTP 404, not found."""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # The backend ID is wrong.
+        api100.get("/services/doesnotexist-someservice").assert_status_code(404)
+
+        # The backend ID exists but the service ID is wrong.
+        api100.get("/services/b1-doesnotexist").assert_status_code(404)
+
+    def test_create_wmts(self, api100, requests_mock, backend1):
+        """When the payload is correct the service should be successfully created,
+        the service ID should be prepended with the backend ID,
+        and location should point to the aggregator, not to the backend directly.
+        """
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        backend_service_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        expected_openeo_id = "b1-" + backend_service_id
+
+        # The aggregator MUST NOT point to the backend instance but to its own endpoint.
+        # This is handled by the openeo python driver in openeo_driver.views.services_post.
+        expected_location = "/openeo/1.0.0/services/" + expected_openeo_id
+        # However, backend1 must report its OWN location.
+        location_backend_1 = backend1 + "/services" + backend_service_id
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
+            "title": "My Service",
+            "description": "Service description"
+        }
+        requests_mock.post(
+            backend1 + "/services",
+            headers={
+                "OpenEO-Identifier": backend_service_id,
+                "Location": location_backend_1
+            },
+            status_code=201
+        )
+
+        resp = api100.post('/services', json=post_data).assert_status_code(201)
+
+        assert resp.headers['OpenEO-Identifier'] == expected_openeo_id
+        assert resp.headers['Location'] == expected_location
+
+    # ProcessGraphMissingException and ProcessGraphInvalidException are well known reasons for a bad client request.
+    @pytest.mark.parametrize("exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException])
+    def test_create_wmts_reports_400_client_error(self, api100, requests_mock, backend1, exception_class):
+        """When the backend raises exceptions that are typically a bad request / HTTP 400, then
+        we expect the aggregator to return a HTTP 400 status code."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
+            "title": "My Service",
+            "description": "Service description"
+        }
+        # TODO: In theory we should make the backend report a HTTP 400 status and then the aggregator
+        # should also report HTTP 400. But in fact that comes back as HTTP 500.
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api100.post('/services', json=post_data)
+        assert resp.status_code == 400
+
+    # OpenEoApiError, OpenEoRestError: more general errors we can expect to lead to a HTTP 500 server error.
+    @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
+    def test_create_wmts_reports_500_server_error(self, api100, requests_mock, backend1, exception_class):
+        """When the backend raises exceptions that are typically a server error / HTTP 500, then
+        we expect the aggregator to return a HTTP 500 status code."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        post_data = {
+            "type": 'WMTS',
+            "process": {
+                "process_graph": process_graph,
+                "id": "filter_temporal_wmts"
+            },
+            "title": "My Service",
+            "description": "Service description"
+        }
+        requests_mock.post(
+            backend1 + "/services",
+            exc=exception_class("Testing exception handling")
+        )
+
+        resp = api100.post('/services', json=post_data)
+        assert resp.status_code == 500
+
+    def test_remove_service_succeeds(self, api100, requests_mock, backend1):
+        """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        mock_delete = requests_mock.delete(backend1 + "/services/wmts-foo", status_code=204)
+
+        resp = api100.delete("/services/b1-wmts-foo")
+
+        assert resp.status_code == 204
+        # Make sure the aggregator asked the backend to remove the service.
+        assert mock_delete.called
+
+
+    def test_remove_service_but_backend_id_not_found(self, api100):
+        """When the service ID does not exist then the aggregator responds with HTTP 404, not found."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        resp = api100.delete("/services/wmts-foo")
+
+        assert resp.status_code == 404
+
+    def test_remove_service_but_service_id_not_found(self, api100, backend1, requests_mock):
+        """When the service ID does not exist then the aggregator responds with HTTP 404, not found."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        mock_delete = requests_mock.delete(
+            backend1 + "/services/wmts-foo",
+            status_code=404,
+        ) 
+
+        resp = api100.delete("/services/b1-wmts-foo")
+
+        assert resp.status_code == 404
+        assert mock_delete.called
+
+    def test_remove_service_backend_response_is_an_error_status(
+        self, api100, requests_mock, backend1, service_metadata_wmts_foo
+    ):
+        """When the backend response is an error, HTTP 500, then the aggregator also responds with HTTP 500 status."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        requests_mock.get(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=200
+        )
+        mock_delete = requests_mock.delete(
+            backend1 + "/services/wmts-foo",
+            status_code=500,
+            json={
+                "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
+                "code": "ErrorRemovingService",
+                "message": "Service 'wmts-foo' could not be removed.",
+                "url": "https://example.openeo.org/docs/errors/SampleError"
+            }
+        )
+
+        resp = api100.delete("/services/b1-wmts-foo")
+
+        assert resp.status_code == 500
+        # Verify the aggregator effectively asked the backend to remove the service,
+        # so we can reasonably assume that is where the error came from.
+        assert mock_delete.called
+
+    def test_update_service_service_succeeds(
+        self, api100, backend1, requests_mock, service_metadata_wmts_foo
+    ):
+        """When it receives an existing service ID and a correct payload, it updates the expected service."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        
+        mock_patch = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=204
+        )
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api100.patch("/services/b1-wmts-foo", json=json_payload)
+
+        assert resp.status_code == 204
+        # Make sure the aggregator asked the backend to update the service.
+        assert mock_patch.called
+        assert mock_patch.last_request.json() == json_payload
+
+
+    def test_update_service_but_backend_id_not_found(self, api100):
+        """When the service ID does not exist because the backend prefix is wrong, then the aggregator responds with HTTP 404, not found."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api100.patch("/services/backenddoesnotexist-someservice", json=json_payload)
+
+        assert resp.status_code == 404
+
+    def test_update_service_service_id_not_found(
+        self, api100, backend1, requests_mock, service_metadata_wmts_foo
+    ):
+        """When the service ID does not exist for the specified backend, then the aggregator responds with HTTP 404, not found."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        mock_patch = requests_mock.patch(
+            backend1 + "/services/servicedoesnotexist",
+            json=service_metadata_wmts_foo.prepare_for_json(),
+            status_code=404
+        )
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api100.patch("/services/b1-servicedoesnotexist", json=json_payload)
+
+        assert resp.status_code == 404
+        assert mock_patch.called
+
+    # TODO: for now, not bothering with HTTP 400 in the backend. To be decided if this is necessary.
+    @pytest.mark.parametrize("backend_http_status", [500])
+    def test_update_service_backend_response_is_an_error_status(
+        self, api100, backend1, requests_mock, backend_http_status
+    ):
+        """When the backend response is an error HTTP 400/500 then the aggregator raises an OpenEoApiError."""
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        mock_patch = requests_mock.patch(
+            backend1 + "/services/wmts-foo",
+            status_code=backend_http_status,
+            json={
+                "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
+                "code": "ErrorUpdatingService",
+                "message": "Service 'wmts-foo' could not be updated.",
+                "url": "https://example.openeo.org/docs/errors/SampleError"
+            }
+        )
+        process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
+        json_payload = {"process": {"process_graph": process_graph}}
+
+        resp = api100.patch("/services/b1-wmts-foo", json=json_payload)
+
+        assert resp.status_code == backend_http_status
+        assert mock_patch.called
+        assert mock_patch.last_request.json() == json_payload
+        
 
 class TestResilience:
 
