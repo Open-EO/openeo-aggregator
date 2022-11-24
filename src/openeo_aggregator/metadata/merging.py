@@ -324,10 +324,10 @@ class ProcessMetadataMerger:
             merged, "categories", self._merge_process_categories(by_backend=by_backend)
         )
 
-        # TODO: merge "deprecated" field
-        # TODO: merge "experimental" field
-        # TODO: merge "examples" field
-        # TODO: merge "links" field
+        merged["deprecated"] = any(v for v in getter.get("deprecated") if v is True)
+        merged["experimental"] = any(v for v in getter.get("experimental") if v is True)
+        merged["examples"] = list(set(getter.get("examples")))
+        merged["links"] = list(set(getter.get("links")))
 
         return merged
 
