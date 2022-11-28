@@ -18,11 +18,15 @@ from openeo.rest import OpenEoApiError, OpenEoRestError
 from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 
+# TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
+#       and move the tested functionality to test_views.py?
+#       Also see https://github.com/Open-EO/openeo-aggregator/pull/79#discussion_r1022018851
 TEST_USER = "Mr.Test"
 TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
 TEST_USER_AUTH_HEADER = {
     "Authorization": "Bearer " + TEST_USER_BEARER_TOKEN
 }
+
 
 class TestAggregatorBackendImplementation:
 

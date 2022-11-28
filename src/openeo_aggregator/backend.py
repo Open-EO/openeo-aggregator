@@ -671,9 +671,10 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
-
+        # TODO: add caching. Also see https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
         service_types = {}
 
+        # TODO: Instead of merge: prefix each type with backend-id? #83
         def merge(formats: dict, to_add: dict):
             for name, data in to_add.items():
                 if name.lower() not in {k.lower() for k in formats.keys()}:
@@ -681,6 +682,7 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         # Collect all service types from the backends.
         for con in self._backends:
+            # TODO: skip back-ends that do not support secondary services. https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
             try:
                 types_to_add = con.get("/service_types").json()
             except Exception as e:
@@ -747,6 +749,9 @@ class AggregatorSecondaryServices(SecondaryServices):
         """
         # TODO: configuration is not used. What to do with it?
 
+        # TODO: Determine backend based on service type?
+        #       See https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
+        #       and https://github.com/Open-EO/openeo-aggregator/issues/83
         backend_id = self._processing.get_backend_for_process_graph(
             process_graph=process_graph, api_version=api_version
         )
