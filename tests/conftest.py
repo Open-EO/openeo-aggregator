@@ -101,12 +101,26 @@ def base_config(
 
 
 @pytest.fixture
-def config(base_config, backend1, backend2) -> AggregatorConfig:
+def backend1_id() -> str:
+    """Id of first upstream backend. As a fixture to allow per-test override"""
+    return "b1"
+
+
+@pytest.fixture
+def backend2_id() -> str:
+    """Id of second upstream backend. As a fixture to allow per-test override"""
+    return "b2"
+
+
+@pytest.fixture
+def config(
+    base_config, backend1, backend2, backend1_id, backend2_id
+) -> AggregatorConfig:
     """Config for most tests with two backends."""
     conf = base_config
     conf.aggregator_backends = {
-        "b1": backend1,
-        "b2": backend2,
+        backend1_id: backend1,
+        backend2_id: backend2,
     }
     return conf
 

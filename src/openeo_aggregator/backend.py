@@ -749,12 +749,16 @@ class AggregatorSecondaryServices(SecondaryServices):
         """
         # TODO: configuration is not used. What to do with it?
 
-        # TODO: Determine backend based on service type?
+        # TODO: hardcoded/forced "SentinelHub only" support for now.
+        #       Instead, properly determine backend based on service type?
         #       See https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
         #       and https://github.com/Open-EO/openeo-aggregator/issues/83
-        backend_id = self._processing.get_backend_for_process_graph(
-            process_graph=process_graph, api_version=api_version
-        )
+        if "sentinelhub" in self._backends._backend_urls:
+            backend_id = "sentinelhub"
+        else:
+            backend_id = self._processing.get_backend_for_process_graph(
+                process_graph=process_graph, api_version=api_version
+            )
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         con = self._backends.get_connection(backend_id)
