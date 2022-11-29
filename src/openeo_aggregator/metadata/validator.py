@@ -130,12 +130,10 @@ def get_all_collections_ids(backend_urls) -> List[str]:
         r = requests.get(url + "/collections")
         r.raise_for_status()
         collections_result = r.json()
-        collection_ids = set()
         for c in collections_result["collections"]:
             cid = c["id"]
             if cid != "":
                 collection_ids.add(cid)
-        collection_ids.update(collection_ids)
     return sorted(collection_ids)
 
 
