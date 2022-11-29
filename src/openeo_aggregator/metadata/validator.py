@@ -9,6 +9,7 @@ from openeo_aggregator.metadata.merging import (
     ProcessMetadataMerger,
 )
 from openeo_aggregator.metadata.reporter import MarkDownReporter
+from openeo_aggregator.utils import MultiDictGetter
 
 _log = logging.getLogger(__name__)
 
@@ -82,6 +83,10 @@ def compare_get_collections(backends_for_collection_id):
     # Merge the different collection objects for each unique collection_id.
     reporter = MarkDownReporter()
     for collection_id, by_backend in backends_for_collection_id.items():
+        getter = MultiDictGetter(by_backend.values())
+        cid = getter.single_value_for("id")
+        if cid != collection_id:
+            reporter.report("Collection id in metadata does not match id in url", collection_id = cid)
         merge_collection_metadata(
             by_backend, full_metadata=False, report=reporter.report
         )
