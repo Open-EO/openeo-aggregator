@@ -1,7 +1,7 @@
 import argparse
 import logging
 import requests
-from typing import List
+from typing import List, Dict
 
 from openeo_aggregator.config import get_config, AggregatorConfig
 from openeo_aggregator.metadata.merging import (
@@ -64,10 +64,11 @@ def main():
         check_collections = check_processes = True
 
     if check_collections:
+        backends_for_collection_id: Dict[str, Dict] = get_all_collection_ids(backend_urls)
         # Compare /collections
-        compare_get_collections(backend_urls=backend_urls)
+        compare_get_collections(backends_for_collection_id)
         # Compare /collections/{collection_id}
-        for collection_id in get_all_collections_ids(backend_urls=backend_urls):
+        for collection_id in sorted(set(backends_for_collection_id.keys())):
             compare_get_collection_by_id(
                 backend_urls=backend_urls, collection_id=collection_id
             )
@@ -76,22 +77,11 @@ def main():
         compare_get_processes(backend_urls=backend_urls)
 
 
-def compare_get_collections(backend_urls):
+def compare_get_collections(backends_for_collection_id):
     print("\n\n## Comparing `/collections`\n")
-    # Extract all collection objects from the backends
-    backends_for_collection = {}
-    for url in backend_urls:
-        r = requests.get(url + "/collections")
-        r.raise_for_status()
-        collections_result = r.json()
-        for collection in collections_result["collections"]:
-            if collection["id"] not in backends_for_collection:
-                backends_for_collection[collection["id"]] = {}
-            backends_for_collection[collection["id"]][url] = collection
-
     # Merge the different collection objects for each unique collection_id.
     reporter = MarkDownReporter()
-    for collection_id, by_backend in backends_for_collection.items():
+    for collection_id, by_backend in backends_for_collection_id.items():
         merge_collection_metadata(
             by_backend, full_metadata=False, report=reporter.report
         )
@@ -124,17 +114,26 @@ def compare_get_processes(backend_urls):
     )
 
 
-def get_all_collections_ids(backend_urls) -> List[str]:
-    collection_ids = set()
+def get_all_collection_ids(backend_urls) -> Dict[str, Dict[str, Dict]]:
+    """
+    Args:
+        backend_urls: The backends to retrieve the set of collections from.
+
+    Returns:
+        Returns a dictionary mapping each collection id to a dictionary of {backend_url: collection_metadata}
+        key-value pairs.
+    """
+    backends_for_collection_id = {}
     for url in backend_urls:
         r = requests.get(url + "/collections")
         r.raise_for_status()
         collections_result = r.json()
-        for c in collections_result["collections"]:
-            cid = c["id"]
-            if cid != "":
-                collection_ids.add(cid)
-    return sorted(collection_ids)
+        for collection in collections_result["collections"]:
+            cid = collection["id"]
+            if cid not in backends_for_collection_id:
+                backends_for_collection_id[cid] = {}
+            backends_for_collection_id[cid][url] = collection
+    return backends_for_collection_id
 
 
 if __name__ == "__main__":
