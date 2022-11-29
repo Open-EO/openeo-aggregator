@@ -123,6 +123,7 @@ def get_all_collection_ids(backend_urls) -> Dict[str, Dict[str, Dict]]:
         Returns a dictionary mapping each collection id to a dictionary of {backend_url: collection_metadata}
         key-value pairs.
     """
+    reporter = MarkDownReporter()
     backends_for_collection_id = {}
     for url in backend_urls:
         r = requests.get(url + "/collections")
@@ -130,6 +131,9 @@ def get_all_collection_ids(backend_urls) -> Dict[str, Dict[str, Dict]]:
         collections_result = r.json()
         for collection in collections_result["collections"]:
             cid = collection["id"]
+            if cid == "":
+                reporter.report(f"Backend contains collection with empty string as id", backend_id=url)
+                continue
             if cid not in backends_for_collection_id:
                 backends_for_collection_id[cid] = {}
             backends_for_collection_id[cid][url] = collection
