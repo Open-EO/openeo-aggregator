@@ -90,13 +90,17 @@ def compare_get_collections(backends_for_collection_id):
 def compare_get_collection_by_id(backend_urls, collection_id):
     # TODO: Only print header when there are issues to report?
     print(f"\n\n## Comparing `/collections/{collection_id}`\n")
+    reporter = MarkDownReporter()
     by_backend = {}
     for url in backend_urls:
         # TODO: skip request if we know collection is not available on backend
         r = requests.get(url + "/collections/{}".format(collection_id))
         if r.status_code == 200:
-            by_backend[url] = r.json()
-    reporter = MarkDownReporter()
+            collection = r.json()
+            if "id" in collection:
+                by_backend[url] = collection
+            else:
+                reporter.report("Backend returned invalid collection", backend_id = url, collection_id = collection_id)
     merge_collection_metadata(by_backend, full_metadata=True, report=reporter.report)
 
 
