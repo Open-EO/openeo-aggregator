@@ -7,6 +7,7 @@ import requests
 
 from openeo.rest.connection import url_join
 from openeo.rest import OpenEoApiError, OpenEoRestError
+from openeo.util import rfc3339
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.testing import clock_mock
@@ -1466,6 +1467,208 @@ class TestSecondaryServices:
 
         # The backend ID exists but the service ID is wrong.
         api100.get("/services/b1-doesnotexist").assert_status_code(404)
+
+    def test_list_services_simple(self, api100, requests_mock, backend1):
+        """
+        Given 2 backends but only 1 backend has a single service, then the aggregator
+        returns that 1 service's metadata.
+        """
+        requests_mock.get(
+            backend1 + "/services",
+            json={
+                "services": [
+                    {
+                        "id": "service-123",
+                        "url": "https://maps.test/123",
+                        "type": "XYZ",
+                    }
+                ],
+                "links": [],
+            },
+        )
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        response = api100.get("/services").assert_status_code(200).json
+        assert response == {
+            "services": [
+                {
+                    "id": "b1-service-123",
+                    "type": "XYZ",
+                    "url": "https://maps.test/123",
+                    "enabled": True,
+                }
+            ],
+            "links": [],
+        }
+
+    def test_list_services_no_supporting_backends(
+        self, api100, requests_mock, backend1
+    ):
+        """None of the upstream backends supports secondary services"""
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        response = api100.get("/services").assert_status_code(200).json
+        assert response == {
+            "services": [],
+            "links": [],
+        }
+
+    def test_list_services_basic(self, api100, requests_mock, backend1, backend2):
+        """
+        Given 2 backends with each 1 service, then the aggregator lists both services.
+        """
+        requests_mock.get(
+            backend1 + "/services",
+            json={
+                "services": [
+                    {
+                        "id": "service-123",
+                        "url": "https://maps.test/123",
+                        "type": "XYZ",
+                        "enabled": True,
+                        "attributes": {"layers": ["ndvi", "evi"]},
+                        "configuration": {"version": "2.3.5"},
+                        "title": "Service 123",
+                        "created": rfc3339.datetime(2022, 12, 1),
+                    }
+                ],
+                "links": [],
+            },
+        )
+        requests_mock.get(
+            backend2 + "/services",
+            json={
+                "services": [
+                    {
+                        "id": "my-wms",
+                        "url": "https://wms.test/yo",
+                        "type": "WMS",
+                        "title": "My WMS",
+                    }
+                ],
+                "links": [],
+            },
+        )
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        response = api100.get("/services").assert_status_code(200).json
+        assert response == {
+            "services": [
+                {
+                    "id": "b1-service-123",
+                    "type": "XYZ",
+                    "url": "https://maps.test/123",
+                    "created": "2022-12-01T00:00:00Z",
+                    "enabled": True,
+                    "title": "Service 123",
+                    "configuration": {"version": "2.3.5"},
+                },
+                {
+                    "id": "b2-my-wms",
+                    "type": "WMS",
+                    "url": "https://wms.test/yo",
+                    "enabled": True,
+                    "title": "My WMS",
+                },
+            ],
+            "links": [],
+        }
+
+    def test_list_services_extended(self, api100, requests_mock, backend1, backend2):
+        """
+        Given multiple services across 2 backends, the aggregator lists all service types from all backends.
+        """
+        requests_mock.get(
+            backend1 + "/services",
+            json={
+                "services": [
+                    {
+                        "id": "wms-nvdi",
+                        "title": "NDVI based on Sentinel 2",
+                        "description": "Deriving minimum NDVI measurements over pixel time series of Sentinel 2",
+                        "url": "https://example.openeo.org/wms/wms-nvdi",
+                        "type": "wms",
+                        "enabled": True,
+                        "process": {
+                            "id": "ndvi",
+                            "summary": "string",
+                            "description": "string",
+                            "links": [
+                                {
+                                    "rel": "related",
+                                    "href": "https://example.openeo.org",
+                                    "type": "text/html",
+                                    "title": "openEO",
+                                }
+                            ],
+                            "process_graph": {
+                                "foo": {"process_id": "foo", "arguments": {}}
+                            },
+                        },
+                        "configuration": {"version": "1.3.0"},
+                        "attributes": {"layers": ["ndvi", "evi"]},
+                        "created": "2017-01-01T09:32:12Z",
+                    }
+                ],
+                "links": [
+                    {
+                        "rel": "related",
+                        "href": "https://example.openeo.org",
+                        "type": "text/html",
+                        "title": "openEO",
+                    }
+                ],
+            },
+        )
+        requests_mock.get(
+            backend2 + "/services",
+            json={
+                "services": [
+                    {
+                        "id": "my-wms",
+                        "url": "https://wms.test/yo",
+                        "type": "WMS",
+                    },
+                    {
+                        "id": "another-wms",
+                        "url": "https://wms.test/wasup",
+                        "type": "WMS",
+                    },
+                ],
+                "links": [],
+            },
+        )
+
+        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+        response = api100.get("/services").assert_status_code(200).json
+        assert response == {
+            "services": [
+                {
+                    "id": "b1-wms-nvdi",
+                    "type": "wms",
+                    "url": "https://example.openeo.org/wms/wms-nvdi",
+                    "configuration": {"version": "1.3.0"},
+                    "created": "2017-01-01T09:32:12Z",
+                    "description": "Deriving minimum NDVI measurements over pixel "
+                    "time series of Sentinel 2",
+                    "enabled": True,
+                    "title": "NDVI based on Sentinel 2",
+                },
+                {
+                    "id": "b2-my-wms",
+                    "type": "WMS",
+                    "url": "https://wms.test/yo",
+                    "enabled": True,
+                },
+                {
+                    "id": "b2-another-wms",
+                    "type": "WMS",
+                    "url": "https://wms.test/wasup",
+                    "enabled": True,
+                },
+            ],
+            # TODO: merging of `links` field
+            "links": [],
+        }
 
     def test_create_wmts(self, api100, requests_mock, backend1):
         """When the payload is correct the service should be successfully created,

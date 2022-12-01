@@ -131,6 +131,9 @@ class TestAggregatorBackendImplementation:
 
 class TestAggregatorSecondaryServices:
 
+    # TODO: most tests here (the ones that do flask app stuff and auth)
+    #       belong under test_views.py
+
     def test_service_types_simple(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock
     ):
@@ -237,116 +240,6 @@ class TestAggregatorSecondaryServices:
             title="Test WMS service",
             created=dt.datetime(2022, 2, 1, 13, 30, 3)
         )
-
-    def test_list_services_simple(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, backend2, requests_mock, service_metadata_wmts_foo
-    ):
-        """Given 2 backends but only 1 backend has a single service, then the aggregator
-            returns that 1 service's metadata.
-        """
-        services1 = {"services": [service_metadata_wmts_foo.prepare_for_json()], "links": []}
-        services2 = {}
-        requests_mock.get(backend1 + "/services", json=services1)
-        requests_mock.get(backend2 + "/services", json=services2)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
-
-        with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            actual_services = implementation.list_services(user_id=TEST_USER)
-
-            # Construct expected result. We have get just data from the service in services1
-            # (there is only one) for conversion to a ServiceMetadata.
-            the_service = dict(services1["services"][0])
-
-            # TODO: prepend the backend's service_id with the backend_id
-            # the_service["id"] = "<backend_id>-wmts-foo"
-            expected_services = [ServiceMetadata.from_dict(the_service)]
-            assert actual_services == expected_services
-
-    def test_list_services_merged(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
-    ):
-        """Given 2 backends with each 1 service, then the aggregator lists both services."""
-
-        services1 = {"services": [service_metadata_wmts_foo.prepare_for_json()], "links": []}
-        services2 = {"services": [service_metadata_wms_bar.prepare_for_json()], "links": []}
-        requests_mock.get(backend1 + "/services", json=services1)
-        requests_mock.get(backend2 + "/services", json=services2)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
-
-        with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            actual_services = implementation.list_services(user_id=TEST_USER)
-
-            expected_services = [service_metadata_wmts_foo, service_metadata_wms_bar]
-            assert sorted(actual_services) == sorted(expected_services)
-
-    def test_list_services_merged_multiple(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
-    ):
-        """Given multiple services across 2 backends, the aggregator lists all service types from all backends."""
-        services1 = {
-            "services": [{
-                "id": "wms-nvdi",
-                "title": "NDVI based on Sentinel 2",
-                "description": "Deriving minimum NDVI measurements over pixel time series of Sentinel 2",
-                "url": "https://example.openeo.org/wms/wms-nvdi",
-                "type": "wms",
-                "enabled": True,
-                "process": {
-                    "id": "ndvi",
-                    "summary": "string",
-                    "description": "string",
-                    "links": [{
-                        "rel": "related",
-                        "href": "https://example.openeo.org",
-                        "type": "text/html",
-                        "title": "openEO"
-                    }],
-                    "process_graph": {"foo": {"process_id": "foo", "arguments": {}}},
-                },
-                "configuration": {
-                    "version": "1.3.0"
-                },
-                "attributes": {
-                    "layers": ["ndvi", "evi"]
-                },
-                "created": "2017-01-01T09:32:12Z",
-            }],
-            "links": [{
-                "rel": "related",
-                "href": "https://example.openeo.org",
-                "type": "text/html",
-                "title": "openEO"
-            }]
-        }
-        services2 = {"services": [
-                service_metadata_wmts_foo.prepare_for_json(),
-                service_metadata_wms_bar.prepare_for_json()
-            ],
-            "links": []
-        }
-        requests_mock.get(backend1 + "/services", json=services1)
-        requests_mock.get(backend2 + "/services", json=services2)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
-
-        with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            actual_services = implementation.list_services(user_id=TEST_USER)
-
-            # Construct expected result. We have get just data from the service in
-            # services1 (there is only one) for conversion to a ServiceMetadata.
-            # TODO: do we need to take care of the links part in the JSON as well?
-            service1 = services1["services"][0]
-            service1_md = ServiceMetadata.from_dict(service1)
-            expected_services = [
-                service1_md, service_metadata_wmts_foo, service_metadata_wms_bar
-            ]
-
-            assert sorted(actual_services) == sorted(expected_services)
 
     def test_service_info_succeeds(
         self, flask_app, multi_backend_connection, config, catalog, 

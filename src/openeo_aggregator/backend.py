@@ -451,6 +451,7 @@ class AggregatorBatchJobs(BatchJobs):
                     federation_missing.add(con.id)
                     backend_jobs = []
                 for job in backend_jobs:
+                    # TODO: try-except around processing of job metadata?
                     job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
                     jobs.append(BatchJobMetadata.from_api_dict(job))
 
@@ -696,30 +697,28 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
+        services = []
 
-        # TODO: use ServiceIdMapping to prepend all service IDs with their backend-id
-        all_services = []
-        def merge(services, to_add):
-            # For now ignore the links
-            services_to_add = to_add.get("services")
-            if services_to_add:
-                services_metadata = [ServiceMetadata.from_dict(s) for s in services_to_add]
-                services.extend(services_metadata)
-
-        # Collect all services from the backends.
         for con in self._backends:
-            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
-                services_json = None
+            # TODO: skip backends that are known not to support secondary services.
+            with con.authenticated_from_request(
+                request=flask.request, user=User(user_id)
+            ):
                 try:
-                    services_json = con.get("/services").json()
+                    data = con.get("/services").json()
+                    for service_data in data["services"]:
+                        service_data["id"] = ServiceIdMapping.get_aggregator_service_id(
+                            backend_service_id=service_data["id"], backend_id=con.id
+                        )
+                        services.append(ServiceMetadata.from_dict(service_data))
                 except Exception as e:
-                    _log.warning(f"Failed to get services from {con.id}: {e!r}", exc_info=True)
-                    continue
-
-                if services_json:
-                    merge(all_services, services_json)
-
-        return all_services
+                    _log.error(
+                        f"Failed to get/parse service listing from {con.id}: {e!r}",
+                        exc_info=True,
+                    )
+        # TODO: how to merge `links` field of `GET /services` response?
+        # TODO: how to add  "federation:missing" field in response? (Also see batch job listing)
+        return services
 
     def service_info(self, user_id: str, service_id: str) -> ServiceMetadata:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/describe-service"""
