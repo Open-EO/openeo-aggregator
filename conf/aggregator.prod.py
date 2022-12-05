@@ -30,13 +30,6 @@ configured_oidc_providers = [
         scopes=_DEFAULT_EGI_SCOPES,
         default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
-    OidcProvider(
-        id="egi-legacy",
-        title="EGI Check-in (legacy)",
-        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
-        scopes=_DEFAULT_EGI_SCOPES,
-        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    ),
 ]
 
 ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181"
@@ -49,7 +42,6 @@ config = AggregatorConfig(
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {
         "https://aai.egi.eu/auth/realms/egi/",
-        "https://aai.egi.eu/oidc",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
     }},
     configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={

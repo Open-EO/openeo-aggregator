@@ -31,13 +31,6 @@ configured_oidc_providers = [
         default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
     ),
     OidcProvider(
-        id="egi-legacy",
-        title="EGI Check-in (legacy)",
-        issuer="https://aai.egi.eu/oidc/",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
-        scopes=_DEFAULT_EGI_SCOPES,
-        default_clients=[_DEFAULT_OIDC_CLIENT_EGI],
-    ),
-    OidcProvider(
         id="egi-dev",
         title="EGI Check-in (dev)",
         issuer="https://aai-dev.egi.eu/auth/realms/egi/",
@@ -60,7 +53,6 @@ config = AggregatorConfig(
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {
         "https://aai.egi.eu/auth/realms/egi/",
-        "https://aai.egi.eu/oidc",  # TODO: remove old EGI provider refs (issuer https://aai.egi.eu/oidc/)
     }},
     configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={
