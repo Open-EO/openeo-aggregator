@@ -39,6 +39,8 @@ config = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo.vito.be/openeo/1.0/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
+        # Sentinel Hub OpenEO by Sinergise
+        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
     auth_entitlement_check={"oidc_issuer_whitelist": {
         "https://aai.egi.eu/auth/realms/egi/",
