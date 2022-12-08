@@ -648,10 +648,16 @@ class AggregatorSecondaryServices(SecondaryServices):
     def __init__(
             self,
             backends: MultiBackendConnection,
-            processing: AggregatorProcessing
+            processing: AggregatorProcessing,
+            config: AggregatorConfig
     ):
         super(AggregatorSecondaryServices, self).__init__()
         self._backends = backends
+
+        self._memoizer = memoizer_from_config(config=config, namespace="SecondaryServices")
+        self._backends.on_connections_change.add(self._memoizer.invalidate)
+
+        # TODO Issue #84 Decide which backend based on service type. Will need to remove self._processing for this.
         self._processing = processing
 
     def _get_connection_and_backend_service_id(
@@ -671,6 +677,9 @@ class AggregatorSecondaryServices(SecondaryServices):
         return con, backend_service_id
 
     def service_types(self) -> dict:
+        return self._memoizer.get_or_call(key=("all_service_types",), callback=self._get_service_types)
+
+    def _get_service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
         # TODO: add caching. Also see https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
         service_types = {}
@@ -848,7 +857,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             partitioned_job_tracker=partitioned_job_tracker
         )
 
-        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing)
+        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing, config=config)
 
         super().__init__(
             catalog=catalog,

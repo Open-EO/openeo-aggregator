@@ -164,11 +164,60 @@ class TestAggregatorSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         service_types = implementation.service_types()
         assert service_types == single_service_type
 
+    def test_service_types_simple_cached(
+        self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock
+    ):
+        """The service_types call is cached:
+            When we get the service types several times, the second call that happens before the cache expires,
+            doesn't hit the backend.
+            But the third call that happens that happens after the cache has expired does hit the backend again.
+        """
+        single_service_type = {
+            "WMTS": {
+                "configuration": {
+                    "colormap": {
+                        "default": "YlGn",
+                        "description":
+                        "The colormap to apply to single band layers",
+                        "type": "string"
+                    },
+                    "version": {
+                        "default": "1.0.0",
+                        "description": "The WMTS version to use.",
+                        "enum": ["1.0.0"],
+                        "type": "string"
+                    }
+                },
+                "links": [],
+                "process_parameters": [],
+                "title": "Web Map Tile Service"
+            }
+        }
+        mock_be1 = requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+
+        service_types = implementation.service_types()
+        assert mock_be1.call_count == 1
+        assert service_types == single_service_type
+
+        # Second call happens before the cache item expires: it should not query the backend.
+        service_types = implementation.service_types()
+        assert mock_be1.call_count == 1
+        assert service_types == single_service_type
+
+        # Third call happens when the cached item has expired: it should query the backend.
+        with clock_mock(offset=100):
+            service_types = implementation.service_types()
+            assert mock_be1.call_count == 2
+            assert service_types == single_service_type
+
+    # TODO: Issue #84 Check if we should remove this merging behavior.
     def test_service_types_merging(self, multi_backend_connection, config, catalog,
         backend1, backend2, requests_mock
     ):
@@ -205,7 +254,7 @@ class TestAggregatorSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         actual_service_types = implementation.service_types()
 
@@ -251,7 +300,7 @@ class TestAggregatorSecondaryServices:
         requests_mock.get(backend1 + "/services/wmts-foo", json=json_wmts_foo)
         requests_mock.get(backend2 + "/services/wms-bar", json=json_wms_bar)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         # Check the expected metadata on *both* of the services.
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -280,7 +329,7 @@ class TestAggregatorSecondaryServices:
 
         requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
@@ -293,7 +342,7 @@ class TestAggregatorSecondaryServices:
 
         requests_mock.get(backend1 + "/services/service-does-not-exist", status_code=404)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
@@ -322,7 +371,7 @@ class TestAggregatorSecondaryServices:
             status_code=201
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             actual_openeo_id = implementation.create_service(
@@ -349,7 +398,7 @@ class TestAggregatorSecondaryServices:
             exc=exception_class("Some server error"),
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(OpenEOApiException):
@@ -380,7 +429,7 @@ class TestAggregatorSecondaryServices:
             exc=exception_class("Some server error")
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             # These exception types should be re-raised, not become an OpenEOApiException.
@@ -400,7 +449,7 @@ class TestAggregatorSecondaryServices:
 
         mock_delete = requests_mock.delete(backend1 + "/services/wmts-foo", status_code=204)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             implementation.remove_service(user_id=TEST_USER, service_id="b1-wmts-foo")
@@ -414,7 +463,7 @@ class TestAggregatorSecondaryServices:
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         # Case 1: the backend doesn't even exist
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -428,7 +477,7 @@ class TestAggregatorSecondaryServices:
         """When the service ID does not exist for the specified backend then the aggregator raises an ServiceNotFoundException."""
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         # The backend exists but the service ID does not.
         mock_delete1 = requests_mock.delete(
@@ -450,7 +499,7 @@ class TestAggregatorSecondaryServices:
 
         requests_mock.delete(backend1 + "/services/wmts-foo", status_code=500)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(OpenEoApiError) as e:
@@ -471,7 +520,7 @@ class TestAggregatorSecondaryServices:
             status_code=204,
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -490,7 +539,7 @@ class TestAggregatorSecondaryServices:
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -509,7 +558,7 @@ class TestAggregatorSecondaryServices:
             status_code=404,
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -529,7 +578,7 @@ class TestAggregatorSecondaryServices:
             status_code=500,
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
         new_process_graph = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
