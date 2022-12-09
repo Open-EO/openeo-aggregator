@@ -371,14 +371,15 @@ class TestAggregatorSecondaryServices:
     ):
         """When it gets a request for a service type that no backend supports, it raises ServiceUnsupportedException."""
 
-        # Set up one service type. Don't want test to succeed because there are no services at all.
+        # At least 1 service type must be present.
+        # We don't want test to succeed erroneously simply because there are no services at all.
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         non_existent_service_id =  "b1-doesnotexist"
-        # check that this requests_mock does not get called
+        # Check that this requests_mock does not get called.
         location_backend_1 = backend1 + "/services/" + non_existent_service_id
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
-        requests_mock.post(
+        mock_post = requests_mock.post(
             backend1 + "/services",
             headers={
                 "OpenEO-Identifier": "wmts-foo",
@@ -398,6 +399,7 @@ class TestAggregatorSecondaryServices:
                     api_version="1.0.0",
                     configuration={}
                 )
+            assert not mock_post.called
 
 
     @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])

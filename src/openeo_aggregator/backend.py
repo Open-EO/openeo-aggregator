@@ -677,8 +677,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
-        # TODO: implement household data to cache useful data for selecting backend based on service and backend's capabilities.
-
         cached_info = self._memoizer.get_or_call(key=("_get_service_types",), callback=self._get_service_types)
         # Convert the cached results back to the format that service_types should return.
         return {name: data["service_type"] for name, data, in cached_info.items()}
@@ -689,21 +687,21 @@ class AggregatorSecondaryServices(SecondaryServices):
         return cached_info.get(service_type, {}).get("backend_id")
 
     def _get_service_types(self) -> dict:
-        """Returns a dict that maps the service name to a dict that contains 2 items:
+        """Returns a dict that maps the service name to another dict that contains 2 items:
         1) the backend_id that provides this secondary service
         2) the service_types for self.service_types.
 
         For example:
         {'WMTS':
-	        {'backend_id': 'b1',
-	         'service_type':   // contains what backend b1 returned for service type WMTS.
+            {'backend_id': 'b1',
+             'service_type':   // contains what backend b1 returned for service type WMTS.
                 {'configuration':
                     ...
                 }
             }
          'WMS':
             {'backend_id': 'b2',
-	         'service_type':
+             'service_type':
                 {'configuration':
                     ...
                 }
@@ -724,6 +722,8 @@ class AggregatorSecondaryServices(SecondaryServices):
             https://github.com/Open-EO/openeo-aggregator/issues/83
             https://github.com/Open-EO/openeo-aggregator/issues/84
         """
+
+        # TODO: Issue #85 data about backend capabilities could be added to the service_types data structure as well.
         service_types = {}
 
         # TODO: Instead of merge: prefix each type with backend-id? #83
@@ -798,6 +798,9 @@ class AggregatorSecondaryServices(SecondaryServices):
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
         """
         # TODO: configuration is not used. What to do with it?
+
+        # TODO: Strictly speaking it would be better to override _create_service instead of create_service
+        #       but for now we override create_service so we can keep the special case for the "sentinelhub" backend.
 
         # TODO: hardcoded/forced "SentinelHub only" support for now.
         #       Instead, properly determine backend based on service type?
