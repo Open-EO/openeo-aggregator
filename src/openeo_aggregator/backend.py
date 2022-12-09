@@ -652,12 +652,11 @@ class AggregatorSecondaryServices(SecondaryServices):
             config: AggregatorConfig
     ):
         super(AggregatorSecondaryServices, self).__init__()
-        self._backends = backends
 
+        self._backends = backends
         self._memoizer = memoizer_from_config(config=config, namespace="SecondaryServices")
         self._backends.on_connections_change.add(self._memoizer.invalidate)
 
-        # TODO Issue #84 Decide which backend based on service type. Will need to remove self._processing for this.
         self._processing = processing
 
     def _get_connection_and_backend_service_id(
@@ -804,6 +803,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         #       Instead, properly determine backend based on service type?
         #       See https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
         #       and https://github.com/Open-EO/openeo-aggregator/issues/83
+        #       Should be able to remove this hardcoded workaround once issue #85 has been implemented.
         if "sentinelhub" in self._backends._backend_urls:
             backend_id = "sentinelhub"
         else:

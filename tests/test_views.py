@@ -1363,7 +1363,7 @@ class TestSecondaryServices:
             # not setting "created": This is used to test creating a service.
         )
 
-    WMTS_SERVICE_TYPE = {
+    SERVICE_TYPES_ONLT_WMTS = {
         "WMTS": {
             "configuration": {
                 "colormap": {
@@ -1389,27 +1389,8 @@ class TestSecondaryServices:
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
         """
-        single_service_type = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string"
-                    }
-                },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service"
-            }
-        }
+        # Only need a single service type.
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
 
@@ -1725,7 +1706,7 @@ class TestSecondaryServices:
             },
             status_code=201
         )
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         resp = api100.post('/services', json=post_data).assert_status_code(201)
 
@@ -1822,7 +1803,7 @@ class TestSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Testing exception handling")
         )
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500

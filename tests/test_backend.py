@@ -134,7 +134,7 @@ class TestAggregatorSecondaryServices:
     # TODO: most tests here (the ones that do flask app stuff and auth)
     #       belong under test_views.py
 
-    WMTS_SERVICE_TYPE = {
+    SERVICE_TYPES_ONLT_WMTS = {
         "WMTS": {
             "configuration": {
                 "colormap": {
@@ -162,7 +162,7 @@ class TestAggregatorSecondaryServices:
         """Given 2 backends and only 1 backend has a single service type, then the aggregator
             returns that 1 service type's metadata.
         """
-        single_service_type = self.WMTS_SERVICE_TYPE
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
@@ -174,12 +174,13 @@ class TestAggregatorSecondaryServices:
     def test_service_types_simple_cached(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock
     ):
-        """The service_types call is cached:
+        """Scenario: The service_types call is cached:
             When we get the service types several times, the second call that happens before the cache expires,
             doesn't hit the backend.
             But the third call that happens that happens after the cache has expired does hit the backend again.
         """
-        single_service_type = self.WMTS_SERVICE_TYPE
+        # Just need one service type for the test.
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         mock_be1 = requests_mock.get(backend1 + "/service_types", json=single_service_type)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
@@ -351,7 +352,7 @@ class TestAggregatorSecondaryServices:
             },
             status_code=201
         )
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
@@ -371,7 +372,7 @@ class TestAggregatorSecondaryServices:
         """When it gets a request for a service type that no backend supports, it raises ServiceUnsupportedException."""
 
         # Set up one service type. Don't want test to succeed because there are no services at all.
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         non_existent_service_id =  "b1-doesnotexist"
         # check that this requests_mock does not get called
@@ -413,7 +414,7 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error"),
         )
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
@@ -445,7 +446,7 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error")
         )
-        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
