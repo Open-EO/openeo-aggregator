@@ -1363,6 +1363,27 @@ class TestSecondaryServices:
             # not setting "created": This is used to test creating a service.
         )
 
+    WMTS_SERVICE_TYPE = {
+        "WMTS": {
+            "configuration": {
+                "colormap": {
+                    "default": "YlGn",
+                    "description":
+                    "The colormap to apply to single band layers",
+                    "type": "string"
+                },
+                "version": {
+                    "default": "1.0.0",
+                    "description": "The WMTS version to use.",
+                    "enum": ["1.0.0"],
+                    "type": "string"
+                }
+            },
+            "links": [],
+            "process_parameters": [],
+            "title": "Web Map Tile Service"
+        }
+    }
 
     def test_service_types_simple(self, api100, backend1, backend2, requests_mock):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
@@ -1390,12 +1411,12 @@ class TestSecondaryServices:
             }
         }
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
-        requests_mock.get(backend2 + "/service_types", json=single_service_type)
+        requests_mock.get(backend2 + "/service_types", json={})
 
         resp = api100.get('/service_types').assert_status_code(200)
         assert resp.json == single_service_type
 
-    def test_service_types_merging(self, api100, backend1, backend2, requests_mock):
+    def test_service_types_multiple_backends(self, api100, backend1, backend2, requests_mock):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
         service_type_1 = {
             "WMTS": {
@@ -1704,6 +1725,7 @@ class TestSecondaryServices:
             },
             status_code=201
         )
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
 
         resp = api100.post('/services', json=post_data).assert_status_code(201)
 
@@ -1800,6 +1822,7 @@ class TestSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Testing exception handling")
         )
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
 
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500

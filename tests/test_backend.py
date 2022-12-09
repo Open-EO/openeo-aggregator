@@ -134,33 +134,35 @@ class TestAggregatorSecondaryServices:
     # TODO: most tests here (the ones that do flask app stuff and auth)
     #       belong under test_views.py
 
+    WMTS_SERVICE_TYPE = {
+        "WMTS": {
+            "configuration": {
+                "colormap": {
+                    "default": "YlGn",
+                    "description":
+                    "The colormap to apply to single band layers",
+                    "type": "string"
+                },
+                "version": {
+                    "default": "1.0.0",
+                    "description": "The WMTS version to use.",
+                    "enum": ["1.0.0"],
+                    "type": "string"
+                }
+            },
+            "links": [],
+            "process_parameters": [],
+            "title": "Web Map Tile Service"
+        }
+    }
+
     def test_service_types_simple(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock
     ):
         """Given 2 backends and only 1 backend has a single service type, then the aggregator
             returns that 1 service type's metadata.
         """
-        single_service_type = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string"
-                    }
-                },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service"
-            }
-        }
+        single_service_type = self.WMTS_SERVICE_TYPE
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
@@ -177,27 +179,7 @@ class TestAggregatorSecondaryServices:
             doesn't hit the backend.
             But the third call that happens that happens after the cache has expired does hit the backend again.
         """
-        single_service_type = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string"
-                    }
-                },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service"
-            }
-        }
+        single_service_type = self.WMTS_SERVICE_TYPE
         mock_be1 = requests_mock.get(backend1 + "/service_types", json=single_service_type)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
@@ -217,8 +199,7 @@ class TestAggregatorSecondaryServices:
             assert mock_be1.call_count == 2
             assert service_types == single_service_type
 
-    # TODO: Issue #84 Check if we should remove this merging behavior.
-    def test_service_types_merging(self, multi_backend_connection, config, catalog,
+    def test_service_types_multiple_backends(self, multi_backend_connection, config, catalog,
         backend1, backend2, requests_mock
     ):
         """Given 2 backends with each 1 service type, then the aggregator lists both service types."""
@@ -370,6 +351,7 @@ class TestAggregatorSecondaryServices:
             },
             status_code=201
         )
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
@@ -382,6 +364,40 @@ class TestAggregatorSecondaryServices:
                 configuration={}
             )
             assert actual_openeo_id == expected_service_id
+
+    def test_create_service_raises_serviceunsupportedexception(
+        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock
+    ):
+        """When it gets a request for a service type that no backend supports, it raises ServiceUnsupportedException."""
+
+        # Set up one service type. Don't want test to succeed because there are no services at all.
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
+
+        non_existent_service_id =  "b1-doesnotexist"
+        # check that this requests_mock does not get called
+        location_backend_1 = backend1 + "/services/" + non_existent_service_id
+        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
+        requests_mock.post(
+            backend1 + "/services",
+            headers={
+                "OpenEO-Identifier": "wmts-foo",
+                "Location": location_backend_1
+            },
+            status_code=201
+        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+
+        with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
+            with pytest.raises(ServiceUnsupportedException):
+                implementation.create_service(
+                    user_id=TEST_USER,
+                    process_graph=process_graph,
+                    service_type="does-not-exist",
+                    api_version="1.0.0",
+                    configuration={}
+                )
+
 
     @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
     def test_create_service_backend_raises_openeoapiexception(
@@ -397,6 +413,7 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error"),
         )
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
@@ -428,6 +445,7 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Some server error")
         )
+        requests_mock.get(backend1 + "/service_types", json=self.WMTS_SERVICE_TYPE)
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 

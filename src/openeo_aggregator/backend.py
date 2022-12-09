@@ -34,7 +34,7 @@ from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectio
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
     JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
-    FeatureUnsupportedException, ServiceNotFoundException
+    FeatureUnsupportedException, ServiceNotFoundException, ServiceUnsupportedException
 from openeo_driver.processes import ProcessRegistry
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -677,18 +677,61 @@ class AggregatorSecondaryServices(SecondaryServices):
         return con, backend_service_id
 
     def service_types(self) -> dict:
-        return self._memoizer.get_or_call(key=("all_service_types",), callback=self._get_service_types)
+        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
+        # TODO: implement household data to cache useful data for selecting backend based on service and backend's capabilities.
+
+        cached_info = self._memoizer.get_or_call(key=("_get_service_types",), callback=self._get_service_types)
+        # Convert the cached results back to the format that service_types should return.
+        return {name: data["service_type"] for name, data, in cached_info.items()}
+
+    def _find_backend_id_for_service_type(self, service_type: str) -> Optional[str]:
+        """Returns the ID of the backend that provides the service_type or None if no backend supports that service."""
+        cached_info = self._memoizer.get_or_call(key=("_get_service_types",), callback=self._get_service_types)
+        return cached_info.get(service_type, {}).get("backend_id")
 
     def _get_service_types(self) -> dict:
-        """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
-        # TODO: add caching. Also see https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
+        """Returns a dict that maps the service name to a dict that contains 2 items:
+        1) the backend_id that provides this secondary service
+        2) the service_types for self.service_types.
+
+        For example:
+        {'WMTS':
+	        {'backend_id': 'b1',
+	         'service_type':   // contains what backend b1 returned for service type WMTS.
+                {'configuration':
+                    ...
+                }
+            }
+         'WMS':
+            {'backend_id': 'b2',
+	         'service_type':
+                {'configuration':
+                    ...
+                }
+            }
+        }
+
+        Info for selecting the right backend to create a new service
+        ------------------------------------------------------------
+
+        We are assuming that there is only one upstream backend per service type.
+        That means we don't really need to merge duplicate service types, i.e. there is no need to resolve
+        some kind of conflicts between duplicate service types.
+
+        So far we don't store info about the backends' capabilities, but in the future
+        we may need to store that to select the right backend when we create a service.
+
+        See: issues #83 and #84:
+            https://github.com/Open-EO/openeo-aggregator/issues/83
+            https://github.com/Open-EO/openeo-aggregator/issues/84
+        """
         service_types = {}
 
         # TODO: Instead of merge: prefix each type with backend-id? #83
-        def merge(formats: dict, to_add: dict):
-            for name, data in to_add.items():
-                if name.lower() not in {k.lower() for k in formats.keys()}:
-                    formats[name] = data
+        def merge(services: dict, backend_id: str, new_service: dict):
+            for name, data in new_service.items():
+                if name.lower() not in {k.lower() for k in services.keys()}:
+                    services[name] = dict(backend_id=backend_id, service_type=data)
 
         # Collect all service types from the backends.
         for con in self._backends:
@@ -700,7 +743,7 @@ class AggregatorSecondaryServices(SecondaryServices):
                 _log.warning(f"Failed to get service_types from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
-            merge(service_types, types_to_add)
+            merge(service_types, con.id, types_to_add)
 
         return service_types
 
@@ -764,9 +807,9 @@ class AggregatorSecondaryServices(SecondaryServices):
         if "sentinelhub" in self._backends._backend_urls:
             backend_id = "sentinelhub"
         else:
-            backend_id = self._processing.get_backend_for_process_graph(
-                process_graph=process_graph, api_version=api_version
-            )
+            backend_id = self._find_backend_id_for_service_type(service_type)
+            if backend_id is None:
+                raise ServiceUnsupportedException(service_type)
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         con = self._backends.get_connection(backend_id)
