@@ -675,6 +675,18 @@ class AggregatorSecondaryServices(SecondaryServices):
         con = self._backends.get_connection(backend_id)
         return con, backend_service_id
 
+    # TODO: Issue #85: Filter or skip backends that do not offer secondary services.
+    def _get_supported_backend(self) -> List:
+        supported_backends = []
+
+        # TODO cache the result of capabilities?
+        for con in self._backends:
+            capabilities = con.capabilities()
+            if capabilities.supports_endpoint("/service_types"):
+                supported_backends.append(con)
+
+        return supported_backends
+
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
         cached_info = self._get_service_types_cached()
@@ -733,7 +745,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         service_types = {}
 
         # Collect all service types from the backends.
-        for con in self._backends:
+        for con in self._get_supported_backend():
             # TODO: skip back-ends that do not support secondary services. https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
             try:
                 types_to_add = con.get("/service_types").json()
@@ -758,7 +770,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
         services = []
 
-        for con in self._backends:
+        for con in self._get_supported_backend():
             # TODO: skip backends that are known not to support secondary services.
             with con.authenticated_from_request(
                 request=flask.request, user=User(user_id)

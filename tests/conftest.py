@@ -176,3 +176,39 @@ def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
         backends=multi_backend_connection,
         config=config
     )
+
+
+@pytest.fixture
+def json_capabilities_no_endpoints():
+    return {
+        "api_version": "1.1.0",
+        "backend_version": "0.6.5a1.dev20221208+820",
+        "description": "OpenEO API to the Terrascope/VITO Remote Sensing product catalog and processing services (using GeoPySpark driver).",
+        "endpoints": [],
+        "id": "vitoremotesensingopeneoapi-1.1.0",
+        "links": [],
+        "stac_version": "0.9.0",
+        "title": "VITO Remote Sensing openEO API",
+        "version": "1.1.0"
+    }
+
+@pytest.fixture
+def json_capabilities_with_service_types_supported():
+    return {
+        "api_version": "1.1.0",
+        "backend_version": "0.6.5a1.dev20221208+820",
+        "description": "OpenEO API to the Terrascope/VITO Remote Sensing product catalog and processing services (using GeoPySpark driver).",
+        "endpoints": [
+            {
+                "methods": [
+                    "GET"
+                ],
+                "path": "/service_types"
+            },
+        ],
+        "id": "vitoremotesensingopeneoapi-1.1.0",
+        "links": [],
+        "stac_version": "0.9.0",
+        "title": "VITO Remote Sensing openEO API",
+        "version": "1.1.0"
+    }
