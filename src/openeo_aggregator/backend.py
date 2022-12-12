@@ -677,14 +677,20 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
-        cached_info = self._memoizer.get_or_call(key=("_get_service_types",), callback=self._get_service_types)
+        cached_info = self._get_service_types_cached()
         # Convert the cached results back to the format that service_types should return.
         return {name: data["service_type"] for name, data, in cached_info.items()}
 
-    def _find_backend_id_for_service_type(self, service_type: str) -> Optional[str]:
+    def _find_backend_id_for_service_type(self, service_type: str) -> str:
         """Returns the ID of the backend that provides the service_type or None if no backend supports that service."""
-        cached_info = self._memoizer.get_or_call(key=("_get_service_types",), callback=self._get_service_types)
-        return cached_info.get(service_type, {}).get("backend_id")
+        cached_info = self._get_service_types_cached()
+        backend_id = cached_info.get(service_type, {}).get("backend_id")
+        if backend_id is None:
+            raise ServiceUnsupportedException(service_type)
+        return backend_id
+
+    def _get_service_types_cached(self):
+        return self._memoizer.get_or_call(key=("service_types"), callback=self._get_service_types)
 
     def _get_service_types(self) -> dict:
         """Returns a dict that maps the service name to another dict that contains 2 items:
@@ -726,12 +732,6 @@ class AggregatorSecondaryServices(SecondaryServices):
         # TODO: Issue #85 data about backend capabilities could be added to the service_types data structure as well.
         service_types = {}
 
-        # TODO: Instead of merge: prefix each type with backend-id? #83
-        def merge(services: dict, backend_id: str, new_service: dict):
-            for name, data in new_service.items():
-                if name.lower() not in {k.lower() for k in services.keys()}:
-                    services[name] = dict(backend_id=backend_id, service_type=data)
-
         # Collect all service types from the backends.
         for con in self._backends:
             # TODO: skip back-ends that do not support secondary services. https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
@@ -742,8 +742,16 @@ class AggregatorSecondaryServices(SecondaryServices):
                 _log.warning(f"Failed to get service_types from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
-            merge(service_types, con.id, types_to_add)
-
+            # TODO: Instead of merge: prefix each type with backend-id? #83
+            for name, data in types_to_add.items():
+                if name.lower() not in {k.lower() for k in service_types.keys()}:
+                    service_types[name] = dict(backend_id=con.id, service_type=data)
+                else:
+                    conflicting_backend = service_types[name]["backend_id"]
+                    _log.warning(
+                        f'Conflicting secondary service types: "{name}" is present in more than one backend, ' +
+                        f'already found in backend: {conflicting_backend}'
+                    )
         return service_types
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
@@ -811,8 +819,6 @@ class AggregatorSecondaryServices(SecondaryServices):
             backend_id = "sentinelhub"
         else:
             backend_id = self._find_backend_id_for_service_type(service_type)
-            if backend_id is None:
-                raise ServiceUnsupportedException(service_type)
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         con = self._backends.get_connection(backend_id)

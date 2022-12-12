@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 
 import pytest
 
@@ -243,6 +244,49 @@ class TestAggregatorSecondaryServices:
         expected_service_types = dict(service_type_1)
         expected_service_types.update(service_type_2)
         assert actual_service_types == expected_service_types
+
+    def test_service_types_warns_about_duplicate_service(self, multi_backend_connection, config, catalog,
+        backend1, backend2, requests_mock, caplog
+    ):
+        """
+        Given 2 backends which have conflicting service types,
+        then the aggregator lists only the service type from the first backend
+        and it logs a warning about the conflicting types.
+        """
+        caplog.set_level(logging.WARNING)
+        service_type_1 = {
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {},
+                "process_parameters": [],
+                "links": []
+            }
+        }
+        service_type_2 = {
+            "WMS": {
+                "title": "A duplicate OGC Web Map Service",
+                "configuration": {},
+                "process_parameters": [],
+                "links": []
+            }
+        }
+        requests_mock.get(backend1 + "/service_types", json=service_type_1)
+        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+
+        actual_service_types = implementation.service_types()
+
+        # There were duplicate service types:
+        # Therefore it should find only one service type, and the log should contain a warning.
+        expected_service_types = dict(service_type_1)
+        assert actual_service_types == expected_service_types
+
+        expected_log_message = (
+            'Conflicting secondary service types: "WMS" is present in more than one backend, ' +
+            'already found in backend: b1'
+        )
+        assert expected_log_message in caplog.text
 
     @pytest.fixture
     def service_metadata_wmts_foo(self):
