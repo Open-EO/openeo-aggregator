@@ -1713,47 +1713,6 @@ class TestSecondaryServices:
         assert resp.headers["OpenEO-Identifier"] == expected_agg_id
         assert resp.headers["Location"] == expected_location
 
-    @pytest.mark.parametrize("backend2_id", ["sentinelhub"])
-    def test_create_wmts_forced_sentinelhub(
-        self, api100, requests_mock, backend1, backend2_id, backend2
-    ):
-        """When the payload is correct the service should be successfully created,
-        the service ID should be prepended with the backend ID,
-        and location should point to the aggregator, not to the backend directly.
-        """
-        # TODO this is a temp test for a temp "force sentinelhub" workaround hack (https://github.com/Open-EO/openeo-aggregator/issues/78)
-
-        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-
-        backend_service_id = "c63d6c27-c4c2-4160-b7bd-9e32f582daec"
-        expected_agg_id = "sentinelhub-" + backend_service_id
-
-        # The aggregator MUST NOT point to the backend instance but to its own endpoint.
-        # This is handled by the openeo python driver in openeo_driver.views.services_post.
-        expected_location = f"/openeo/1.0.0/services/{expected_agg_id}"
-        upstream_location = f"{backend2}/services/{backend_service_id}"
-
-        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
-        post_data = {
-            "type": "WMTS",
-            "process": {"process_graph": process_graph, "id": "filter_temporal_wmts"},
-            "title": "My Service",
-            "description": "Service description",
-        }
-        requests_mock.post(
-            backend2 + "/services",
-            headers={
-                "OpenEO-Identifier": backend_service_id,
-                "Location": upstream_location,
-            },
-            status_code=201,
-        )
-
-        resp = api100.post("/services", json=post_data).assert_status_code(201)
-
-        assert resp.headers["OpenEO-Identifier"] == expected_agg_id
-        assert resp.headers["Location"] == expected_location
-
     # ProcessGraphMissingException and ProcessGraphInvalidException are well known reasons for a bad client request.
     @pytest.mark.parametrize("exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException])
     def test_create_wmts_reports_400_client_error(self, api100, requests_mock, backend1, exception_class):

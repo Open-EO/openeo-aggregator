@@ -810,15 +810,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         # TODO: Strictly speaking it would be better to override _create_service instead of create_service
         #       but for now we override create_service so we can keep the special case for the "sentinelhub" backend.
 
-        # TODO: hardcoded/forced "SentinelHub only" support for now.
-        #       Instead, properly determine backend based on service type?
-        #       See https://github.com/Open-EO/openeo-aggregator/issues/78#issuecomment-1326180557
-        #       and https://github.com/Open-EO/openeo-aggregator/issues/83
-        #       Should be able to remove this hardcoded workaround once issue #85 has been implemented.
-        if "sentinelhub" in self._backends._backend_urls:
-            backend_id = "sentinelhub"
-        else:
-            backend_id = self._find_backend_id_for_service_type(service_type)
+        backend_id = self._find_backend_id_for_service_type(service_type)
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         con = self._backends.get_connection(backend_id)
