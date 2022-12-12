@@ -12,10 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implement secondary services [#78](https://github.com/Open-EO/openeo-aggregator/issues/78))
 - Add SentinelHub openEO backend to production config
+- Added caching for `/service_types` metadata ([#84](https://github.com/Open-EO/openeo-aggregator/issues/84))
 
 ### Changed
 
-- Refactored/improved metadata merging/validation of collections and processes 
+- Refactored/improved metadata merging/validation of collections and processes
   ([#76](https://github.com/Open-EO/openeo-aggregator/issues/76), [#77](https://github.com/Open-EO/openeo-aggregator/issues/77))
 
 ### Fixed
@@ -25,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Change to openEO API 1.1.0 version of terrascope/vito backend 
+- Change to openEO API 1.1.0 version of terrascope/vito backend
 - Make sure user id (prefix) is logged in JSON logs
 - Updated (generous fallback) "FreeTier" user role to 30DayTrial (more strict)
 - Use EODC dev instance in aggregator dev config
@@ -118,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.3]
 
-### Added 
+### Added
 
 - Add `/file_formats` support ([#1](https://github.com/Open-EO/openeo-aggregator/issues/1))
 - Add initial support for multi-backend collection metadata merging (EP-4011, [openEOPlatform/architecture-docs#85](https://github.com/openEOPlatform/architecture-docs/issues/85))
@@ -130,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Take union of processes instead of intersection ([#4](https://github.com/Open-EO/openeo-aggregator/issues/4))
 - Increase timeout for job create/start to 5 minutes (EP-4021)
 - Switch to production EODC instance
-- Increase default connection timeout from 20s to 30s 
+- Increase default connection timeout from 20s to 30s
 
 ### Fixed
 
