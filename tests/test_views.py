@@ -1363,39 +1363,41 @@ class TestSecondaryServices:
             # not setting "created": This is used to test creating a service.
         )
 
+    SERVICE_TYPES_ONLT_WMTS = {
+        "WMTS": {
+            "configuration": {
+                "colormap": {
+                    "default": "YlGn",
+                    "description":
+                    "The colormap to apply to single band layers",
+                    "type": "string"
+                },
+                "version": {
+                    "default": "1.0.0",
+                    "description": "The WMTS version to use.",
+                    "enum": ["1.0.0"],
+                    "type": "string"
+                }
+            },
+            "links": [],
+            "process_parameters": [],
+            "title": "Web Map Tile Service"
+        }
+    }
 
     def test_service_types_simple(self, api100, backend1, backend2, requests_mock):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
         """
-        single_service_type = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string"
-                    }
-                },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service"
-            }
-        }
+        # Only need a single service type.
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
-        requests_mock.get(backend2 + "/service_types", json=single_service_type)
+        requests_mock.get(backend2 + "/service_types", json={})
 
         resp = api100.get('/service_types').assert_status_code(200)
         assert resp.json == single_service_type
 
-    def test_service_types_merging(self, api100, backend1, backend2, requests_mock):
+    def test_service_types_multiple_backends(self, api100, backend1, backend2, requests_mock):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
         service_type_1 = {
             "WMTS": {
@@ -1704,49 +1706,9 @@ class TestSecondaryServices:
             },
             status_code=201
         )
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         resp = api100.post('/services', json=post_data).assert_status_code(201)
-
-        assert resp.headers["OpenEO-Identifier"] == expected_agg_id
-        assert resp.headers["Location"] == expected_location
-
-    @pytest.mark.parametrize("backend2_id", ["sentinelhub"])
-    def test_create_wmts_forced_sentinelhub(
-        self, api100, requests_mock, backend1, backend2_id, backend2
-    ):
-        """When the payload is correct the service should be successfully created,
-        the service ID should be prepended with the backend ID,
-        and location should point to the aggregator, not to the backend directly.
-        """
-        # TODO this is a temp test for a temp "force sentinelhub" workaround hack (https://github.com/Open-EO/openeo-aggregator/issues/78)
-
-        api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-
-        backend_service_id = "c63d6c27-c4c2-4160-b7bd-9e32f582daec"
-        expected_agg_id = "sentinelhub-" + backend_service_id
-
-        # The aggregator MUST NOT point to the backend instance but to its own endpoint.
-        # This is handled by the openeo python driver in openeo_driver.views.services_post.
-        expected_location = f"/openeo/1.0.0/services/{expected_agg_id}"
-        upstream_location = f"{backend2}/services/{backend_service_id}"
-
-        process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
-        post_data = {
-            "type": "WMTS",
-            "process": {"process_graph": process_graph, "id": "filter_temporal_wmts"},
-            "title": "My Service",
-            "description": "Service description",
-        }
-        requests_mock.post(
-            backend2 + "/services",
-            headers={
-                "OpenEO-Identifier": backend_service_id,
-                "Location": upstream_location,
-            },
-            status_code=201,
-        )
-
-        resp = api100.post("/services", json=post_data).assert_status_code(201)
 
         assert resp.headers["OpenEO-Identifier"] == expected_agg_id
         assert resp.headers["Location"] == expected_location
@@ -1800,6 +1762,7 @@ class TestSecondaryServices:
             backend1 + "/services",
             exc=exception_class("Testing exception handling")
         )
+        requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500
