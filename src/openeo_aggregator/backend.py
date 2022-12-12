@@ -682,7 +682,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         return {name: data["service_type"] for name, data, in cached_info.items()}
 
     def _find_backend_id_for_service_type(self, service_type: str) -> str:
-        """Returns the ID of the backend that provides the service_type or None if no backend supports that service."""
+        """Returns the ID of the backend that provides the service_type."""
         cached_info = self._get_service_types_cached()
         backend_id = cached_info.get(service_type, {}).get("backend_id")
         if backend_id is None:
@@ -800,15 +800,12 @@ class AggregatorSecondaryServices(SecondaryServices):
                 service_json["id"] = ServiceIdMapping.get_aggregator_service_id(service_json["id"], con.id)
                 return ServiceMetadata.from_dict(service_json)
 
-    def create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
+    def _create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
                        configuration: dict) -> str:
         """
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
         """
         # TODO: configuration is not used. What to do with it?
-
-        # TODO: Strictly speaking it would be better to override _create_service instead of create_service
-        #       but for now we override create_service so we can keep the special case for the "sentinelhub" backend.
 
         backend_id = self._find_backend_id_for_service_type(service_type)
         process_graph = self._processing.preprocess_process_graph(process_graph, backend_id=backend_id)
