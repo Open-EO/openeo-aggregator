@@ -317,8 +317,16 @@ class TestAggregatorSecondaryServices:
         )
 
     def test_service_info_succeeds(
-        self, flask_app, multi_backend_connection, config, catalog, 
-        backend1, backend2, requests_mock, service_metadata_wmts_foo, service_metadata_wms_bar
+        self,
+        flask_app,
+        multi_backend_connection,
+        config,
+        catalog,
+        backend1,
+        backend2,
+        requests_mock,
+        service_metadata_wmts_foo,
+        service_metadata_wms_bar,
     ):
         """When it gets a correct service ID, it returns the expected ServiceMetadata."""
         json_wmts_foo = service_metadata_wmts_foo.prepare_for_json()
@@ -454,7 +462,7 @@ class TestAggregatorSecondaryServices:
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
 
         # Set up responses for creating the service in backend 1:
-        # This time the backend raises an error, one that will be reported as a OpenEOApiException. 
+        # This time the backend raises an error, one that will be reported as a OpenEOApiException.
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
@@ -593,8 +601,8 @@ class TestAggregatorSecondaryServices:
 
             # Make sure the aggregator asked the backend to remove the service.
             assert mock_patch.called
-            
-            # TODO: I am not too sure this json payload is correct. Check with codebases of other backend drivers. 
+
+            # TODO: I am not too sure this json payload is correct. Check with codebases of other backend drivers.
             expected_process = {"process": {"process_graph": process_graph_after}}
             assert mock_patch.last_request.json() == expected_process
 

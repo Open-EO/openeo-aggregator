@@ -45,13 +45,13 @@ The image runs the app in gunicorn by default, serving on `0.0.0.0:8080`.
 For example, to run it locally:
 
     docker run --rm -p 8080:8080 openeo-aggregator
- 
+
 The webapp should be available at http://localhost:8080/openeo/1.0
 
 
 ## Configuration
 
-The flask/gunicorn related configuration can be set through 
+The flask/gunicorn related configuration can be set through
 standard flask/gunicorn configuration means
 like command line options or env variables, as shown above.
 
@@ -64,13 +64,13 @@ The production docker based run for examples uses
 
 ### Application/Flask config
 
-The openEO-Aggregator specific configuration, 
+The openEO-Aggregator specific configuration,
 is grouped by a `AggregatorConfig` container object.
-The most important config value is `aggregator_backends`, which 
+The most important config value is `aggregator_backends`, which
 defines the backends to "aggregate".
 See `config.py` for more details and other available configuration options.
 
-The `conf` folder contains config files for the dev and production 
+The `conf` folder contains config files for the dev and production
 variant of this application config:
 
 - `conf/aggregator.dev.py`
@@ -79,7 +79,7 @@ variant of this application config:
 Which config to pick is determined through env variables:
 
 - if set, env variable `OPENEO_AGGREGATOR_CONFIG` is the path to the desired config file
-- otherwise, if set, env variable `ENV` must be `dev` or `prod` 
+- otherwise, if set, env variable `ENV` must be `dev` or `prod`
 - otherwise, `dev` is used as default
 
 ### Logging

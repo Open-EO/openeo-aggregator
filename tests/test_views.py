@@ -1796,7 +1796,7 @@ class TestSecondaryServices:
         mock_delete = requests_mock.delete(
             backend1 + "/services/wmts-foo",
             status_code=404,
-        ) 
+        )
 
         resp = api100.delete("/services/b1-wmts-foo")
 
@@ -1838,7 +1838,7 @@ class TestSecondaryServices:
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
-        
+
         mock_patch = requests_mock.patch(
             backend1 + "/services/wmts-foo",
             json=service_metadata_wmts_foo.prepare_for_json(),
@@ -1911,7 +1911,7 @@ class TestSecondaryServices:
         assert resp.status_code == backend_http_status
         assert mock_patch.called
         assert mock_patch.last_request.json() == json_payload
-        
+
 
 class TestResilience:
 
