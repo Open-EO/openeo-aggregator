@@ -209,7 +209,7 @@ class TestAggregatorSecondaryServices:
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
         requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
 
@@ -271,7 +271,8 @@ class TestAggregatorSecondaryServices:
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         mock_b1_service_types = requests_mock.get(backend1 + "/service_types", status_code=500) # Not supported
         mock_b2_service_types = requests_mock.get(backend2 + "/service_types", json=single_service_type)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # We are testing that the aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        # We want to verify that the capabilities are actually queried.
         mock_b1_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_no_endpoints)
         mock_b2_capabilities = requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
 
@@ -321,7 +322,7 @@ class TestAggregatorSecondaryServices:
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
         requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
 
@@ -362,7 +363,7 @@ class TestAggregatorSecondaryServices:
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
         requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
 
@@ -500,7 +501,7 @@ class TestAggregatorSecondaryServices:
             status_code=201
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
@@ -520,12 +521,12 @@ class TestAggregatorSecondaryServices:
         self, flask_app, multi_backend_connection, config, catalog, backend1,
         json_capabilities_with_service_types_supported, requests_mock
     ):
-        """When it gets a request for a service type that no backend supports, it raises ServiceUnsupportedException."""
+        """When it gets a request for a service type but no backend supports this service type, it raises ServiceUnsupportedException."""
 
         # At least 1 service type must be present.
         # We don't want test to succeed erroneously simply because there are no services at all.
         mock_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
 
         non_existent_service_id =  "b1-doesnotexist"
@@ -574,7 +575,7 @@ class TestAggregatorSecondaryServices:
             exc=exception_class("Some server error"),
         )
         mock_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
 
 
@@ -613,7 +614,7 @@ class TestAggregatorSecondaryServices:
             exc=exception_class("Some server error")
         )
         mock_get_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
