@@ -1395,7 +1395,7 @@ class TestSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
-        
+
         resp = api100.get('/service_types').assert_status_code(200)
         assert resp.json == single_service_type
 

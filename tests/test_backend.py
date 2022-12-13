@@ -166,7 +166,6 @@ class TestAggregatorSecondaryServices:
         actual_supported_backends = implementation._get_supported_backend()
         assert actual_supported_backends == []
 
-
     def test_get_supported_backend_all_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         json_capabilities_with_service_types_supported
@@ -195,8 +194,14 @@ class TestAggregatorSecondaryServices:
         assert actual_supported_backends[0].id == "b2"
 
     def test_service_types_simple(
-        self, multi_backend_connection, config, catalog, backend1, backend2, 
-        json_capabilities_with_service_types_supported, requests_mock
+        self,
+        multi_backend_connection,
+        config,
+        catalog,
+        backend1,
+        backend2,
+        json_capabilities_with_service_types_supported,
+        requests_mock,
     ):
         """Given 2 backends and only 1 backend has a single service type, then the aggregator
             returns that 1 service type's metadata.
@@ -207,7 +212,7 @@ class TestAggregatorSecondaryServices:
         # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=json_capabilities_with_service_types_supported)
         requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
-        
+
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
@@ -249,9 +254,15 @@ class TestAggregatorSecondaryServices:
             assert service_types == single_service_type
 
     def test_service_types_skips_unsupported_backend(
-        self, multi_backend_connection, config, catalog, backend1, backend2, 
-        json_capabilities_no_endpoints, json_capabilities_with_service_types_supported, 
-        requests_mock
+        self,
+        multi_backend_connection,
+        config,
+        catalog,
+        backend1,
+        backend2,
+        json_capabilities_no_endpoints,
+        json_capabilities_with_service_types_supported,
+        requests_mock,
     ):
         """Given 2 backends and only 1 backend support secondary services, as states in its capabilities,
             when the aggregator fulfills a request to list the service types,
@@ -263,13 +274,13 @@ class TestAggregatorSecondaryServices:
         # Aggregator should check if the backend supports GET /service_types, so we have to mock that up too.
         mock_b1_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_no_endpoints)
         mock_b2_capabilities = requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
-        
+
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         service_types = implementation.service_types()
         assert service_types == single_service_type
-        
+
         assert mock_b1_capabilities.called
         assert mock_b2_capabilities.called
         assert mock_b2_service_types.called
@@ -542,8 +553,8 @@ class TestAggregatorSecondaryServices:
                     configuration={}
                 )
             assert not mock_post.called
-            # The backend that we are using should support the GET /service_types endpoint, 
-            # or it would also raise ServiceUnsupportedException for a different reason: 
+            # The backend that we are using should support the GET /service_types endpoint,
+            # or it would also raise ServiceUnsupportedException for a different reason:
             # finding no backends that support any SecondaryServices in general.
             assert mock_get_capabilities.called
             assert mock_service_types.called
