@@ -163,7 +163,7 @@ class TestAggregatorSecondaryServices:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation._get_supported_backend()
+        actual_supported_backends = implementation.get_supported_backend_ids()
         assert actual_supported_backends == []
 
     def test_get_supported_backend_all_supported(
@@ -175,10 +175,8 @@ class TestAggregatorSecondaryServices:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation._get_supported_backend()
-        assert len(actual_supported_backends) == 2
-        assert actual_supported_backends[0].id == "b1"
-        assert actual_supported_backends[1].id == "b2"
+        actual_supported_backends = implementation.get_supported_backend_ids()
+        assert actual_supported_backends == ["b1", "b2"]
 
     def test_get_supported_backend_only_one_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
@@ -189,9 +187,8 @@ class TestAggregatorSecondaryServices:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation._get_supported_backend()
-        assert len(actual_supported_backends) == 1
-        assert actual_supported_backends[0].id == "b2"
+        actual_supported_backends = implementation.get_supported_backend_ids()
+        assert actual_supported_backends == ["b2"]
 
     def test_service_types_simple(
         self,

@@ -675,76 +675,110 @@ class AggregatorSecondaryServices(SecondaryServices):
         con = self._backends.get_connection(backend_id)
         return con, backend_service_id
 
-    def _get_supported_backend(self) -> List:
-        supported_backends = []
-
-        # TODO cache the result of capabilities?
-        for con in self._backends:
-            capabilities = con.capabilities()
-            if capabilities.supports_endpoint("/service_types"):
-                supported_backends.append(con)
-
-        return supported_backends
+    def get_supported_backend_ids(self) -> List[str]:
+        """Get a list containing IDs of the backends that support secondary services."""
+        return self._get_service_types_cached()["supported_backend_ids"]
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
-        cached_info = self._get_service_types_cached()
+        service_types = self._get_service_types_cached()["service_types"]
         # Convert the cached results back to the format that service_types should return.
-        return {name: data["service_type"] for name, data, in cached_info.items()}
+        return {name: data["service_type"] for name, data, in service_types.items()}
+
+    def _get_service_types_cached(self):
+        return self._memoizer.get_or_call(
+            key=("service_types"), callback=self._get_service_types
+        )
 
     def _find_backend_id_for_service_type(self, service_type: str) -> str:
         """Returns the ID of the backend that provides the service_type."""
-        cached_info = self._get_service_types_cached()
-        backend_id = cached_info.get(service_type, {}).get("backend_id")
+        service_types = self._get_service_types_cached()["service_types"]
+        backend_id = service_types.get(service_type, {}).get("backend_id")
         if backend_id is None:
             raise ServiceUnsupportedException(service_type)
         return backend_id
 
-    def _get_service_types_cached(self):
-        return self._memoizer.get_or_call(key=("service_types"), callback=self._get_service_types)
+    def _find_ids_supported_backends(self) -> List[str]:
+        """Query the backends capabilities find the ones that support secondary services."""
+        supported_backend_ids = []
+        for con in self._backends:
+            capabilities = con.capabilities()
+            # If we need to cache more capabilities info maybe we could store the full capabilities here.
+            if capabilities.supports_endpoint("/service_types"):
+                supported_backend_ids.append(con.id)
+        return supported_backend_ids
 
-    def _get_service_types(self) -> dict:
-        """Returns a dict that maps the service name to another dict that contains 2 items:
-        1) the backend_id that provides this secondary service
-        2) the service_types for self.service_types.
+    def _get_service_types(self) -> Dict:
+        """Returns a dict with cacheable data about the supported backends and service types.
 
-        For example:
-        {'WMTS':
-            {'backend_id': 'b1',
-             'service_type':   // contains what backend b1 returned for service type WMTS.
-                {'configuration':
-                    ...
+        :returns:
+            dict with the following fixed set of keys:
+            1. supported_backend_ids -> contains a list
+            2. service_type -> contains a dict
+
+            It is a dict in order to keep it simple to cache this information.
+
+            1. "supported_backend_ids" maps to a list containing the backend IDs for
+                backends that support secondary services.
+                An aggregators may have backends that do not support secondary services.
+
+            2. "service_types" maps to a dict with two items:
+                - backend_id:
+                    which backend provides that service type
+                - service_type:
+                    the info that this backend reports on its GET /service_types endpoint,
+                    about that service type.
+
+            For example:
+
+            {
+                "supported_backend_ids": ["b1", "b2"]
+                "service_types": {
+                    "WMTS": {
+                        "backend_id": "b1",
+                        "service_type":  # contains what backend b1 returned for service type WMTS.
+                        {
+                            "configuration": "..."
+                        }
+                    },
+                    "WMS": {
+                        "backend_id": "b2",
+                        "service_type": {
+                            "configuration": "..."
+                        }
+                    }
                 }
             }
-         'WMS':
-            {'backend_id': 'b2',
-             'service_type':
-                {'configuration':
-                    ...
-                }
-            }
-        }
 
-        Info for selecting the right backend to create a new service
-        ------------------------------------------------------------
+        Assumptions: Selecting the right backend to create a new service
+        ----------------------------------------------------------------
 
         We are assuming that there is only one upstream backend per service type.
         That means we don't really need to merge duplicate service types, i.e. there is no need to resolve
         some kind of conflicts between duplicate service types.
 
         So far we don't store info about the backends' capabilities, but in the future
-        we may need to store that to select the right backend when we create a service.
+        we may need to take into account configuration to select the right backend when
+        we create a service. For now we just ignore it.
 
         See: issues #83 and #84:
             https://github.com/Open-EO/openeo-aggregator/issues/83
             https://github.com/Open-EO/openeo-aggregator/issues/84
         """
 
-        # TODO: Issue #85 data about backend capabilities could be added to the service_types data structure as well.
+        # Along with the service types we query which backends support secondary services
+        # so we can cache that information.
+        # Some backends don not have the GET /service_types endpoint.
+        supported_backend_ids = self._find_ids_supported_backends()
         service_types = {}
+        result = {
+            "supported_backend_ids": supported_backend_ids,
+            "service_types": service_types,
+        }
 
         # Collect all service types from the backends.
-        for con in self._get_supported_backend():
+        for backend_id in supported_backend_ids:
+            con = self._backends.get_connection(backend_id)
             try:
                 types_to_add = con.get("/service_types").json()
             except Exception as e:
@@ -752,7 +786,7 @@ class AggregatorSecondaryServices(SecondaryServices):
                 _log.warning(f"Failed to get service_types from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
-            # TODO: Instead of merge: prefix each type with backend-id? #83
+            # TODO: Instead of merging information: prefix each type with backend-id? #83
             for name, data in types_to_add.items():
                 if name.lower() not in {k.lower() for k in service_types.keys()}:
                     service_types[name] = dict(backend_id=con.id, service_type=data)
@@ -762,13 +796,14 @@ class AggregatorSecondaryServices(SecondaryServices):
                         f'Conflicting secondary service types: "{name}" is present in more than one backend, ' +
                         f'already found in backend: {conflicting_backend}'
                     )
-        return service_types
+        return result
 
     def list_services(self, user_id: str) -> List[ServiceMetadata]:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-services"""
         services = []
 
-        for con in self._get_supported_backend():
+        for backend_id in self.get_supported_backend_ids():
+            con = self._backends.get_connection(backend_id)
             with con.authenticated_from_request(
                 request=flask.request, user=User(user_id)
             ):

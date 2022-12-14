@@ -1515,16 +1515,36 @@ class TestSecondaryServices:
         }
 
     def test_list_services_no_supporting_backends(
-        self, api100, requests_mock, backend1
+        self, api100, requests_mock, backend1, caplog
     ):
         """None of the upstream backends supports secondary services"""
+        caplog.set_level(logging.ERROR)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
+
+        # No backends supported ==> no mock for capabilities at "GET /"
+        # But the backend's /services endpoint should not be called in this scenario,
+        # so make it a fail in a loud way if the aggregator *does* call it.
+        mock_backend_services = requests_mock.get(
+            backend1 + "/services",
+            exc=Exception("Backend 1's /services should not be reached in this test."),
+        )
+
         response = api100.get("/services").assert_status_code(200).json
+
         assert response == {
             "services": [],
             "links": [],
         }
 
+        # Should not reach the backend in this case
+        assert not mock_backend_services.called
+
+        # And it should not log any errors either.
+        # We could make the assert more specific and only fail if there are error messages.
+        # But we can be reasonably sure that in this test any log message would be an error message.
+        # You could check for error messages via caplog.record_tuples which is a
+        # list of (logger_name, level, message) tuples.
+        assert not caplog.messages
 
     def test_list_services_basic(
         self, api100, requests_mock, backend1, backend2,json_capabilities_with_service_types_supported
