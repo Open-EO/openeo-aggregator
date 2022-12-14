@@ -157,7 +157,7 @@ class TestAggregatorSecondaryServices:
         }
     }
 
-    def test_get_supported_backend_none_supported(
+    def test_get_supported_backend_ids_none_supported(
         self, multi_backend_connection, config, catalog
     ):
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
@@ -166,7 +166,7 @@ class TestAggregatorSecondaryServices:
         actual_supported_backends = implementation.get_supported_backend_ids()
         assert actual_supported_backends == []
 
-    def test_get_supported_backend_all_supported(
+    def test_get_supported_backend_ids_all_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         json_capabilities_with_service_types_supported
     ):
@@ -178,7 +178,7 @@ class TestAggregatorSecondaryServices:
         actual_supported_backends = implementation.get_supported_backend_ids()
         assert actual_supported_backends == ["b1", "b2"]
 
-    def test_get_supported_backend_only_one_supported(
+    def test_get_supported_backend_ids_only_one_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         json_capabilities_with_service_types_supported, json_capabilities_no_endpoints
     ):

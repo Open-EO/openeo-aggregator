@@ -677,7 +677,19 @@ class AggregatorSecondaryServices(SecondaryServices):
 
     def get_supported_backend_ids(self) -> List[str]:
         """Get a list containing IDs of the backends that support secondary services."""
+
+        # Try the cache first, but its is cached inside the result of get_service_types().
+        # Getting the service types will also execute querying the capabilities for
+        # which backends have secondary services.
         return self._get_service_types_cached()["supported_backend_ids"]
+
+    def _find_ids_supported_backends(self) -> List[str]:
+        """Query the backends capabilities to find the ones that support secondary services."""
+        return [
+            con.id
+            for con in self._backends
+            if con.capabilities().supports_endpoint("/service_types")
+        ]
 
     def service_types(self) -> dict:
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
@@ -697,16 +709,6 @@ class AggregatorSecondaryServices(SecondaryServices):
         if backend_id is None:
             raise ServiceUnsupportedException(service_type)
         return backend_id
-
-    def _find_ids_supported_backends(self) -> List[str]:
-        """Query the backends capabilities find the ones that support secondary services."""
-        supported_backend_ids = []
-        for con in self._backends:
-            capabilities = con.capabilities()
-            # If we need to cache more capabilities info maybe we could store the full capabilities here.
-            if capabilities.supports_endpoint("/service_types"):
-                supported_backend_ids.append(con.id)
-        return supported_backend_ids
 
     def _get_service_types(self) -> Dict:
         """Returns a dict with cacheable data about the supported backends and service types.
