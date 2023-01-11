@@ -1521,7 +1521,7 @@ class TestSecondaryServices:
         caplog.set_level(logging.ERROR)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
-        # No backends supported ==> no mock for capabilities at "GET /"
+        # No backends supported ==> Rely on default mock in backend1 for capabilities at "GET /"
         # But the backend's /services endpoint should not be called in this scenario,
         # so make it a fail in a loud way if the aggregator *does* call it.
         mock_backend_services = requests_mock.get(

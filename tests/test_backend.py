@@ -157,16 +157,16 @@ class TestAggregatorSecondaryServices:
         }
     }
 
-    def test_get_supported_backend_ids_none_supported(
+    def test_get_supporting_backend_ids_none_supported(
         self, multi_backend_connection, config, catalog
     ):
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation.get_supported_backend_ids()
+        actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == []
 
-    def test_get_supported_backend_ids_all_supported(
+    def test_get_supporting_backend_ids_all_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         json_capabilities_with_service_types_supported
     ):
@@ -175,10 +175,10 @@ class TestAggregatorSecondaryServices:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation.get_supported_backend_ids()
+        actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == ["b1", "b2"]
 
-    def test_get_supported_backend_ids_only_one_supported(
+    def test_get_supporting_backend_ids_only_one_supported(
         self, multi_backend_connection, config, catalog, backend1, backend2, requests_mock,
         json_capabilities_with_service_types_supported, json_capabilities_no_endpoints
     ):
@@ -187,7 +187,7 @@ class TestAggregatorSecondaryServices:
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
-        actual_supported_backends = implementation.get_supported_backend_ids()
+        actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == ["b2"]
 
     def test_service_types_simple(
@@ -265,13 +265,19 @@ class TestAggregatorSecondaryServices:
             when the aggregator fulfills a request to list the service types,
             then the aggregator skips the unsupported backend.
         """
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        mock_b1_service_types = requests_mock.get(backend1 + "/service_types", status_code=500) # Not supported
-        mock_b2_service_types = requests_mock.get(backend2 + "/service_types", json=single_service_type)
         # We are testing that the aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         # We want to verify that the capabilities are actually queried.
         mock_b1_capabilities = requests_mock.get(backend1 + "/", json=json_capabilities_no_endpoints)
         mock_b2_capabilities = requests_mock.get(backend2 + "/", json=json_capabilities_with_service_types_supported)
+
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
+        # Backend 1 does support secondary services
+        mock_b1_service_types = requests_mock.get(
+            backend1 + "/service_types", status_code=500
+        )
+        mock_b2_service_types = requests_mock.get(
+            backend2 + "/service_types", json=single_service_type
+        )
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
