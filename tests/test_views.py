@@ -1401,13 +1401,14 @@ class TestSecondaryServices:
         """Given 2 backends but only 1 backend has a single service, then the aggregator
             returns that 1 service's metadata.
         """
-        # Only need a single service type.
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
             backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
         )
+        # Only need a single service type.
+        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
+        requests_mock.get(backend1 + "/service_types", json=single_service_type)
 
         resp = api100.get('/service_types').assert_status_code(200)
         assert resp.json == single_service_type
@@ -1416,6 +1417,14 @@ class TestSecondaryServices:
         self, api100, backend1, backend2, requests_mock
     ):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
+
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
+        requests_mock.get(
+            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
         service_type_1 = {
             "WMTS": {
                 "configuration": {
@@ -1447,13 +1456,6 @@ class TestSecondaryServices:
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
-        requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
 
         resp = api100.get("/service_types").assert_status_code(200)
         actual_service_types = resp.json
@@ -1499,6 +1501,11 @@ class TestSecondaryServices:
         Given 2 backends but only 1 backend has a single service, then the aggregator
         returns that 1 service's metadata.
         """
+
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -1511,10 +1518,6 @@ class TestSecondaryServices:
                 ],
                 "links": [],
             },
-        )
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
         )
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -1567,6 +1570,14 @@ class TestSecondaryServices:
         """
         Given 2 backends with each 1 service, then the aggregator lists both services.
         """
+
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
+        requests_mock.get(
+            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -1599,13 +1610,6 @@ class TestSecondaryServices:
                 "links": [],
             },
         )
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
-        requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         response = api100.get("/services").assert_status_code(200).json
@@ -1635,6 +1639,14 @@ class TestSecondaryServices:
         """
         Given multiple services across 2 backends, the aggregator lists all service types from all backends.
         """
+
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
+        requests_mock.get(
+            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -1695,13 +1707,6 @@ class TestSecondaryServices:
                 "links": [],
             },
         )
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
-        requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         response = api100.get("/services").assert_status_code(200).json
@@ -1742,6 +1747,11 @@ class TestSecondaryServices:
         """
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
+
         backend_service_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
         expected_agg_id = f"b1-{backend_service_id}"
 
@@ -1770,10 +1780,6 @@ class TestSecondaryServices:
             status_code=201
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
 
         resp = api100.post('/services', json=post_data).assert_status_code(201)
 
@@ -1817,6 +1823,10 @@ class TestSecondaryServices:
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
+        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
+        requests_mock.get(
+            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+        )
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         post_data = {
             "type": 'WMTS',
@@ -1832,10 +1842,6 @@ class TestSecondaryServices:
             exc=exception_class("Testing exception handling")
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
-        # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
 
         resp = api100.post('/services', json=post_data)
         assert resp.status_code == 500
@@ -1925,7 +1931,6 @@ class TestSecondaryServices:
         # Make sure the aggregator asked the backend to update the service.
         assert mock_patch.called
         assert mock_patch.last_request.json() == json_payload
-
 
     def test_update_service_but_backend_id_not_found(self, api100):
         """When the service ID does not exist because the backend prefix is wrong, then the aggregator responds with HTTP 404, not found."""
