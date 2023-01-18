@@ -7,7 +7,7 @@ from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import MultiBackendConnection, AggregatorBackendImplementation, \
     AggregatorCollectionCatalog
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyKazooClient
+from openeo_aggregator.testing import DummyKazooClient, build_capabilities
 from openeo_driver.testing import ApiTester
 from openeo_driver.users.oidc import OidcProvider
 
@@ -16,7 +16,7 @@ from openeo_driver.users.oidc import OidcProvider
 def backend1(requests_mock) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
-    requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
+    requests_mock.get(domain + "/", json=build_capabilities())
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [
         {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
     ]})
@@ -26,7 +26,7 @@ def backend1(requests_mock) -> str:
 @pytest.fixture
 def backend2(requests_mock) -> str:
     domain = "https://b2.test/v1"
-    requests_mock.get(domain + "/", json={"api_version": "1.0.0"})
+    requests_mock.get(domain + "/", json=build_capabilities())
     requests_mock.get(domain + "/credentials/oidc", json={"providers": [
         {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
     ]})
@@ -176,31 +176,3 @@ def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
         backends=multi_backend_connection,
         config=config
     )
-
-
-JSON_CAPABILITIES_NO_ENDPOINTS = {
-    "api_version": "1.1.0",
-    "backend_version": "0.6.5a1.dev20221208+820",
-    "description": "openEO API for unit tests without secondary services",
-    "endpoints": [],
-    "id": "unittestopeneoapi-1.1.0",
-    "links": [],
-    "stac_version": "0.9.0",
-    "title": "Unit test API for OpenEO - no secondary services",
-    "version": "1.1.0",
-}
-
-
-JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED = {
-    "api_version": "1.1.0",
-    "backend_version": "0.6.5a1.dev20221208+820",
-    "description": "openEO API for unit tests with secondary services",
-    "endpoints": [
-        {"methods": ["GET"], "path": "/service_types"},
-    ],
-    "id": "unittestopeneoapi-1.1.0",
-    "links": [],
-    "stac_version": "0.9.0",
-    "title": "Unit test API for OpenEO - with secondary services",
-    "version": "1.1.0",
-}

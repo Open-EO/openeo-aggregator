@@ -121,7 +121,7 @@ class BackendConnection(Connection):
     @contextlib.contextmanager
     def authenticated_from_request(self, request: flask.Request, user: Optional[User] = None):
         """
-        Context manager to temporarily authenticate connection based on current flask request.
+        Context manager to temporarily authenticate upstream connection based on current incoming flask request.
         """
         self._auth_locked = False
         self.auth = BearerAuth(bearer=self._get_bearer(request=request))

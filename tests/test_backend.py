@@ -7,7 +7,7 @@ from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorPro
     AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping, \
     AggregatorSecondaryServices
 from openeo_aggregator.caching import DictMemoizer
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import clock_mock, build_capabilities
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException, \
     ServiceNotFoundException
@@ -16,11 +16,7 @@ from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.users.auth import HttpAuthHandler
 from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
 from openeo.rest import OpenEoApiError, OpenEoRestError
-from .conftest import (
-    DEFAULT_MEMOIZER_CONFIG,
-    JSON_CAPABILITIES_NO_ENDPOINTS,
-    JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED,
-)
+from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 
 # TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
@@ -139,6 +135,13 @@ class TestAggregatorSecondaryServices:
     # TODO: most tests here (the ones that do flask app stuff and auth)
     #       belong under test_views.py
 
+    CAPABILITIES_NO_SECONDARY_SERVICES = build_capabilities(
+        support_secondary_services=False
+    )
+    CAPABILITIES_WITH_SECONDARY_SERVICES = build_capabilities(
+        support_secondary_services=True
+    )
+
     SERVICE_TYPES_ONLT_WMTS = {
         "WMTS": {
             "configuration": {
@@ -180,10 +183,10 @@ class TestAggregatorSecondaryServices:
         requests_mock,
     ):
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         processing = AggregatorProcessing(
             backends=multi_backend_connection, catalog=catalog, config=config
@@ -204,9 +207,9 @@ class TestAggregatorSecondaryServices:
         backend2,
         requests_mock,
     ):
-        requests_mock.get(backend1 + "/", json=JSON_CAPABILITIES_NO_ENDPOINTS)
+        requests_mock.get(backend1 + "/", json=self.CAPABILITIES_NO_SECONDARY_SERVICES)
         requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         processing = AggregatorProcessing(
             backends=multi_backend_connection, catalog=catalog, config=config
@@ -232,10 +235,10 @@ class TestAggregatorSecondaryServices:
         """
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
@@ -263,7 +266,7 @@ class TestAggregatorSecondaryServices:
         """
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         # Just need one service type for the test.
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
@@ -305,10 +308,10 @@ class TestAggregatorSecondaryServices:
         # We are testing that the aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         # We want to verify that the capabilities are actually queried.
         mock_b1_capabilities = requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_NO_ENDPOINTS
+            backend1 + "/", json=self.CAPABILITIES_NO_SECONDARY_SERVICES
         )
         mock_b2_capabilities = requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
 
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
@@ -344,10 +347,10 @@ class TestAggregatorSecondaryServices:
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         service_type_1 = {
             "WMTS": {
@@ -409,10 +412,10 @@ class TestAggregatorSecondaryServices:
         caplog.set_level(logging.WARNING)
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend2 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
         service_type_1 = {
             "WMS": {
@@ -558,7 +561,7 @@ class TestAggregatorSecondaryServices:
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
 
         # Set up responses for creating the service in backend 1
@@ -604,7 +607,7 @@ class TestAggregatorSecondaryServices:
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
 
         # At least 1 service type must be present.
@@ -659,7 +662,7 @@ class TestAggregatorSecondaryServices:
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
 
         # Set up responses for creating the service in backend 1:
@@ -706,7 +709,7 @@ class TestAggregatorSecondaryServices:
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
+            backend1 + "/", json=self.CAPABILITIES_WITH_SECONDARY_SERVICES
         )
 
         # Set up responses for creating the service in backend 1

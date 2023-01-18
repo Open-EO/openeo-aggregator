@@ -15,6 +15,7 @@ from openeo_aggregator.connection import BackendConnection, MultiBackendConnecti
 from openeo_aggregator.testing import clock_mock
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
+from openeo_driver.testing import DictSubSet
 
 
 class TestBackendConnection:
@@ -234,17 +235,23 @@ class TestMultiBackendConnection:
         }
 
     def test_api_version(
-        self, multi_backend_connection, requests_mock, backend1, memoizer_config
+        self,
+        multi_backend_connection,
+        requests_mock,
+        backend1,
+        backend2,
+        memoizer_config,
     ):
-        m = requests_mock.get(backend1 + "/", json={"api_version": "1.0.0"})
-        assert m.call_count == 0
-        assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
-        assert m.call_count == 1
-        assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
-        assert m.call_count == 1
+        m1 = requests_mock.get(backend1 + "/", json={"api_version": "1.2.3"})
+        m2 = requests_mock.get(backend2 + "/", json={"api_version": "1.2.3"})
+        assert (m1.call_count, m2.call_count) == (0, 0)
+        assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+        assert (m1.call_count, m2.call_count) == (1, 1)
+        assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+        assert (m1.call_count, m2.call_count) == (1, 1)
         with clock_mock(offset=memoizer_config["config"]["default_ttl"] + 1):
-            assert multi_backend_connection.api_version == ComparableVersion("1.0.0")
-            assert m.call_count == 2
+            assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+            assert (m1.call_count, m2.call_count) == (2, 2)
 
     @pytest.mark.parametrize(["pid", "issuer", "title"], [
         ("egi", "https://egi.test", "EGI"),
@@ -453,7 +460,7 @@ class TestMultiBackendConnection:
         )
 
         con1 = multi_backend_connection.get_connection("b1")
-        assert con1.get("/").json() == {"api_version": "1.0.0"}
+        assert con1.get("/").json() == DictSubSet({"api_version": "1.1.0"})
 
         # Wait for connections cache to expire
         with clock_mock(offset=1000):
@@ -461,7 +468,7 @@ class TestMultiBackendConnection:
 
             with pytest.raises(InvalidatedConnection):
                 con1.get("/")
-            assert con2.get("/").json() == {"api_version": "1.0.0"}
+            assert con2.get("/").json() == DictSubSet({"api_version": "1.1.0"})
 
     def test_get_connections(self, requests_mock, backend1, backend2):
         multi_backend_connection = MultiBackendConnection(
