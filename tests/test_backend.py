@@ -257,16 +257,13 @@ class TestAggregatorSecondaryServices:
         requests_mock,
     ):
         """Scenario: The service_types call is cached:
-            When we get the service types several times, the second call that happens before the cache expires,
-            doesn't hit the backend.
-            But the third call that happens that happens after the cache has expired does hit the backend again.
+        When we get the service types several times, the second call that happens before the cache expires,
+        doesn't hit the backend.
+        But the third call that happens after the cache has expired does hit the backend again.
         """
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(
             backend1 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
-        )
-        requests_mock.get(
-            backend2 + "/", json=JSON_CAPABILITIES_WITH_SERVICE_TYPES_SUPPORTED
         )
         # Just need one service type for the test.
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
