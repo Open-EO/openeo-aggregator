@@ -4,9 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Current: 0.7.x]
+
+### Added
+
+### Changed
+
+### Fixed
 
 
-## [Current: 0.6.x]
+## [0.6.x]
 
 ### Added
 
@@ -20,15 +27,11 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
   ([#85](https://github.com/Open-EO/openeo-aggregator/issues/85))
 - Start using pre-commit and black/darker for code style consistency
 
-
 ### Changed
 
 - Refactored/improved metadata merging/validation of collections and processes
   ([#76](https://github.com/Open-EO/openeo-aggregator/issues/76),
   [#77](https://github.com/Open-EO/openeo-aggregator/issues/77))
-
-
-### Fixed
 
 
 ## [0.5.x]
