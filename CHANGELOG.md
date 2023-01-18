@@ -5,12 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Skipping backend when it does not support secondary services [#85](https://github.com/Open-EO/openeo-aggregator/issues/85)
 
 ## [0.6.x]
 
 ### Added
 
-- Implement secondary services [#78](https://github.com/Open-EO/openeo-aggregator/issues/78))
+- Implement secondary services [#78](https://github.com/Open-EO/openeo-aggregator/issues/78)
 - Add SentinelHub openEO backend to production config
 - Added caching for `/service_types` metadata ([#84](https://github.com/Open-EO/openeo-aggregator/issues/84))
 
