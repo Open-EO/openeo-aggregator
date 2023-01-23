@@ -43,6 +43,14 @@ class TestGeneral:
             "b2": {"url": "https://b2.test/v1"},
         }
 
+    def test_capabilities_validation(self, api100):
+        """https://github.com/Open-EO/openeo-aggregator/issues/42"""
+        res = api100.get("/").assert_status_code(200)
+        capabilities = res.json
+        endpoints = capabilities["endpoints"]
+        paths = set(e["path"] for e in endpoints)
+        assert "/validation" not in paths
+
     def test_billing_plans(self, api100):
         capabilities = api100.get("/").assert_status_code(200).json
         billing = capabilities["billing"]
