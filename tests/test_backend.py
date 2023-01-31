@@ -1564,6 +1564,85 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
+    def test_get_collection_metadata_merging_doesnt_cause_duplicate_links(
+        self, catalog, backend1, backend2, requests_mock
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend1 + "/collections/S2",
+            json={
+                "id": "S2",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "rel": "self",
+                    },
+                    {"href": "http://some.license", "rel": "license"},
+                    {"href": "http://some.about.page", "rel": "about"},
+                ],
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections/S2",
+            json={
+                "id": "S2",
+                "links": [
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "rel": "self",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "parent",
+                    },
+                    {
+                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "rel": "root",
+                    },
+                    {"href": "http://some.license", "rel": "license"},
+                    {"href": "http://some.about.page", "rel": "about"},
+                ],
+            },
+        )
+
+        metadata = catalog.get_collection_metadata("S2")
+        assert metadata == {
+            "id": "S2",
+            "stac_version": "0.9.0",
+            "title": "S2",
+            "description": "S2",
+            "type": "Collection",
+            "license": "proprietary",
+            "extent": {
+                "spatial": {"bbox": [[-180, -90, 180, 90]]},
+                "temporal": {"interval": [[None, None]]},
+            },
+            "links": [
+                {"href": "http://some.license", "rel": "license"},
+                {"href": "http://some.about.page", "rel": "about"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
+                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
+            ],
+            "summaries": {
+                "federation:backends": ["b1", "b2"],
+                "provider:backend": ["b1", "b2"],
+            },
+        }
+
     def test_get_collection_metadata_merging_cubedimensions(
         self, catalog, backend1, backend2, requests_mock
     ):
