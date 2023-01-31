@@ -1564,7 +1564,7 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
-    def test_get_collection_metadata_merging_doesnt_cause_duplicate_links(
+    def test_get_collection_metadata_merging_removes_duplicate_links(
         self, catalog, backend1, backend2, requests_mock
     ):
         requests_mock.get(
