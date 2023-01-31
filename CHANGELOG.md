@@ -12,6 +12,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ### Fixed
 
+- Merging of collection metadata produced duplicate entries in `links`: [openEOPlatform/architecture-docs#266](https://github.com/openEOPlatform/architecture-docs/issues/266)
 
 ## [0.6.x]
 
