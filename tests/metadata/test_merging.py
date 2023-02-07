@@ -885,10 +885,10 @@ def test_json_diff_scalar_difference():
     ) == ["--- orig\n", "+++ changed\n", "@@ -1 +1 @@\n", '-"string"\n', "+null\n"]
 
 
-def test_merge_collection_metadata_removes_duplicate_links():
-    """A simple test with just one collection that exists on two backends (and is identical on both)."""
+def test_merge_collection_metadata_removes_duplicate_links(backend1):
+    """A simple test with just one collection that exists on two backends (and it is identical on both)."""
 
-    root_url = "https://foo"
+    root_url = backend1 + "/collections"
     parent_url = root_url + "/collections"
     self_url = parent_url + "/nvdi"
 

@@ -1576,15 +1576,15 @@ class TestAggregatorCollectionCatalog:
                 "id": "S2",
                 "links": [
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "href": f"{backend1}/collections",
                         "rel": "root",
                     },
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "href": f"{backend1}/collections",
                         "rel": "parent",
                     },
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "href": f"{backend1}/collections/S2",
                         "rel": "self",
                     },
                     {"href": "http://some.license", "rel": "license"},
@@ -1601,15 +1601,15 @@ class TestAggregatorCollectionCatalog:
                 "id": "S2",
                 "links": [
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
+                        "href": f"{backend2}/collections/S2",
                         "rel": "self",
                     },
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "href": f"{backend2}/collections",
                         "rel": "parent",
                     },
                     {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
+                        "href": f"{backend2}/collections",
                         "rel": "root",
                     },
                     {"href": "http://some.license", "rel": "license"},
