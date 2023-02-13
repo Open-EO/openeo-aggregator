@@ -887,11 +887,6 @@ def test_json_diff_scalar_difference():
 
 def test_merge_collection_metadata_removes_duplicate_links(backend1):
     """A simple test with just one collection that exists on two backends (and it is identical on both)."""
-
-    root_url = backend1 + "/collections"
-    parent_url = root_url + "/collections"
-    self_url = parent_url + "/nvdi"
-
     collection_metadata = {
         "id": "NDVI",
         "stac_version": "0.9.0",
@@ -900,29 +895,20 @@ def test_merge_collection_metadata_removes_duplicate_links(backend1):
         "type": "Collection",
         "links": [
             {
-                "href": f"{self_url}/about",
+                "href": "https://ndvi.test/about",
                 "rel": "about",
                 "title": "Website describing the collection",
                 "type": "text/html",
             },
             {
-                "href": f"{self_url}/somestuff/script.js",
+                "href": "https://ndvi.test/script.js",
                 "rel": "processing-expression",
                 "title": "Evalscript to do whatever",
                 "type": "application/javascript",
             },
-            {
-                "href": self_url,
-                "rel": "self",
-            },
-            {
-                "href": parent_url,
-                "rel": "parent",
-            },
-            {
-                "href": root_url,
-                "rel": "root",
-            },
+            {"rel": "root", "href": backend1 + "/collections"},
+            {"rel": "parent", "href": backend1 + "/collections"},
+            {"rel": "self", "href": backend1 + "/collections/NDVI"},
         ],
     }
 
@@ -935,13 +921,13 @@ def test_merge_collection_metadata_removes_duplicate_links(backend1):
     # But it should ignore links with relation "self", "parent" and "root"
     assert merged_actual["links"] == [
         {
-            "href": f"{self_url}/about",
+            "href": "https://ndvi.test/about",
             "rel": "about",
             "title": "Website describing the collection",
             "type": "text/html",
         },
         {
-            "href": f"{self_url}/somestuff/script.js",
+            "href": "https://ndvi.test/script.js",
             "rel": "processing-expression",
             "title": "Evalscript to do whatever",
             "type": "application/javascript",
