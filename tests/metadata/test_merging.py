@@ -1,7 +1,12 @@
 import pytest
 
-from openeo_aggregator.metadata.merging import ProcessMetadataMerger, json_diff
+from openeo_aggregator.metadata.merging import (
+    ProcessMetadataMerger,
+    json_diff,
+    merge_collection_metadata,
+)
 from openeo_aggregator.testing import same_repr
+from openeo_driver.backend import CollectionCatalog
 from openeo_driver.testing import DictSubSet
 
 
@@ -878,3 +883,53 @@ def test_json_diff_scalar_difference():
         b_name="changed",
         context=1,
     ) == ["--- orig\n", "+++ changed\n", "@@ -1 +1 @@\n", '-"string"\n', "+null\n"]
+
+
+def test_merge_collection_metadata_removes_duplicate_links(backend1):
+    """A simple test with just one collection that exists on two backends (and it is identical on both)."""
+    collection_metadata = {
+        "id": "NDVI",
+        "stac_version": "0.9.0",
+        "title": "title of NVDI",
+        "description": "Description of NVDI",
+        "type": "Collection",
+        "links": [
+            {
+                "href": "https://ndvi.test/about",
+                "rel": "about",
+                "title": "Website describing the collection",
+                "type": "text/html",
+            },
+            {
+                "href": "https://ndvi.test/script.js",
+                "rel": "processing-expression",
+                "title": "Evalscript to do whatever",
+                "type": "application/javascript",
+            },
+            {"rel": "root", "href": backend1 + "/collections"},
+            {"rel": "parent", "href": backend1 + "/collections"},
+            {"rel": "self", "href": backend1 + "/collections/NDVI"},
+        ],
+    }
+
+    by_backend = {"backend1": collection_metadata, "backend2": collection_metadata}
+
+    merged_actual = merge_collection_metadata(by_backend, full_metadata=True)
+    assert len(merged_actual["links"]) == 2
+
+    # If should keep only one copy of each link.
+    # But it should ignore links with relation "self", "parent" and "root"
+    assert merged_actual["links"] == [
+        {
+            "href": "https://ndvi.test/about",
+            "rel": "about",
+            "title": "Website describing the collection",
+            "type": "text/html",
+        },
+        {
+            "href": "https://ndvi.test/script.js",
+            "rel": "processing-expression",
+            "title": "Evalscript to do whatever",
+            "type": "application/javascript",
+        },
+    ]

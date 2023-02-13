@@ -82,11 +82,18 @@ def merge_collection_metadata(
 
     # Start with some initial/required fields
     result = {
-        "id": cid, "stac_version": max(list(getter.get("stac_version")) + ["0.9.0"]),
-        "title": getter.first("title", default = cid), "description": getter.first("description", default = cid),
-        "type": getter.first("type", default = "Collection"),
-        "links": [k for k in getter.concat("links") # TODO: report invalid links (e.g. string instead of dict)
-            if isinstance(k, dict) and k.get("rel") not in ("self", "parent", "root")],
+        "id": cid,
+        "stac_version": max(list(getter.get("stac_version")) + ["0.9.0"]),
+        "title": getter.first("title", default=cid),
+        "description": getter.first("description", default=cid),
+        "type": getter.first("type", default="Collection"),
+        "links": [
+            k
+            for k in getter.concat(
+                "links", skip_duplicates=True
+            )  # TODO: report invalid links (e.g. string instead of dict)
+            if isinstance(k, dict) and k.get("rel") not in ("self", "parent", "root")
+        ],
     }
 
     # Generic field merging
