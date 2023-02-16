@@ -6,4 +6,4 @@ STAC_PROPERTY_PROVIDER_BACKEND = "provider:backend"
 # https://github.com/Open-EO/openeo-api/tree/draft/extensions/federation#resources-supported-only-by-a-subset-of-back-ends
 # Every discoverable resource that is defined as an object and allows to contain additional properties,
 # can list the backends that support or host the exposed resource/functionality.
-FEDERATION_BACKENDS = "federation:backends"
+STAC_PROPERTY_FEDERATION_BACKENDS = "federation:backends"

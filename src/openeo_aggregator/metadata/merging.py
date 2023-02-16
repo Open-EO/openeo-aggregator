@@ -15,7 +15,7 @@ from typing import Dict, Optional, Callable, Any, List
 from openeo.util import rfc3339
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
-    FEDERATION_BACKENDS,
+    STAC_PROPERTY_FEDERATION_BACKENDS,
 )
 from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
@@ -207,10 +207,8 @@ def merge_collection_metadata(
                 )
 
     # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
-    result["summaries"][STAC_PROPERTY_PROVIDER_BACKEND] = list(
-        by_backend.keys()
-    )  # TODO remove this deprecated field
-    result["summaries"][FEDERATION_BACKENDS] = list(by_backend.keys())
+    result["summaries"][STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
+    result["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS] = list(by_backend.keys())
 
     ## Log warnings for improper metadata.
     # license => Log warning for collections without license links.
@@ -315,7 +313,7 @@ class ProcessMetadataMerger:
             # Some fields to always set (e.g. required)
             "id": process_id,
             "description": getter.first("description", default=process_id),
-            FEDERATION_BACKENDS: supporting_backends,
+            STAC_PROPERTY_FEDERATION_BACKENDS: supporting_backends,
         }
         set_if_non_empty(merged, "summary", getter.first("summary", default=None))
 

@@ -17,7 +17,10 @@ from openeo_aggregator.config import AggregatorConfig, CONNECTION_TIMEOUT_RESULT
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 from openeo_aggregator.egi import is_early_adopter, is_30day_trial
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
+from openeo_aggregator.metadata import (
+    STAC_PROPERTY_PROVIDER_BACKEND,
+    STAC_PROPERTY_FEDERATION_BACKENDS,
+)
 from openeo_aggregator.metadata.merging import (
     merge_collection_metadata,
     normalize_collection_metadata,
@@ -314,12 +317,19 @@ class AggregatorProcessing(Processing):
                 arguments = pg_node["arguments"]
                 if process_id == "load_collection":
                     collections.add(arguments["id"])
-                    provider_backend_pg = deep_get(
-                        arguments, "properties", STAC_PROPERTY_PROVIDER_BACKEND, "process_graph",
-                        default=None
-                    )
-                    if provider_backend_pg:
-                        collection_backend_constraints.append(provider_backend_pg)
+                    for stac_property in [
+                        STAC_PROPERTY_PROVIDER_BACKEND,
+                        STAC_PROPERTY_FEDERATION_BACKENDS,
+                    ]:
+                        provider_backend_pg = deep_get(
+                            arguments,
+                            "properties",
+                            stac_property,
+                            "process_graph",
+                            default=None,
+                        )
+                        if provider_backend_pg:
+                            collection_backend_constraints.append(provider_backend_pg)
                 elif process_id == "load_result":
                     # Extract backend id that has this batch job result to load
                     _, job_backend_id = JobIdMapping.parse_aggregator_job_id(

@@ -9,7 +9,10 @@ from openeo.rest.connection import url_join
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo.util import rfc3339
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
+from openeo_aggregator.metadata import (
+    STAC_PROPERTY_PROVIDER_BACKEND,
+    STAC_PROPERTY_FEDERATION_BACKENDS,
+)
 from openeo_aggregator.testing import clock_mock, build_capabilities
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
     ProcessGraphInvalidException, ProcessGraphMissingException
@@ -748,14 +751,31 @@ class TestProcessing:
         res = api100.post("/result", json={"process": {"process_graph": pg}})
         res.assert_error(400, "ProcessGraphInvalid")
 
-    @pytest.mark.parametrize(["user_selected_backend", "expected_response", "expected_call_counts"], [
-        ("b1", (200, None), (1, 0)),
-        ("b2", (200, None), (0, 1)),
-        ("b3", (400, "BackendLookupFailure"), (0, 0)),
-    ])
+    @pytest.mark.parametrize(
+        ["user_selected_backend", "expected_response", "expected_call_counts"],
+        [
+            ("b1", (200, None), (1, 0)),
+            ("b2", (200, None), (0, 1)),
+            ("b3", (400, "BackendLookupFailure"), (0, 0)),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "stac_property",
+        [
+            STAC_PROPERTY_PROVIDER_BACKEND,
+            STAC_PROPERTY_FEDERATION_BACKENDS,
+        ],
+    )
     def test_load_collection_from_user_selected_backend(
-            self, api100, backend1, backend2, requests_mock,
-            user_selected_backend, expected_response, expected_call_counts
+        self,
+        api100,
+        backend1,
+        backend2,
+        requests_mock,
+        user_selected_backend,
+        expected_response,
+        expected_call_counts,
+        stac_property,
     ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={"id": "S2"})
@@ -772,20 +792,29 @@ class TestProcessing:
         b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
 
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        pg = {"lc": {
-            "process_id": "load_collection",
-            "arguments": {
-                "id": "S2",
-                "properties": {STAC_PROPERTY_PROVIDER_BACKEND: {"process_graph": {
-                    "eq": {
-                        "process_id": "eq",
-                        "arguments": {"x": {"from_parameter": "value"}, "y": user_selected_backend},
-                        "result": True
-                    }
-                }}}
-            },
-            "result": True
-        }}
+        pg = {
+            "lc": {
+                "process_id": "load_collection",
+                "arguments": {
+                    "id": "S2",
+                    "properties": {
+                        stac_property: {
+                            "process_graph": {
+                                "eq": {
+                                    "process_id": "eq",
+                                    "arguments": {
+                                        "x": {"from_parameter": "value"},
+                                        "y": user_selected_backend,
+                                    },
+                                    "result": True,
+                                }
+                            }
+                        }
+                    },
+                },
+                "result": True,
+            }
+        }
         request = {"process": {"process_graph": pg}}
         response = api100.post("/result", json=request)
 
