@@ -15,7 +15,7 @@ from openeo.util import dict_no_none, TimingLogger, deep_get
 from openeo_aggregator.caching import memoizer_from_config, Memoizer, json_serde
 from openeo_aggregator.config import AggregatorConfig, CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
-from openeo_aggregator.egi import is_early_adopter, is_30day_trial
+import openeo_aggregator.egi
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
@@ -1002,6 +1002,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 normalize_issuer_url(u)
                 for u in self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
             ]
+            # TODO: all this is openEO platform EGI VO specific. Should/Can this be generalized/encapsulated better?
             if not (
                     int_data["authentication_method"] == "OIDC"
                     and normalize_issuer_url(int_data["oidc_issuer"]) in issuer_whitelist
@@ -1023,14 +1024,14 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                     "userinfo keys": (user.info.keys(), user.info.get('oidc_userinfo', {}).keys())
                 })
                 raise PermissionsInsufficientException(enrollment_error_user_message)
-            if any(is_early_adopter(e) for e in eduperson_entitlements):
-                # TODO: list multiple roles/levels? Better "status" signaling?
-                user.info["roles"] = ["EarlyAdopter"]
-                user.info["default_plan"] = self.BILLING_PLAN_EARLY_ADOPTER
-            elif any(is_30day_trial(e) for e in eduperson_entitlements):
-                # TODO: list multiple roles/levels? Better "status" signaling?
-                user.info["roles"] = ["30DayTrial"]
-                user.info["default_plan"] = self.BILLING_PLAN_30DAY_TRIAL
+
+            roles = openeo_aggregator.egi.OPENEO_PLATFORM_USER_ROLES.extract_roles(
+                eduperson_entitlements
+            )
+            if roles:
+                user.info["roles"] = [r.id for r in roles]
+                # TODO: better way of determining default_plan?
+                user.info["default_plan"] = [r.billing_plan for r in roles][-1].name
             else:
                 _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "user_id": user.user_id,
@@ -1070,27 +1071,18 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         response.status_code = overall_status_code
         return response
 
-    BILLING_PLAN_30DAY_TRIAL = "30day-trial"
-    BILLING_PLAN_EARLY_ADOPTER = "early-adopter"
-
     def capabilities_billing(self) -> dict:
         # TODO: ok to hardcode this here, or move to config?
         return {
             "currency": "EUR",
             "plans": [
                 {
-                    "name": self.BILLING_PLAN_EARLY_ADOPTER,
-                    "description": "openEO.cloud early adopter plan",
-                    "url": "https://openeo.cloud/early-adopters/",
-                    "paid": True,
-                },
-                # TODO: Unused plan at the moment: necessary to expose it?
-                {
-                    "name": self.BILLING_PLAN_30DAY_TRIAL,
-                    "description": "openEO.cloud 30 day free trial plan (experimental)",
-                    # TODO: url?
-                    "paid": False
-                },
+                    "name": p.name,
+                    "description": p.description,
+                    "url": p.url,
+                    "paid": p.paid,
+                }
+                for p in openeo_aggregator.egi.OPENEO_PLATFORM_BILLING_PLANS
             ]
         }
 

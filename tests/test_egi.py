@@ -1,6 +1,11 @@
 import pytest
 
-from openeo_aggregator.egi import parse_eduperson_entitlement, Entitlement, is_early_adopter, is_30day_trial
+from openeo_aggregator.egi import (
+    parse_eduperson_entitlement,
+    Entitlement,
+    UserRole,
+    OPENEO_PLATFORM_USER_ROLES,
+)
 
 
 def test_parse_eduperson_entitlement():
@@ -44,35 +49,102 @@ def test_parse_eduperson_entitlement_loose():
     assert e == Entitlement(None, None, None, None, None)
 
 
-def test_is_early_adopter():
-    assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu")
-    assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=Early_Adopter#aai.egi.eu")
-    assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=Early-Adopter#aai.egi.eu")
-    assert is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=EarlyAdopter#aai.egi.eu")
+class TestUserRole:
+    def test_basic(self):
+        role = UserRole("Foo")
+        assert role.id == "Foo"
+        assert role.billing_plan.name == "generic"
+        assert role.entitlement_match(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=Foo#aai.egi.eu"
+        )
 
-    assert not is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
-    assert not is_early_adopter("urn:mace:uho.ai:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu")
-    assert not is_early_adopter("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=early_adopter#aai.egi.eu")
-    assert not is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=member#aai.egi.eu")
-    assert not is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#ooi.egi.eu")
+    @pytest.mark.parametrize(
+        "title", ["Foo-Bar", "Foo_Bar", "FooBar", "Foo Bar", "foo bar", "foo_bar"]
+    )
+    @pytest.mark.parametrize(
+        "entitlement_role",
+        ["Foo-Bar", "FooBar", "Foo_Bar", "foobar", "foo-bar", "foo_bar"],
+    )
+    def test_normalization(self, title, entitlement_role):
+        role = UserRole(title)
+        assert role.id == "FooBar"
+        assert role.entitlement_match(
+            f"urn:mace:egi.eu:group:vo.openeo.cloud:role={entitlement_role}#aai.egi.eu"
+        )
 
-    assert not is_early_adopter("foobar")
-    assert not is_early_adopter("")
+    def test_is_early_adopter(self):
+        (role,) = [
+            r for r in OPENEO_PLATFORM_USER_ROLES.roles if r.id == "EarlyAdopter"
+        ]
+        is_early_adopter = role.entitlement_match
+
+        assert is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu"
+        )
+        assert is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=Early_Adopter#aai.egi.eu"
+        )
+        assert is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=Early-Adopter#aai.egi.eu"
+        )
+        assert is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=EarlyAdopter#aai.egi.eu"
+        )
+
+        assert not is_early_adopter("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
+        assert not is_early_adopter(
+            "urn:mace:uho.ai:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu"
+        )
+        assert not is_early_adopter(
+            "urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=early_adopter#aai.egi.eu"
+        )
+        assert not is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=member#aai.egi.eu"
+        )
+        assert not is_early_adopter(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#ooi.egi.eu"
+        )
+
+        assert not is_early_adopter("foobar")
+        assert not is_early_adopter("")
 
 
-def test_is_30day_trial():
-    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu")
-    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day_Trial#aai.egi.eu")
-    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day-Trial#aai.egi.eu")
-    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30-Day-Trial#aai.egi.eu")
-    assert is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30DayTrial#aai.egi.eu")
+    def test_is_30day_trial(self):
+        (role,) = [r for r in OPENEO_PLATFORM_USER_ROLES.roles if r.id == "30DayTrial"]
+        is_30day_trial = role.entitlement_match
 
-    assert not is_30day_trial("urn:mace:uho.ai:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu")
-    assert not is_30day_trial("urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=30day_trial#aai.egi.eu")
-    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu")
-    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
-    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=member#aai.egi.eu")
-    assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu")
+        assert is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu"
+        )
+        assert is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day_Trial#aai.egi.eu"
+        )
+        assert is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30Day-Trial#aai.egi.eu"
+        )
+        assert is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30-Day-Trial#aai.egi.eu"
+        )
+        assert is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30DayTrial#aai.egi.eu"
+        )
 
-    assert not is_30day_trial("foobar")
-    assert not is_30day_trial("")
+        assert not is_30day_trial(
+            "urn:mace:uho.ai:group:vo.openeo.cloud:role=30day_trial#aai.egi.eu"
+        )
+        assert not is_30day_trial(
+            "urn:mace:egi.eu:group:vo.kleurenwiezen.be:role=30day_trial#aai.egi.eu"
+        )
+        assert not is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu"
+        )
+        assert not is_30day_trial("urn:mace:egi.eu:group:vo.openeo.cloud#aai.egi.eu")
+        assert not is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=member#aai.egi.eu"
+        )
+        assert not is_30day_trial(
+            "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day_trial#ooi.egi.eu"
+        )
+
+        assert not is_30day_trial("foobar")
+        assert not is_30day_trial("")

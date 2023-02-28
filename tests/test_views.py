@@ -309,22 +309,36 @@ class TestAuthEntitlementCheck:
         assert re.search(r"user_id.*john", warnings)
         assert re.search(warn_regex, warnings)
 
-    @pytest.mark.parametrize(["eduperson_entitlement", "expected_roles", "expected_plan"], [
-        (
+    @pytest.mark.parametrize(
+        ["eduperson_entitlement", "expected_roles", "expected_plan"],
+        [
+            (
                 [
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day-trial#aai.egi.eu",
                 ],
-                ["30DayTrial"], "30day-trial",
-        ),
-        (
+                ["30DayTrial"],
+                "30day-trial",
+            ),
+            (
                 [
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu",
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
                 ],
-                ["EarlyAdopter"], "early-adopter",
-        )
-    ])
+                ["EarlyAdopter"],
+                "early-adopter",
+            ),
+            (
+                [
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=basicuser#aai.egi.eu",
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=Platform-developer#aai.egi.eu",
+                ],
+                ["EarlyAdopter", "BasicUser", "PlatformDeveloper"],
+                "generic",
+            ),
+        ],
+    )
     def test_oidc_enrolled(
             self, api100_with_entitlement_check, requests_mock,
             eduperson_entitlement, expected_roles, expected_plan,
