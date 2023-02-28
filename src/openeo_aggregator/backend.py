@@ -1029,9 +1029,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 eduperson_entitlements
             )
             if roles:
-                user.info["roles"] = [r.id for r in roles]
+                user.add_roles(r.id for r in roles)
                 # TODO: better way of determining default_plan?
-                user.info["default_plan"] = [r.billing_plan for r in roles][-1].name
+                user.set_default_plan([r.billing_plan for r in roles][-1].name)
             else:
                 _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "user_id": user.user_id,

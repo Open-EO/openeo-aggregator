@@ -334,7 +334,7 @@ class TestAuthEntitlementCheck:
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=basicuser#aai.egi.eu",
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=Platform-developer#aai.egi.eu",
                 ],
-                ["EarlyAdopter", "BasicUser", "PlatformDeveloper"],
+                ["BasicUser", "EarlyAdopter", "PlatformDeveloper"],
                 "generic",
             ),
         ],
@@ -355,7 +355,7 @@ class TestAuthEntitlementCheck:
         res = api100_with_entitlement_check.get("/me").assert_status_code(200)
         data = res.json
         assert data["user_id"] == "john"
-        assert data["info"]["roles"] == expected_roles
+        assert data["roles"] == expected_roles
         assert data["default_plan"] == expected_plan
 
     @pytest.mark.parametrize(["whitelist", "main_test_oidc_issuer", "success"], [
@@ -395,7 +395,7 @@ class TestAuthEntitlementCheck:
             res = api100.get("/me").assert_status_code(200)
             data = res.json
             assert data["user_id"] == "john"
-            assert data["info"]["roles"] == ["EarlyAdopter"]
+            assert data["roles"] == ["EarlyAdopter"]
         else:
             res = api100.get("/me")
             res.assert_error(403, "PermissionsInsufficient")
