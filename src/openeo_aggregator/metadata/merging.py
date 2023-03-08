@@ -12,7 +12,7 @@ import json
 import logging
 from typing import Dict, Optional, Callable, Any, List
 
-from openeo.util import rfc3339
+from openeo.util import rfc3339, deep_get
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
     STAC_PROPERTY_FEDERATION_BACKENDS,
@@ -222,6 +222,19 @@ def merge_collection_metadata(
             collection_id=cid,
         )
     return result
+
+
+def single_backend_collection_post_processing(metadata: dict, *, backend_id: str):
+    """In-place post-processing of a single backend collection"""
+    if not deep_get(
+        metadata, "summaries", STAC_PROPERTY_FEDERATION_BACKENDS, default=None
+    ):
+        metadata.setdefault("summaries", {})
+        metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS] = [backend_id]
+    else:
+        _log.warning(
+            f"Summary {STAC_PROPERTY_FEDERATION_BACKENDS} is already set on collection {metadata.get('id', 'n/a')}, which is weird."
+        )
 
 
 def set_if_non_empty(d: dict, key: str, value: Any):

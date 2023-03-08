@@ -916,6 +916,7 @@ class TestAggregatorCollectionCatalog:
         assert metadata == [
             {
                 "id": "S2",
+                "summaries": {"federation:backends": ["b1"]},
                 "links": [
                     {
                         "href": "http://oeoa.test/openeo/1.1.0/collections",
@@ -933,6 +934,7 @@ class TestAggregatorCollectionCatalog:
             },
             {
                 "id": "S3",
+                "summaries": {"federation:backends": ["b2"]},
                 "links": [
                     {
                         "href": "http://oeoa.test/openeo/1.1.0/collections",
@@ -965,6 +967,7 @@ class TestAggregatorCollectionCatalog:
         assert metadata == [
             {
                 "id": "S3",
+                "summaries": {"federation:backends": ["b1"]},
                 "links": [
                     {
                         "href": "http://oeoa.test/openeo/1.1.0/collections",
@@ -1012,6 +1015,7 @@ class TestAggregatorCollectionCatalog:
             },
             {
                 "id": "S5",
+                "summaries": {"federation:backends": ["b2"]},
                 "links": [
                     {
                         "href": "http://oeoa.test/openeo/1.1.0/collections",
@@ -1200,6 +1204,7 @@ class TestAggregatorCollectionCatalog:
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
             'id': 'S2', 'title': "b1's S2",
+            "summaries": {"federation:backends": ["b1"]},
             'links': [
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
@@ -1209,6 +1214,7 @@ class TestAggregatorCollectionCatalog:
         metadata = catalog.get_collection_metadata("S3")
         assert metadata == {
             "id": "S3", "title": "b2's S3",
+            "summaries": {"federation:backends": ["b2"]},
             'links': [
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
                 {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
@@ -1862,6 +1868,7 @@ class TestAggregatorCollectionCatalog:
         assert metadata == {
             "id": "S2",
             "title": "b2's S2",
+            "summaries": {"federation:backends": ["b2"]},
             "links": [
                 {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
                 {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},

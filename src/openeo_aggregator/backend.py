@@ -25,6 +25,7 @@ from openeo_aggregator.metadata.merging import (
     merge_collection_metadata,
     normalize_collection_metadata,
     ProcessMetadataMerger,
+    single_backend_collection_post_processing,
 )
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
@@ -119,6 +120,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 # Simple case: collection is only available on single backend.
                 _log.debug(f"Accept single backend collection {cid} as is")
                 (bid, metadata), = by_backend.items()
+                single_backend_collection_post_processing(metadata, backend_id=bid)
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 try:
@@ -210,7 +212,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         if len(by_backend) == 0:
             raise CollectionNotFoundException(collection_id=collection_id)
         elif len(by_backend) == 1:
-            metadata = by_backend.popitem()[1]
+            bid, metadata = by_backend.popitem()
+            single_backend_collection_post_processing(metadata, backend_id=bid)
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
             metadata = merge_collection_metadata(
