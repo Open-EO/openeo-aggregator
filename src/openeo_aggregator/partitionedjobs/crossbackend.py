@@ -1,6 +1,5 @@
 import collections
 import logging
-from pprint import pprint
 from typing import Callable, Dict, List
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
@@ -35,7 +34,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
             f"Extracted backend usage from `load_collection` nodes: {backend_usage}"
         )
 
-        primary_backend = backend_usage.most_common(1)[0][0]
+        primary_backend = backend_usage.most_common(1)[0][0] if backend_usage else None
         secondary_backends = {b for b in backend_usage if b != primary_backend}
         _log.info(f"Backend split: {primary_backend=} {secondary_backends=}")
 
@@ -80,45 +79,3 @@ class CrossBackendSplitter(AbstractJobSplitter):
             subjobs=PartitionedJob.to_subjobs_dict(subjobs),
             dependencies=dependencies,
         )
-
-
-def main():
-    # Simple proof of concept for cross-backend splitting
-    process_graph = {
-        "lc1": {"process_id": "load_collection", "arguments": {"id": "VITO_1"}},
-        "lc2": {"process_id": "load_collection", "arguments": {"id": "SH_1"}},
-        "mc1": {
-            "process_id": "merge_cubes",
-            "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
-        },
-        "sr1": {
-            "process_id": "save_result",
-            "arguments": {"format": "NetCDF"},
-        },
-    }
-    print("Original PG:")
-    pprint(process_graph)
-
-    splitter = CrossBackendSplitter(
-        backend_for_collection=lambda cid: cid.split("_")[0]
-    )
-
-    pjob = splitter.split({"process_graph": process_graph})
-
-    def namedtuples_to_dict(x):
-        """Walk data structure and convert namedtuples to dictionaries"""
-        if hasattr(x, "_asdict"):
-            return namedtuples_to_dict(x._asdict())
-        elif isinstance(x, list):
-            return [namedtuples_to_dict(i) for i in x]
-        elif isinstance(x, dict):
-            return {k: namedtuples_to_dict(v) for k, v in x.items()}
-        else:
-            return x
-
-    print("Cross-backend split:")
-    pprint(namedtuples_to_dict(pjob), width=120)
-
-
-if __name__ == "__main__":
-    main()

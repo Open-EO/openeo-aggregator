@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, NamedTuple, Sequence, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Union
 
 from openeo_driver.errors import OpenEOApiException
 
@@ -13,8 +13,8 @@ class SubJob(NamedTuple):
     """A part of a partitioned job, target at a particular, single back-end."""
     # Process graph of the subjob (derived in some way from original parent process graph)
     process_graph: FlatPG
-    # Id of target backend
-    backend_id: str
+    # Id of target backend (or None if there is no dedicated backend)
+    backend_id: Optional[str]
 
 
 class PartitionedJob(NamedTuple):
