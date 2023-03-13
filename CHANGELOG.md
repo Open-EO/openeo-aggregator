@@ -9,6 +9,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ### Added
 
 - Add support for more user roles ([#64](https://github.com/Open-EO/openeo-aggregator/issues/64))
+- Experimental: allow back-end selection through job option
 
 ### Changed
 

@@ -12,6 +12,7 @@ from openeo.util import rfc3339
 
 # Generic "sentinel object" for unset values (where `None` is valid value)
 # https://python-patterns.guide/python/sentinel-object/)
+# TODO: this does not have to private
 _UNSET = object()
 
 _log = logging.getLogger(__name__)

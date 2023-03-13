@@ -16,6 +16,11 @@ from openeo_aggregator.caching import memoizer_from_config, Memoizer, json_serde
 from openeo_aggregator.config import AggregatorConfig, CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
 import openeo_aggregator.egi
+from openeo_aggregator.constants import (
+    JOB_OPTION_FORCE_BACKEND,
+    JOB_OPTION_SPLIT_STRATEGY,
+    JOB_OPTION_TILE_GRID,
+)
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
@@ -304,12 +309,25 @@ class AggregatorProcessing(Processing):
         )
         return combined_processes
 
-    def get_backend_for_process_graph(self, process_graph: dict, api_version: str) -> str:
+    def get_backend_for_process_graph(
+        self, process_graph: dict, api_version: str, job_options: Optional[dict] = None
+    ) -> str:
         """
         Get backend capable of executing given process graph (based on used collections, processes, ...)
         """
         # Initial list of candidates
         backend_candidates: List[str] = [b.id for b in self.backends]
+
+        if job_options and JOB_OPTION_FORCE_BACKEND in job_options:
+            # Experimental feature to force a certain upstream back-end through job options
+            bid = job_options[JOB_OPTION_FORCE_BACKEND]
+            if bid not in backend_candidates:
+                # TODO use generic client error class
+                raise OpenEOApiException(
+                    status_code=404,
+                    message=f"Invalid job option {JOB_OPTION_FORCE_BACKEND!r}: {bid!r} not in {backend_candidates!r}",
+                )
+            return bid
 
         # TODO: also check used processes?
         collections = set()
@@ -488,7 +506,10 @@ class AggregatorBatchJobs(BatchJobs):
             raise ProcessGraphMissingException()
 
         # TODO: better, more generic/specific job_option(s)?
-        if job_options and (job_options.get("split_strategy") or job_options.get("tile_grid")):
+        if job_options and (
+            job_options.get(JOB_OPTION_SPLIT_STRATEGY)
+            or job_options.get(JOB_OPTION_TILE_GRID)
+        ):
             return self._create_partitioned_job(
                 user_id=user_id,
                 process=process,
@@ -506,13 +527,28 @@ class AggregatorBatchJobs(BatchJobs):
             )
 
     def _create_job_standard(
-            self, user_id: str, process_graph: dict, api_version: str, metadata: dict, job_options: dict = None
+        self,
+        user_id: str,
+        process_graph: dict,
+        api_version: str,
+        metadata: dict,
+        job_options: Optional[dict] = None,
     ) -> BatchJobMetadata:
         """Standard batch job creation: just proxy to a single batch job on single back-end."""
         backend_id = self.processing.get_backend_for_process_graph(
-            process_graph=process_graph, api_version=api_version
+            process_graph=process_graph,
+            api_version=api_version,
+            job_options=job_options,
         )
-        process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+        process_graph = self.processing.preprocess_process_graph(
+            process_graph, backend_id=backend_id
+        )
+        if job_options:
+            additional = {
+                k: v for k, v in job_options.items() if not k.startswith("_agg_")
+            }
+        else:
+            additional = None
 
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), \
@@ -522,7 +558,7 @@ class AggregatorBatchJobs(BatchJobs):
                     process_graph=process_graph,
                     title=metadata.get("title"), description=metadata.get("description"),
                     plan=metadata.get("plan"), budget=metadata.get("budget"),
-                    additional=job_options,
+                    additional=additional,
                 )
             except OpenEoApiError as e:
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
@@ -549,9 +585,9 @@ class AggregatorBatchJobs(BatchJobs):
         if not self.partitioned_job_tracker:
             raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
 
-        if "tile_grid" in job_options:
+        if JOB_OPTION_TILE_GRID in job_options:
             splitter = TileGridSplitter(processing=self.processing)
-        elif job_options.get("split_strategy") == "flimsy":
+        elif job_options.get(JOB_OPTION_SPLIT_STRATEGY) == "flimsy":
             splitter = FlimsySplitter(processing=self.processing)
         else:
             raise ValueError("Could not determine splitting strategy from job options")

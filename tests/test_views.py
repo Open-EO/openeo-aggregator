@@ -1,22 +1,22 @@
 import logging
+import pytest
 import re
+import requests
 from typing import Tuple, List
 
-import pytest
-import requests
-
-from openeo.rest.connection import url_join
 from openeo.rest import OpenEoApiError, OpenEoRestError
+from openeo.rest.connection import url_join
 from openeo.util import rfc3339
 from openeo_aggregator.config import AggregatorConfig
+from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_PROVIDER_BACKEND,
     STAC_PROPERTY_FEDERATION_BACKENDS,
 )
 from openeo_aggregator.testing import clock_mock, build_capabilities
+from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import JobNotFoundException, JobNotFinishedException, \
     ProcessGraphInvalidException, ProcessGraphMissingException
-from openeo_driver.backend import ServiceMetadata
 from openeo_driver.testing import (
     ApiTester,
     TEST_USER_AUTH_HEADER,
@@ -1147,6 +1147,63 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs", json={"process": {"process_graph": pg}})
         res.assert_error(500, "Internal", message="Failed to create job on backend 'b1'")
+
+    @pytest.mark.parametrize(
+        ["force_backend", "expected"],
+        [("b1", "b1"), ("b2", "b2"), (None, "b1")],
+    )
+    def test_create_job_force_backend(
+        self, api100, requests_mock, backend1, backend2, force_backend, expected
+    ):
+        requests_mock.get(
+            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+        requests_mock.get(
+            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
+        )
+
+        jobs = []
+
+        def post_jobs(request: requests.Request, context):
+            nonlocal jobs
+            jobs.append(request.json())
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        backend1_post_jobs = requests_mock.post(backend1 + "/jobs", text=post_jobs)
+        backend2_post_jobs = requests_mock.post(backend2 + "/jobs", text=post_jobs)
+
+        pg = {
+            "lc": {
+                "process_id": "load_collection",
+                "arguments": {"id": "S2"},
+                "result": True,
+            }
+        }
+        job_options = {}
+
+        if force_backend:
+            job_options[JOB_OPTION_FORCE_BACKEND] = force_backend
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": job_options,
+            },
+        ).assert_status_code(201)
+        assert (
+            res.headers["Location"]
+            == f"http://oeoa.test/openeo/1.0.0/jobs/{expected}-th3j0b"
+        )
+        assert res.headers["OpenEO-Identifier"] == f"{expected}-th3j0b"
+        assert jobs == [{"process": {"process_graph": pg}}]
+
+        assert (backend1_post_jobs.call_count, backend2_post_jobs.call_count) == {
+            "b1": (1, 0),
+            "b2": (0, 1),
+        }[expected]
 
     def test_get_job_metadata(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/jobs/th3j0b", json={

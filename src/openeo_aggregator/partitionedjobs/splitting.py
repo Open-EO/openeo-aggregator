@@ -9,6 +9,7 @@ import typing
 from typing import List
 
 from openeo.internal.process_graph_visitor import ProcessGraphVisitor
+from openeo_aggregator.constants import JOB_OPTION_TILE_GRID
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob, PartitionedJobFailure
 from openeo_aggregator.utils import BoundingBox
 from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
@@ -152,7 +153,7 @@ class TileGridSplitter(AbstractJobSplitter):
         global_spatial_extent = self._extract_global_spatial_extent(process)
         # TODO: pass tile_grid from job_options or from save_result format options?
         #       see https://github.com/openEOPlatform/architecture-docs/issues/187
-        tile_grid = TileGrid.from_string(job_options["tile_grid"])
+        tile_grid = TileGrid.from_string(job_options[JOB_OPTION_TILE_GRID])
         tiles = tile_grid.get_tiles(bbox=global_spatial_extent, max_tiles=job_options.get("max_tiles", MAX_TILES))
         inject = self._filter_bbox_injector(process_graph=process_graph)
 
