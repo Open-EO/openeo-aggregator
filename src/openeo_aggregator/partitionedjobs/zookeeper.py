@@ -105,6 +105,7 @@ class ZooKeeperPartitionedJobDB:
                 process=pjob.process,
                 metadata=pjob.metadata,
                 job_options=pjob.job_options,
+                # TODO: pjob.dependencies #95
             )
             # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
             base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
@@ -126,6 +127,10 @@ class ZooKeeperPartitionedJobDB:
             )
 
             # Insert subjobs
+            # TODO #95 some subjobs are not fully defined if they have dependencies
+            #       (e.g. load_result still has to be made concrete)
+            #       Only create them when fully concrete,,
+            #       or allow updates on this metadata?
             for i, (sjob_id, subjob) in enumerate(pjob.subjobs.items()):
                 self._client.create(
                     path=self._path(user_id, pjob_id, "sjobs", sjob_id),
