@@ -51,7 +51,6 @@ class AbstractJobSplitter(metaclass=abc.ABCMeta):
     def split(
         self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
     ) -> PartitionedJob:
-        # TODO: how to express dependencies? give SubJobs an id for referencing?
         # TODO: how to express combination/aggregation of multiple subjob results as a final result?
         ...
 
@@ -74,7 +73,12 @@ class FlimsySplitter(AbstractJobSplitter):
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         subjob = SubJob(process_graph=process_graph, backend_id=backend_id)
-        return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=[subjob])
+        return PartitionedJob(
+            process=process,
+            metadata=metadata,
+            job_options=job_options,
+            subjobs=PartitionedJob.to_subjobs_dict([subjob]),
+        )
 
 
 class TileGrid(typing.NamedTuple):
@@ -185,7 +189,12 @@ class TileGridSplitter(AbstractJobSplitter):
             "tiles": [t.as_dict() for t in tiles]
         }
 
-        return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=subjobs)
+        return PartitionedJob(
+            process=process,
+            metadata=metadata,
+            job_options=job_options,
+            subjobs=PartitionedJob.to_subjobs_dict(subjobs),
+        )
 
     def _extract_global_spatial_extent(self, process: PGWithMetadata) -> BoundingBox:
         """Extract global spatial extent from given process graph"""

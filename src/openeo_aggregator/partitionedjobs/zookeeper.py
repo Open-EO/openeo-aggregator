@@ -126,8 +126,7 @@ class ZooKeeperPartitionedJobDB:
             )
 
             # Insert subjobs
-            for i, subjob in enumerate(pjob.subjobs):
-                sjob_id = f"{i:04d}"
+            for i, (sjob_id, subjob) in enumerate(pjob.subjobs.items()):
                 self._client.create(
                     path=self._path(user_id, pjob_id, "sjobs", sjob_id),
                     value=self.serialize(

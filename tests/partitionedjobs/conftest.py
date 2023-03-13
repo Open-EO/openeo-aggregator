@@ -42,10 +42,12 @@ def pjob():
         process=P35,
         metadata={},
         job_options={},
-        subjobs=[
-            SubJob(process_graph=PG12, backend_id="b1"),
-            SubJob(process_graph=PG23, backend_id="b2"),
-        ]
+        subjobs=PartitionedJob.to_subjobs_dict(
+            [
+                SubJob(process_graph=PG12, backend_id="b1"),
+                SubJob(process_graph=PG23, backend_id="b2"),
+            ]
+        ),
     )
 
 

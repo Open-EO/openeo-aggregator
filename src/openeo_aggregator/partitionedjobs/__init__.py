@@ -1,4 +1,4 @@
-from typing import Dict, List, NamedTuple
+from typing import Any, Dict, List, NamedTuple, Sequence, Union
 
 from openeo_driver.errors import OpenEOApiException
 
@@ -23,9 +23,22 @@ class PartitionedJob(NamedTuple):
     process: PGWithMetadata
     metadata: dict
     job_options: dict
-    # List of sub-jobs
-    subjobs: List[SubJob]
-    # TODO: how to express depdendencies between subjobs?
+    subjobs: Dict[str, SubJob]
+    # Optional dependencies between sub-jobs (maps subjob id to list of subjob ids it depdends on)
+    dependencies: Dict[str, Sequence[str]] = {}
+
+    @staticmethod
+    def to_subjobs_dict(
+        subjobs: Union[Sequence[SubJob], Dict[Any, SubJob]]
+    ) -> Dict[str, SubJob]:
+        """Helper to convert a collection of SubJobs to a dictionary"""
+        # TODO: hide this logic in a setter or __init__ (e.g. when outgrowing the constraints of typing.NamedTuple)
+        if isinstance(subjobs, Sequence):
+            return {f"{i:04d}": j for i, j in enumerate(subjobs)}
+        elif isinstance(subjobs, dict):
+            return {str(k): v for k, v in subjobs.items()}
+        else:
+            raise ValueError(subjobs)
 
 
 # Statuses of partitioned jobs and subjobs

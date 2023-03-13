@@ -122,6 +122,7 @@ class PartitionedJobTracker:
         start_stats = collections.Counter()
         with TimingLogger(title=f"Starting partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs", logger=_log.info):
             # TODO: only start a subset of sub-jobs? #37
+            # TODO: only start sub-jobs where all dependencies are available
             for sjob_id, sjob_metadata in sjobs.items():
                 sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
                 _log.info(f"To Start: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
