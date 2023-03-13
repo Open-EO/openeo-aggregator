@@ -26,7 +26,7 @@ from openeo_aggregator.partitionedjobs import (
     PartitionedJobFailure,
     SubJob,
 )
-from openeo_aggregator.utils import BoundingBox
+from openeo_aggregator.utils import BoundingBox, FlatPG, PGWithMetadata
 
 if typing.TYPE_CHECKING:
     from openeo_aggregator.backend import AggregatorProcessing
@@ -48,7 +48,9 @@ class AbstractJobSplitter(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
+    def split(
+        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
+    ) -> PartitionedJob:
         # TODO: how to express dependencies? give SubJobs an id for referencing?
         # TODO: how to express combination/aggregation of multiple subjob results as a final result?
         ...
@@ -64,7 +66,9 @@ class FlimsySplitter(AbstractJobSplitter):
     def __init__(self, processing: "AggregatorProcessing"):
         self.processing = processing
 
-    def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
+    def split(
+        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
+    ) -> PartitionedJob:
         process_graph = process["process_graph"]
         backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph, api_version="TODO")
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
@@ -152,7 +156,9 @@ class TileGridSplitter(AbstractJobSplitter):
             processing=processing
         )
 
-    def split(self, process: dict, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
+    def split(
+        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
+    ) -> PartitionedJob:
         # TODO: refactor process graph preprocessing and backend_id getting in reusable AbstractJobSplitter method?
         processing: AggregatorProcessing = self.backend_implementation.processing
         process_graph = process["process_graph"]
@@ -181,7 +187,7 @@ class TileGridSplitter(AbstractJobSplitter):
 
         return PartitionedJob(process=process, metadata=metadata, job_options=job_options, subjobs=subjobs)
 
-    def _extract_global_spatial_extent(self, process: dict) -> BoundingBox:
+    def _extract_global_spatial_extent(self, process: PGWithMetadata) -> BoundingBox:
         """Extract global spatial extent from given process graph"""
         # TODO: drop deepcopy when `dereference_from_node_arguments` doesn't do
         #       in-place manipulation of original process dict anymore
@@ -208,7 +214,9 @@ class TileGridSplitter(AbstractJobSplitter):
         global_extent = BoundingBox.from_dict(spatial_extent_union(*spatial_extents))
         return global_extent
 
-    def _filter_bbox_injector(self, process_graph: dict) -> typing.Callable[[BoundingBox], dict]:
+    def _filter_bbox_injector(
+        self, process_graph: FlatPG
+    ) -> typing.Callable[[BoundingBox], dict]:
         """
         Build function that takes a bounding box and injects a filter_bbox node
         just before result the `save_result` node of a "template" process graph.

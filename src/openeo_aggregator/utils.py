@@ -16,6 +16,17 @@ _UNSET = object()
 _log = logging.getLogger(__name__)
 
 
+# Type-hinting alias for "process graph with metadata" constructs:
+# containing at least a "process_graph" field with a process graph in "flat-graph" representation
+# TODO move this upstream to openeo-python-driver
+PGWithMetadata = dict
+
+
+# Type-hinting alias for process graphs in "flat-graph" representation.
+# TODO move this upstream to openeo-python-driver
+FlatPG = dict
+
+
 class MultiDictGetter:
     """
     Helper to get (and combine) items (where available) from a collection of dictionaries.

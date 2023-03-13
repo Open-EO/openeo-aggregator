@@ -78,7 +78,13 @@ from openeo_aggregator.partitionedjobs.tracking import (
     PartitionedJobConnection,
     PartitionedJobTracker,
 )
-from openeo_aggregator.utils import dict_merge, normalize_issuer_url, subdict
+from openeo_aggregator.utils import (
+    FlatPG,
+    PGWithMetadata,
+    dict_merge,
+    normalize_issuer_url,
+    subdict,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -450,7 +456,7 @@ class AggregatorProcessing(Processing):
 
         return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
 
-    def preprocess_process_graph(self, process_graph: dict, backend_id: str) -> dict:
+    def preprocess_process_graph(self, process_graph: FlatPG, backend_id: str) -> dict:
         def preprocess(node: Any) -> Any:
             if isinstance(node, dict):
                 if "process_id" in node and "arguments" in node:
@@ -621,7 +627,12 @@ class AggregatorBatchJobs(BatchJobs):
         )
 
     def _create_partitioned_job(
-            self, user_id: str, process: dict, api_version: str, metadata: dict, job_options: dict = None
+        self,
+        user_id: str,
+        process: PGWithMetadata,
+        api_version: str,
+        metadata: dict,
+        job_options: dict = None,
     ) -> BatchJobMetadata:
         """
         Advanced/handled batch job creation:
