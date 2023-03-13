@@ -23,6 +23,7 @@ class PartitionedJob(NamedTuple):
     job_options: dict
     # List of sub-jobs
     subjobs: List[SubJob]
+    # TODO: how to express depdendencies between subjobs?
 
 
 # Statuses of partitioned jobs and subjobs
