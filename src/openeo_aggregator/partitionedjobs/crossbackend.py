@@ -15,6 +15,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
     Split a process graph, to be executed across multiple back-ends,
     based on availability of collections
     """
+
     def __init__(self, backend_for_collection: Callable[[str], str]):
         # TODO: just handle this `backend_for_collection` callback with a regular method?
         self.backend_for_collection = backend_for_collection
@@ -114,6 +115,7 @@ def main():
             return {k: namedtuples_to_dict(v) for k, v in x.items()}
         else:
             return x
+
     print("Cross-backend split:")
     pprint(namedtuples_to_dict(pjob), width=120)
 
