@@ -1112,8 +1112,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def capabilities_billing(self) -> dict:
         # TODO: ok to hardcode this here, or move to config?
+        # TODO #96 check that all upstream back-ends use the same currency (credits)
         return {
-            "currency": "EUR",
+            "currency": "credits",
             "plans": [
                 {
                     "name": p.name,

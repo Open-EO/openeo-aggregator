@@ -13,6 +13,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ### Changed
 
+- Change billing currency from EUR to credits ([#96](https://github.com/Open-EO/openeo-aggregator/issues/96))
+
 ### Fixed
 
 - Merging of collection metadata produced duplicate entries in `links`: [openEOPlatform/architecture-docs#266](https://github.com/openEOPlatform/architecture-docs/issues/266)
