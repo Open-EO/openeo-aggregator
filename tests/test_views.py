@@ -57,7 +57,7 @@ class TestGeneral:
     def test_billing_plans(self, api100):
         capabilities = api100.get("/").assert_status_code(200).json
         billing = capabilities["billing"]
-        assert billing["currency"] == "EUR"
+        assert billing["currency"] == "credits"
         plans = {p["name"]: p for p in billing["plans"]}
         assert "early-adopter" in plans
         assert plans["early-adopter"]["paid"] is True
