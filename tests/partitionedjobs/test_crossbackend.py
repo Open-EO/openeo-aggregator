@@ -10,8 +10,8 @@ class TestCrossBackendSplitter:
         splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
         res = splitter.split({"process_graph": process_graph})
 
-        assert res.subjobs == {"primary": SubJob(process_graph, backend_id=None)}
-        assert res.dependencies == {"primary": []}
+        assert res.subjobs == {"main": SubJob(process_graph, backend_id=None)}
+        assert res.dependencies == {"main": []}
 
     def test_basic(self):
         process_graph = {
@@ -26,7 +26,8 @@ class TestCrossBackendSplitter:
             },
             "sr1": {
                 "process_id": "save_result",
-                "arguments": {"format": "NetCDF"},
+                "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+                "result": True,
             },
         }
         splitter = CrossBackendSplitter(
@@ -35,7 +36,7 @@ class TestCrossBackendSplitter:
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {
-            "primary": SubJob(
+            "main": SubJob(
                 process_graph={
                     "lc1": {
                         "process_id": "load_collection",
@@ -43,7 +44,7 @@ class TestCrossBackendSplitter:
                     },
                     "lc2": {
                         "process_id": "load_result",
-                        "arguments": {"id": "placeholder:B2:lc2"},
+                        "arguments": {"id": "_placeholder:B2:lc2"},
                     },
                     "mc1": {
                         "process_id": "merge_cubes",
@@ -54,7 +55,8 @@ class TestCrossBackendSplitter:
                     },
                     "sr1": {
                         "process_id": "save_result",
-                        "arguments": {"format": "NetCDF"},
+                        "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+                        "result": True,
                     },
                 },
                 backend_id="B1",
@@ -67,10 +69,11 @@ class TestCrossBackendSplitter:
                     },
                     "sr1": {
                         "process_id": "save_result",
-                        "arguments": {"format": "NetCDF"},
+                        "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
+                        "result": True,
                     },
                 },
                 backend_id="B2",
             ),
         }
-        assert res.dependencies == {"primary": ["B2:lc2"]}
+        assert res.dependencies == {"main": ["B2:lc2"]}

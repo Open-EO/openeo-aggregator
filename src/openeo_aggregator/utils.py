@@ -227,3 +227,48 @@ def common_prefix(lists: Iterable[Iterable[Any]]) -> List[Any]:
             for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, other))
         ]
     return prefix
+
+
+class SkipIntermittentFailures:
+    """
+    Context manager for skipping intermittent failures.
+    It swallows exceptions, but only up to a certain point:
+    if there are too many successive failures,
+    it will not block exceptions anymore.
+
+    Usage:
+
+        skip_intermittent_failures = SkipIntermittentFailures(limit=3)
+
+        for item in items:
+            with skip_intermittent_failures:
+                # Look up status on flaky remote service
+                check_status(item)
+    """
+
+    # TODO: not only look at successive failures, but also fail rate?
+
+    def __init__(self, limit: int = 5):
+        self._limit = limit
+        self._successive_failures = 0
+
+    def __enter__(self):
+        return
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self._successive_failures += 1
+            if self._successive_failures > self._limit:
+                _log.error(
+                    f"Failure tolerance exceeded ({self._successive_failures} > {self._limit}) with {exc_val!r}"
+                )
+                # Enough already!
+                return False
+            else:
+                _log.warning(
+                    f"Swallowing exception {exc_val!r} ({self._successive_failures} < {self._limit})"
+                )
+                return True
+        else:
+            # Reset counter of successive failures
+            self._successive_failures = 0
