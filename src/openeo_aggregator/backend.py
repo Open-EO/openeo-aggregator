@@ -1,9 +1,9 @@
 import re
-
 import contextlib
 import datetime
 import functools
 import logging
+import pathlib
 import time
 from collections import defaultdict
 from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
@@ -1154,3 +1154,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # TODO: standardize this field?
         capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities
+
+    def changelog(self) -> Union[str, pathlib.Path]:
+        changelog = pathlib.Path(__file__).parent.parent.parent / "CHANGELOG.md"
+        if changelog.exists():
+            return changelog
+        return super().changelog()

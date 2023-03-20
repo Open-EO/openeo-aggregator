@@ -43,6 +43,7 @@ COPY --chown=openeo src src
 COPY --chown=openeo conf conf
 COPY --chown=openeo pytest.ini pytest.ini
 COPY --chown=openeo tests tests
+COPY --chown=openeo CHANGELOG.md CHANGELOG.md
 
 
 # Install dependencies and app.
