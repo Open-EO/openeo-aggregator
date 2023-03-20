@@ -1185,6 +1185,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         return capabilities
 
     def changelog(self) -> Union[str, pathlib.Path]:
+        # TODO: What is path of CHANGELOG.md in docker container? It's probably not even there yet #97
         changelog = pathlib.Path(__file__).parent.parent.parent / "CHANGELOG.md"
         if changelog.exists():
             return changelog
