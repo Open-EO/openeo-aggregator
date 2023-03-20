@@ -1,6 +1,6 @@
 import functools
 import logging
-from typing import Any, Dict, List, Type, TypeVar, Union, cast, Set, Tuple, Callable
+from typing import Any, Callable, Dict, List, Set, Tuple, Type, TypeVar, Union, cast
 
 import attr
 

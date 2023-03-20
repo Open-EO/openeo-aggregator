@@ -1,21 +1,24 @@
 import logging
-import logging
 import types
 
 import flask
 import pytest
 import requests
-
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo.rest.auth.auth import BearerAuth
-from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
-from openeo_aggregator.connection import BackendConnection, MultiBackendConnection, LockedAuthException, \
-    InvalidatedConnection
-from openeo_aggregator.testing import clock_mock
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
 from openeo_driver.testing import DictSubSet
+
+from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
+from openeo_aggregator.connection import (
+    BackendConnection,
+    InvalidatedConnection,
+    LockedAuthException,
+    MultiBackendConnection,
+)
+from openeo_aggregator.testing import clock_mock
 
 
 class TestBackendConnection:

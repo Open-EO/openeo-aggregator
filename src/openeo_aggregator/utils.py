@@ -1,13 +1,11 @@
-import itertools
-
 import datetime
 import functools
+import itertools
 import logging
 import time
-from typing import Callable, Iterable, Iterator, List, NamedTuple, Set, Any
+from typing import Any, Callable, Iterable, Iterator, List, NamedTuple, Set
 
 import shapely.geometry
-
 from openeo.util import rfc3339
 
 # Generic "sentinel object" for unset values (where `None` is valid value)

@@ -1,12 +1,17 @@
+from unittest import mock
+
 import kazoo
 import kazoo.exceptions
-from unittest import mock
 import pytest
-
-from openeo_aggregator.partitionedjobs.zookeeper import NoJobIdForSubJobException, ZooKeeperPartitionedJobDB
-from openeo_aggregator.testing import clock_mock, approx_now
 from openeo_driver.errors import JobNotFoundException
-from .conftest import PG12, PG23, P35
+
+from openeo_aggregator.partitionedjobs.zookeeper import (
+    NoJobIdForSubJobException,
+    ZooKeeperPartitionedJobDB,
+)
+from openeo_aggregator.testing import approx_now, clock_mock
+
+from .conftest import P35, PG12, PG23
 
 TEST_USER = "tstsr"
 

@@ -1,6 +1,6 @@
-import logging
 import inspect
-from typing import Any, Dict, Tuple, List, Callable
+import logging
+from typing import Any, Callable, Dict, List, Tuple
 
 
 class Unset:

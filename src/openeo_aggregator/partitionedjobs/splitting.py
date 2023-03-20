@@ -1,23 +1,32 @@
 import abc
 import copy
 import math
-import pyproj
 import re
-import shapely.geometry
-import shapely.ops
 import typing
 from typing import List
 
+import pyproj
+import shapely.geometry
+import shapely.ops
 from openeo.internal.process_graph_visitor import ProcessGraphVisitor
-from openeo_aggregator.constants import JOB_OPTION_TILE_GRID
-from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob, PartitionedJobFailure
-from openeo_aggregator.utils import BoundingBox
-from openeo_driver.ProcessGraphDeserializer import convert_node, ENV_DRY_RUN_TRACER, ConcreteProcessing
 from openeo_driver.backend import OpenEoBackendImplementation
 from openeo_driver.dry_run import DryRunDataTracer
+from openeo_driver.ProcessGraphDeserializer import (
+    ENV_DRY_RUN_TRACER,
+    ConcreteProcessing,
+    convert_node,
+)
 from openeo_driver.util.geometry import reproject_bounding_box, spatial_extent_union
 from openeo_driver.util.utm import auto_utm_epsg_for_geometry
 from openeo_driver.utils import EvalEnv
+
+from openeo_aggregator.constants import JOB_OPTION_TILE_GRID
+from openeo_aggregator.partitionedjobs import (
+    PartitionedJob,
+    PartitionedJobFailure,
+    SubJob,
+)
+from openeo_aggregator.utils import BoundingBox
 
 if typing.TYPE_CHECKING:
     from openeo_aggregator.backend import AggregatorProcessing

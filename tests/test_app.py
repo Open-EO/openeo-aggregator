@@ -3,6 +3,7 @@ import pytest
 
 from openeo_aggregator.app import create_app
 from openeo_aggregator.config import AggregatorConfig
+
 from .conftest import get_api100, get_flask_app
 
 

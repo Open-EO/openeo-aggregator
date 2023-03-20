@@ -3,9 +3,9 @@
 # using the spec of STAC extension "eo"
 # https://github.com/stac-extensions/eo/blob/main/json-schema/schema.json
 
-from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, Any, List, Dict, TypeVar, Type, Callable, cast
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
 
 from openeo.util import dict_no_none
 

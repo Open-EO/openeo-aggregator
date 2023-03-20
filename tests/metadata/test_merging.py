@@ -1,4 +1,6 @@
 import pytest
+from openeo_driver.backend import CollectionCatalog
+from openeo_driver.testing import DictSubSet
 
 from openeo_aggregator.metadata.merging import (
     ProcessMetadataMerger,
@@ -6,8 +8,6 @@ from openeo_aggregator.metadata.merging import (
     merge_collection_metadata,
 )
 from openeo_aggregator.testing import same_repr
-from openeo_driver.backend import CollectionCatalog
-from openeo_driver.testing import DictSubSet
 
 
 class TestMergeProcessMetadata:

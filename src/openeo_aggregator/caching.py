@@ -5,15 +5,15 @@ import json
 import logging
 import time
 import zlib
-from typing import Callable, Union, Optional, Sequence, Any, Tuple, List, Dict, Set
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import kazoo.exceptions
 import kazoo.protocol.paths
 from kazoo.client import KazooClient
-
 from openeo.util import TimingLogger
+
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.utils import strip_join, Clock
+from openeo_aggregator.utils import Clock, strip_join
 
 DEFAULT_NAMESPACE = "_default"
 

@@ -1,10 +1,10 @@
 import pytest
 
 from openeo_aggregator.egi import (
-    parse_eduperson_entitlement,
+    OPENEO_PLATFORM_USER_ROLES,
     Entitlement,
     UserRole,
-    OPENEO_PLATFORM_USER_ROLES,
+    parse_eduperson_entitlement,
 )
 
 

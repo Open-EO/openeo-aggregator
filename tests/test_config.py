@@ -4,8 +4,13 @@ from unittest import mock
 
 import pytest
 
-from openeo_aggregator.config import AggregatorConfig, STREAM_CHUNK_SIZE_DEFAULT, \
-    OPENEO_AGGREGATOR_CONFIG, ENVIRONMENT_INDICATOR, get_config
+from openeo_aggregator.config import (
+    ENVIRONMENT_INDICATOR,
+    OPENEO_AGGREGATOR_CONFIG,
+    STREAM_CHUNK_SIZE_DEFAULT,
+    AggregatorConfig,
+    get_config,
+)
 
 CONFIG_PY_EXAMPLE = """
 from openeo_aggregator.config import AggregatorConfig

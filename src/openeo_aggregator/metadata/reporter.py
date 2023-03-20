@@ -2,7 +2,7 @@ import inspect
 import logging
 import textwrap
 from pathlib import Path
-from typing import Tuple, List
+from typing import List, Tuple
 
 
 def _extract_entity_id(**kwargs) -> Tuple[List[str], dict]:

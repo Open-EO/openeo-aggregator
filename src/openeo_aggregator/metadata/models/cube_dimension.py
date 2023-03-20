@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Any, Dict, List, Type, TypeVar, Union, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import attr
 

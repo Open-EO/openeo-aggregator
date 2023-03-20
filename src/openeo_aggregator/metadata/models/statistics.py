@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Type, TypeVar, Union, cast
 
 import attr
 
-
 _log = logging.getLogger(__name__)
 
 

@@ -1,12 +1,13 @@
 import argparse
 import logging
-import requests
-from typing import List, Dict
+from typing import Dict, List
 
-from openeo_aggregator.config import get_config, AggregatorConfig
+import requests
+
+from openeo_aggregator.config import AggregatorConfig, get_config
 from openeo_aggregator.metadata.merging import (
-    merge_collection_metadata,
     ProcessMetadataMerger,
+    merge_collection_metadata,
 )
 from openeo_aggregator.metadata.reporter import MarkDownReporter
 from openeo_aggregator.utils import MultiDictGetter

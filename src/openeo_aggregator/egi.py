@@ -3,11 +3,10 @@ Functionality and definitions related to
 openEO Platform and its EGI Virtual Organisation
 """
 
+import functools
 import re
 from collections import namedtuple
-from typing import Union, List
-import functools
-
+from typing import List, Union
 
 BillingPlan = namedtuple("BillingPlan", ["name", "description", "url", "paid"])
 

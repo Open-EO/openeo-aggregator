@@ -1,14 +1,19 @@
 import contextlib
 import json
 import logging
+from typing import Dict, List, Optional
+
 from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError, NoNodeError
-from typing import Dict, Optional, List
+from openeo_driver.errors import JobNotFoundException
 
 from openeo_aggregator.config import AggregatorConfig, ConfigException
-from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_INSERTED, PartitionedJobFailure
+from openeo_aggregator.partitionedjobs import (
+    STATUS_INSERTED,
+    PartitionedJob,
+    PartitionedJobFailure,
+)
 from openeo_aggregator.utils import Clock, strip_join, timestamp_to_rfc3339
-from openeo_driver.errors import JobNotFoundException
 
 _log = logging.getLogger(__name__)
 

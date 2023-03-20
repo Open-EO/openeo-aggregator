@@ -1,13 +1,25 @@
 import datetime
-import pytest
 
+import pytest
 from openeo.util import rfc3339
-from openeo_aggregator.backend import AggregatorBackendImplementation, AggregatorBatchJobs
-from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.testing import clock_mock, approx_str_contains, approx_str_prefix
-from openeo_aggregator.utils import BoundingBox
 from openeo_driver.testing import DictSubSet
-from .conftest import PG35, P35, TEST_USER, TEST_USER_BEARER_TOKEN, OTHER_TEST_USER_BEARER_TOKEN, DummyBackend
+
+from openeo_aggregator.backend import (
+    AggregatorBackendImplementation,
+    AggregatorBatchJobs,
+)
+from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
+from openeo_aggregator.testing import approx_str_contains, approx_str_prefix, clock_mock
+from openeo_aggregator.utils import BoundingBox
+
+from .conftest import (
+    OTHER_TEST_USER_BEARER_TOKEN,
+    P35,
+    PG35,
+    TEST_USER,
+    TEST_USER_BEARER_TOKEN,
+    DummyBackend,
+)
 from .test_splitting import check_tiling_coordinate_histograms
 
 

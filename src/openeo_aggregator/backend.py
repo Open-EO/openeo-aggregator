@@ -1,23 +1,59 @@
-import re
 import contextlib
 import datetime
 import functools
 import logging
 import pathlib
+import re
 import time
 from collections import defaultdict
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Iterator, Callable, Any
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import flask
-
 import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
-from openeo.rest import OpenEoApiError, OpenEoRestError, OpenEoClientException
-from openeo.util import dict_no_none, TimingLogger, deep_get
-from openeo_aggregator.caching import memoizer_from_config, Memoizer, json_serde
-from openeo_aggregator.config import AggregatorConfig, CONNECTION_TIMEOUT_RESULT, CONNECTION_TIMEOUT_JOB_START
-from openeo_aggregator.connection import MultiBackendConnection, BackendConnection, streaming_flask_response
+from openeo.rest import OpenEoApiError, OpenEoClientException, OpenEoRestError
+from openeo.util import TimingLogger, deep_get, dict_no_none
+from openeo_driver.backend import (
+    AbstractCollectionCatalog,
+    BatchJobMetadata,
+    BatchJobs,
+    LoadParameters,
+    OidcProvider,
+    OpenEoBackendImplementation,
+    Processing,
+    SecondaryServices,
+    ServiceMetadata,
+)
+from openeo_driver.datacube import DriverDataCube
+from openeo_driver.errors import (
+    CollectionNotFoundException,
+    FeatureUnsupportedException,
+    JobNotFinishedException,
+    JobNotFoundException,
+    OpenEOApiException,
+    PermissionsInsufficientException,
+    ProcessGraphInvalidException,
+    ProcessGraphMissingException,
+    ServiceNotFoundException,
+    ServiceUnsupportedException,
+)
+from openeo_driver.processes import ProcessRegistry
+from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
+from openeo_driver.users import User
+from openeo_driver.utils import EvalEnv
+
 import openeo_aggregator.egi
+from openeo_aggregator.caching import Memoizer, json_serde, memoizer_from_config
+from openeo_aggregator.config import (
+    CONNECTION_TIMEOUT_JOB_START,
+    CONNECTION_TIMEOUT_RESULT,
+    AggregatorConfig,
+)
+from openeo_aggregator.connection import (
+    BackendConnection,
+    MultiBackendConnection,
+    streaming_flask_response,
+)
 from openeo_aggregator.constants import (
     JOB_OPTION_FORCE_BACKEND,
     JOB_OPTION_SPLIT_STRATEGY,
@@ -25,30 +61,23 @@ from openeo_aggregator.constants import (
 )
 from openeo_aggregator.errors import BackendLookupFailureException
 from openeo_aggregator.metadata import (
-    STAC_PROPERTY_PROVIDER_BACKEND,
     STAC_PROPERTY_FEDERATION_BACKENDS,
+    STAC_PROPERTY_PROVIDER_BACKEND,
 )
 from openeo_aggregator.metadata.merging import (
+    ProcessMetadataMerger,
     merge_collection_metadata,
     normalize_collection_metadata,
-    ProcessMetadataMerger,
     single_backend_collection_post_processing,
 )
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
-from openeo_aggregator.partitionedjobs.tracking import PartitionedJobConnection, PartitionedJobTracker
-from openeo_aggregator.utils import subdict, dict_merge, normalize_issuer_url
-from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
-from openeo_driver.backend import OpenEoBackendImplementation, AbstractCollectionCatalog, LoadParameters, Processing, \
-    OidcProvider, BatchJobs, BatchJobMetadata, SecondaryServices, ServiceMetadata
-from openeo_driver.datacube import DriverDataCube
-from openeo_driver.errors import CollectionNotFoundException, OpenEOApiException, ProcessGraphMissingException, \
-    JobNotFoundException, JobNotFinishedException, ProcessGraphInvalidException, PermissionsInsufficientException, \
-    FeatureUnsupportedException, ServiceNotFoundException, ServiceUnsupportedException
-from openeo_driver.processes import ProcessRegistry
-from openeo_driver.users import User
-from openeo_driver.utils import EvalEnv
+from openeo_aggregator.partitionedjobs.tracking import (
+    PartitionedJobConnection,
+    PartitionedJobTracker,
+)
+from openeo_aggregator.utils import dict_merge, normalize_issuer_url, subdict
 
 _log = logging.getLogger(__name__)
 

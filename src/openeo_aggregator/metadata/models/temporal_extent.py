@@ -1,10 +1,10 @@
 import datetime
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union, Set
+from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union
 
 import attr
 from dateutil.parser import isoparse
 
-from openeo_aggregator.metadata.utils import Unset, UNSET
+from openeo_aggregator.metadata.utils import UNSET, Unset
 
 T = TypeVar("T", bound="TemporalExtent")
 

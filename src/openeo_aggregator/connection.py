@@ -2,23 +2,31 @@ import collections
 import contextlib
 import logging
 import re
-from typing import List, Dict, Any, Iterator, Callable, Tuple, Set, Union, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import flask
 import requests
-
-import openeo_aggregator.about
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
-from openeo_aggregator.caching import memoizer_from_config, Memoizer, NullMemoizer
-from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT, STREAM_CHUNK_SIZE_DEFAULT, \
-    AggregatorConfig, CONNECTION_TIMEOUT_INIT
-from openeo_aggregator.utils import _UNSET, EventHandler, Clock
 from openeo_driver.backend import OidcProvider
-from openeo_driver.errors import OpenEOApiException, AuthenticationRequiredException, \
-    AuthenticationSchemeInvalidException, InternalException
+from openeo_driver.errors import (
+    AuthenticationRequiredException,
+    AuthenticationSchemeInvalidException,
+    InternalException,
+    OpenEOApiException,
+)
 from openeo_driver.users import User
+
+import openeo_aggregator.about
+from openeo_aggregator.caching import Memoizer, NullMemoizer, memoizer_from_config
+from openeo_aggregator.config import (
+    CONNECTION_TIMEOUT_DEFAULT,
+    CONNECTION_TIMEOUT_INIT,
+    STREAM_CHUNK_SIZE_DEFAULT,
+    AggregatorConfig,
+)
+from openeo_aggregator.utils import _UNSET, Clock, EventHandler
 
 _log = logging.getLogger(__name__)
 

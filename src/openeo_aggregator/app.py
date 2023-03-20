@@ -6,14 +6,21 @@ import os
 from typing import Any
 
 import flask
+import openeo_driver.views
+from openeo_driver.server import build_backend_deploy_metadata
+from openeo_driver.util.logging import (
+    LOGGING_CONTEXT_FLASK,
+    get_logging_config,
+    setup_logging,
+)
+from openeo_driver.utils import smart_bool
 
 import openeo_aggregator.about
-import openeo_driver.views
-from openeo_aggregator.backend import AggregatorBackendImplementation, MultiBackendConnection
-from openeo_aggregator.config import get_config, AggregatorConfig
-from openeo_driver.server import build_backend_deploy_metadata
-from openeo_driver.util.logging import setup_logging, get_logging_config, LOGGING_CONTEXT_FLASK
-from openeo_driver.utils import smart_bool
+from openeo_aggregator.backend import (
+    AggregatorBackendImplementation,
+    MultiBackendConnection,
+)
+from openeo_aggregator.config import AggregatorConfig, get_config
 
 _log = logging.getLogger(__name__)
 

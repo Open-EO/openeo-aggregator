@@ -9,8 +9,18 @@ import pytest
 
 import openeo_aggregator.caching
 from openeo_aggregator.backend import _InternalCollectionMetadata
-from openeo_aggregator.caching import TtlCache, CacheMissException, ZkMemoizer, memoizer_from_config, NullMemoizer, \
-    DictMemoizer, ChainedMemoizer, JsonDictMemoizer, JsonSerDe, json_serde
+from openeo_aggregator.caching import (
+    CacheMissException,
+    ChainedMemoizer,
+    DictMemoizer,
+    JsonDictMemoizer,
+    JsonSerDe,
+    NullMemoizer,
+    TtlCache,
+    ZkMemoizer,
+    json_serde,
+    memoizer_from_config,
+)
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import clock_mock
 from openeo_aggregator.utils import Clock

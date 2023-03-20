@@ -1,23 +1,30 @@
 import collections
 import contextlib
 import datetime
-import flask
 import logging
 import threading
 from typing import List, Optional
 
+import flask
 from openeo.api.logs import LogEntry
 from openeo.rest.job import ResultAsset
 from openeo.util import TimingLogger, rfc3339
+from openeo_driver.errors import JobNotFinishedException
+from openeo_driver.users import User
+
 from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
 from openeo_aggregator.connection import MultiBackendConnection
-from openeo_aggregator.partitionedjobs import PartitionedJob, STATUS_CREATED, STATUS_ERROR, STATUS_INSERTED, \
-    STATUS_RUNNING, STATUS_FINISHED
+from openeo_aggregator.partitionedjobs import (
+    STATUS_CREATED,
+    STATUS_ERROR,
+    STATUS_FINISHED,
+    STATUS_INSERTED,
+    STATUS_RUNNING,
+    PartitionedJob,
+)
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import _UNSET, timestamp_to_rfc3339
-from openeo_driver.errors import JobNotFinishedException
-from openeo_driver.users import User
 
 _log = logging.getLogger(__name__)
 

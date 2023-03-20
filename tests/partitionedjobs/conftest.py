@@ -1,14 +1,15 @@
 import collections
-import pytest
 import re
+from typing import Dict, List, Tuple
+
+import pytest
 import requests
-from typing import Dict, Tuple, List
+from openeo_driver.errors import JobNotFoundException, TokenInvalidException
+from openeo_driver.users.auth import HttpAuthHandler
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import Clock, timestamp_to_rfc3339
-from openeo_driver.errors import JobNotFoundException, TokenInvalidException
-from openeo_driver.users.auth import HttpAuthHandler
 
 TEST_USER = "tstsr"
 TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)

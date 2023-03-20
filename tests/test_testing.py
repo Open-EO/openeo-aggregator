@@ -3,11 +3,11 @@ import datetime
 import pytest
 
 from openeo_aggregator.testing import (
-    clock_mock,
     approx_now,
-    approx_str_prefix,
     approx_str_contains,
+    approx_str_prefix,
     approx_str_suffix,
+    clock_mock,
     same_repr,
 )
 from openeo_aggregator.utils import Clock

@@ -3,26 +3,26 @@
 Functionality and tools for openEO collection/process metadata processing, normalizing, merging ...
 
 """
-from collections import defaultdict
-
 import difflib
-import flask
 import functools
 import json
 import logging
-from typing import Dict, Optional, Callable, Any, List
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional
 
-from openeo.util import rfc3339, deep_get
+import flask
+from openeo.util import deep_get, rfc3339
+from openeo_driver.errors import OpenEOApiException
+
 from openeo_aggregator.metadata import (
-    STAC_PROPERTY_PROVIDER_BACKEND,
     STAC_PROPERTY_FEDERATION_BACKENDS,
+    STAC_PROPERTY_PROVIDER_BACKEND,
 )
 from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.utils import MultiDictGetter, common_prefix, drop_dict_keys
-from openeo_driver.errors import OpenEOApiException
 
 _log = logging.getLogger(__name__)
 

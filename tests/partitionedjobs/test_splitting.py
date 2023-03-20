@@ -7,7 +7,11 @@ import shapely
 import shapely.ops
 
 from openeo_aggregator.backend import AggregatorProcessing
-from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter, TileGrid, FlimsySplitter
+from openeo_aggregator.partitionedjobs.splitting import (
+    FlimsySplitter,
+    TileGrid,
+    TileGridSplitter,
+)
 from openeo_aggregator.utils import BoundingBox
 
 

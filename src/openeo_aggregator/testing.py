@@ -2,17 +2,17 @@ import datetime
 import itertools
 import json
 import pathlib
-import pytest
 import time
-from typing import Union, Optional, Any
+from typing import Any, Optional, Union
 from unittest import mock
 
 import kazoo
 import kazoo.exceptions
-
+import pytest
 from openeo.util import rfc3339
-from openeo_aggregator.utils import Clock
+
 import openeo_aggregator.about
+from openeo_aggregator.utils import Clock
 
 
 class DummyKazooClient:

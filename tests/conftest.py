@@ -2,14 +2,17 @@ from typing import List
 
 import flask
 import pytest
-
-from openeo_aggregator.app import create_app
-from openeo_aggregator.backend import MultiBackendConnection, AggregatorBackendImplementation, \
-    AggregatorCollectionCatalog
-from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyKazooClient, build_capabilities
 from openeo_driver.testing import ApiTester
 from openeo_driver.users.oidc import OidcProvider
+
+from openeo_aggregator.app import create_app
+from openeo_aggregator.backend import (
+    AggregatorBackendImplementation,
+    AggregatorCollectionCatalog,
+    MultiBackendConnection,
+)
+from openeo_aggregator.config import AggregatorConfig
+from openeo_aggregator.testing import DummyKazooClient, build_capabilities
 
 
 @pytest.fixture

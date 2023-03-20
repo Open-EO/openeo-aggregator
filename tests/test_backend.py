@@ -2,22 +2,33 @@ import datetime as dt
 import logging
 
 import pytest
-
-from openeo_aggregator.backend import AggregatorCollectionCatalog, AggregatorProcessing, \
-    AggregatorBackendImplementation, _InternalCollectionMetadata, JobIdMapping, \
-    AggregatorSecondaryServices
-from openeo_aggregator.caching import DictMemoizer
-from openeo_aggregator.testing import clock_mock, build_capabilities
-from openeo_driver.backend import ServiceMetadata
-from openeo_driver.errors import OpenEOApiException, CollectionNotFoundException, JobNotFoundException, \
-    ServiceNotFoundException
-from openeo_driver.testing import DictSubSet
-from openeo_driver.users.oidc import OidcProvider
-from openeo_driver.users.auth import HttpAuthHandler
-from openeo_driver.errors import ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException
 from openeo.rest import OpenEoApiError, OpenEoRestError
-from .conftest import DEFAULT_MEMOIZER_CONFIG
+from openeo_driver.backend import ServiceMetadata
+from openeo_driver.errors import (
+    CollectionNotFoundException,
+    JobNotFoundException,
+    OpenEOApiException,
+    ProcessGraphInvalidException,
+    ProcessGraphMissingException,
+    ServiceNotFoundException,
+    ServiceUnsupportedException,
+)
+from openeo_driver.testing import DictSubSet
+from openeo_driver.users.auth import HttpAuthHandler
+from openeo_driver.users.oidc import OidcProvider
 
+from openeo_aggregator.backend import (
+    AggregatorBackendImplementation,
+    AggregatorCollectionCatalog,
+    AggregatorProcessing,
+    AggregatorSecondaryServices,
+    JobIdMapping,
+    _InternalCollectionMetadata,
+)
+from openeo_aggregator.caching import DictMemoizer
+from openeo_aggregator.testing import build_capabilities, clock_mock
+
+from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 # TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
 #       and move the tested functionality to test_views.py?
@@ -1962,6 +1973,8 @@ class TestJobIdMapping:
 
 
 from openeo_aggregator.backend import ServiceIdMapping
+
+
 class TestServiceIdMapping:
 
     def test_get_aggregator_job_id(self):

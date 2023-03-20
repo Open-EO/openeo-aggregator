@@ -1,10 +1,14 @@
 import flask
 import pytest
-
-from openeo_aggregator.partitionedjobs.tracking import PartitionedJobTracker, PartitionedJobConnection
-from openeo_aggregator.testing import approx_now, approx_str_prefix, approx_str_contains
 from openeo_driver.errors import JobNotFoundException
 from openeo_driver.testing import DictSubSet
+
+from openeo_aggregator.partitionedjobs.tracking import (
+    PartitionedJobConnection,
+    PartitionedJobTracker,
+)
+from openeo_aggregator.testing import approx_now, approx_str_contains, approx_str_prefix
+
 from .conftest import P12, P23, DummyBackend
 
 

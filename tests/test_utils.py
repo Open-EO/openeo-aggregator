@@ -2,16 +2,16 @@ import pytest
 import shapely.geometry
 
 from openeo_aggregator.utils import (
-    normalize_issuer_url,
-    MultiDictGetter,
-    subdict,
-    dict_merge,
-    EventHandler,
     BoundingBox,
-    strip_join,
-    timestamp_to_rfc3339,
+    EventHandler,
+    MultiDictGetter,
     common_prefix,
+    dict_merge,
     drop_dict_keys,
+    normalize_issuer_url,
+    strip_join,
+    subdict,
+    timestamp_to_rfc3339,
 )
 
 
