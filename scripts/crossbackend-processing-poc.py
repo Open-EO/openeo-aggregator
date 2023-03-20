@@ -3,10 +3,9 @@ import logging
 
 import openeo
 from openeo.util import TimingLogger
+
 from openeo_aggregator.metadata import STAC_PROPERTY_FEDERATION_BACKENDS
-from openeo_aggregator.partitionedjobs import (
-    PartitionedJob,
-)
+from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
     CrossBackendSplitter,
     run_partitioned_job,
@@ -53,8 +52,11 @@ def main():
         },
     }
 
-    with TimingLogger(title="Connecting", logger=_log):
-        connection = openeo.connect("openeocloud-dev.vito.be").authenticate_oidc()
+    # backend_url = "openeocloud-dev.vito.be"
+    backend_url = "openeo.cloud"
+
+    with TimingLogger(title=f"Connecting to {backend_url}", logger=_log):
+        connection = openeo.connect(url=backend_url).authenticate_oidc()
 
     @functools.lru_cache(maxsize=100)
     def backend_for_collection(collection_id) -> str:

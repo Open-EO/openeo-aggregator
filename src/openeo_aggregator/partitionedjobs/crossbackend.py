@@ -8,6 +8,7 @@ import time
 from typing import Callable, Dict, List, Sequence
 
 import openeo
+from openeo import BatchJob
 from openeo.util import ContextTimer
 from openeo_driver.jobregistry import JOB_STATUS
 
@@ -117,7 +118,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
 
 
 def resolve_dependencies(
-    process_graph: FlatPG, batch_job_ids: Dict[str, str]
+    process_graph: FlatPG, batch_jobs: Dict[str, BatchJob]
 ) -> FlatPG:
     """
     Replace placeholders in given process graph
@@ -132,14 +133,13 @@ def resolve_dependencies(
             _LOAD_RESULT_PLACEHOLDER
         ):
             dep_id = node["arguments"]["id"].partition(_LOAD_RESULT_PLACEHOLDER)[-1]
-            batch_job_id = batch_job_ids[dep_id]
+            batch_job = batch_jobs[dep_id]
             _log.info(
-                f"resolve_dependencies: replace placeholder {dep_id!r} with concrete {batch_job_id!r}"
+                f"resolve_dependencies: replace placeholder {dep_id!r} with concrete {batch_job.job_id!r}"
             )
             result[node_id] = {
                 "process_id": "load_result",
-                # TODO: use result metadata url instead of batch job id
-                "arguments": {"id": batch_job_id},
+                "arguments": {"id": batch_job.get_results_metadata_url(full=True)},
             }
         else:
             result[node_id] = copy.deepcopy(node)
@@ -191,8 +191,8 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
     # TODO: wrap these state structs for easier keeping track of setting and getting state
     states: Dict[str, str] = {k: "waiting" for k in subjobs.keys()}
     _log.info(f"Initial states: {states}")
-    # Map subjob_id to a batchjob id
-    batch_job_ids: Dict[str, str] = {}
+    # Map subjob_id to a batch job instances
+    batch_jobs: Dict[str, BatchJob] = {}
 
     skip_intermittent_failures = SkipIntermittentFailures(limit=3)
 
@@ -221,7 +221,7 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
             if states[subjob_id] == SUBJOB_STATES.READY:
                 try:
                     process_graph = resolve_dependencies(
-                        subjob.process_graph, batch_job_ids=batch_job_ids
+                        subjob.process_graph, batch_jobs=batch_jobs
                     )
 
                     _log.info(
@@ -235,7 +235,7 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
                             JOB_OPTION_FORCE_BACKEND: subjob.backend_id,
                         },
                     )
-                    batch_job_ids[subjob_id] = batch_job.job_id
+                    batch_jobs[subjob_id] = batch_job
                     # Start
                     batch_job.start_job()
                     states[subjob_id] = SUBJOB_STATES.RUNNING
@@ -251,10 +251,10 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
             elif states[subjob_id] == SUBJOB_STATES.RUNNING:
                 with skip_intermittent_failures:
                     # Check batch jobs status on backend
-                    batch_job_id = batch_job_ids[subjob_id]
-                    batch_job_status = connection.job(job_id=batch_job_id).status()
+                    batch_job = batch_jobs[subjob_id]
+                    batch_job_status = batch_job.status()
                     _log.info(
-                        f"Upstream status for subjob {subjob_id!r} (batch job {batch_job_id!r}): {batch_job_status}"
+                        f"Upstream status for subjob {subjob_id!r} (batch job {batch_job.job_id!r}): {batch_job_status}"
                     )
                     if batch_job_status == JOB_STATUS.FINISHED:
                         states[subjob_id] = SUBJOB_STATES.FINISHED
@@ -275,7 +275,7 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
                         raise ValueError(f"Unexpected {batch_job_status=}")
 
         state_stats = collections.Counter(states.values())
-        _log.info(f"Current state overview: {states=} {state_stats=} {batch_job_ids=}")
+        _log.info(f"Current state overview: {states=} {state_stats=} {batch_jobs=}")
 
         if set(state_stats.keys()) == {SUBJOB_STATES.FINISHED}:
             _log.info("Breaking out of loop: all jobs finished successfully.")
@@ -294,7 +294,7 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
     return {
         sid: {
             "state": states[sid],
-            "batch_job_id": batch_job_ids.get(sid),
+            "batch_job": batch_jobs.get(sid),
         }
         for sid in subjobs.keys()
     }
