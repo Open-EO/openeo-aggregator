@@ -1,3 +1,5 @@
+import re
+
 import contextlib
 import datetime
 import functools
@@ -352,12 +354,17 @@ class AggregatorProcessing(Processing):
                         if provider_backend_pg:
                             collection_backend_constraints.append(provider_backend_pg)
                 elif process_id == "load_result":
-                    # Extract backend id that has this batch job result to load
-                    _, job_backend_id = JobIdMapping.parse_aggregator_job_id(
-                        backends=self.backends,
-                        aggregator_job_id=arguments["id"]
-                    )
-                    backend_candidates = [b for b in backend_candidates if b == job_backend_id]
+                    result_id = arguments["id"]
+                    # TODO: also parse result_id when it's a URL?
+                    if not re.match("^https?://", result_id):
+                        # Extract backend id that has this batch job result to load
+                        _, job_backend_id = JobIdMapping.parse_aggregator_job_id(
+                            backends=self.backends,
+                            aggregator_job_id=arguments["id"],
+                        )
+                        backend_candidates = [
+                            b for b in backend_candidates if b == job_backend_id
+                        ]
                 elif process_id == "load_ml_model":
                     model_backend_id = self._process_load_ml_model(arguments)[0]
                     if model_backend_id:
@@ -420,13 +427,23 @@ class AggregatorProcessing(Processing):
                     process_id = node["process_id"]
                     arguments = node["arguments"]
                     if process_id == "load_result" and "id" in arguments:
-                        job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
-                            backends=self.backends,
-                            aggregator_job_id=arguments["id"]
-                        )
-                        assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
-                        # Create new load_result node dict with updated job id
-                        return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
+                        result_id = arguments["id"]
+                        # TODO: also rewrite result_id in some way when it's a URL?
+                        if not re.match("^https?://", result_id):
+                            (
+                                job_id,
+                                job_backend_id,
+                            ) = JobIdMapping.parse_aggregator_job_id(
+                                backends=self.backends,
+                                aggregator_job_id=result_id,
+                            )
+                            assert (
+                                job_backend_id == backend_id
+                            ), f"{job_backend_id} != {backend_id}"
+                            # Create new load_result node dict with updated job id
+                            return dict_merge(
+                                node, arguments=dict_merge(arguments, id=job_id)
+                            )
                     if process_id == "load_ml_model":
                         model_id = self._process_load_ml_model(arguments, expected_backend=backend_id)[1]
                         if model_id:

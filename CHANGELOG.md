@@ -10,6 +10,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Add support for more user roles ([#64](https://github.com/Open-EO/openeo-aggregator/issues/64))
 - Experimental: allow back-end selection through job option
+- Add support for `load_result` with a URL (instead of job_id).
+  ([#95](https://github.com/Open-EO/openeo-aggregator/issues/95))
 
 ### Changed
 

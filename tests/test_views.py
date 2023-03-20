@@ -943,6 +943,47 @@ class TestProcessing:
             api100.post("/result", json=request).assert_error(400, "BackendLookupFailure")
             assert (b1_mock.call_count, b2_mock.call_count) == (0, 0)
 
+    @pytest.mark.parametrize(
+        "result_id",
+        [
+            "https://oeoa.test/jobs/b1-b6tch-j08/results",
+            "http://external.test/bla/bla",
+            "https://external.test/bla/bla",
+        ],
+    )
+    def test_load_result_http_reference(
+        self, api100, requests_mock, backend1, backend2, result_id
+    ):
+        """Support load_result with HTTP references (instead of job id)"""
+
+        def b1_post_result(request: requests.Request, context):
+            pg = request.json()["process"]["process_graph"]
+            assert pg == {
+                "load": {
+                    "process_id": "load_result",
+                    "arguments": {"id": result_id},
+                    "result": True,
+                }
+            }
+            context.headers["Content-Type"] = "application/json"
+            return 111
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=b1_post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json={"dummy": "dummy"})
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            "load": {
+                "process_id": "load_result",
+                "arguments": {"id": result_id},
+                "result": True,
+            }
+        }
+        request = {"process": {"process_graph": pg}}
+        res = api100.post("/result", json=request).assert_status_code(200)
+        assert res.json == 111
+        assert (b1_mock.call_count, b2_mock.call_count) == (1, 0)
+
 
 class TestBatchJobs:
 
