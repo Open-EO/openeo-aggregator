@@ -19,6 +19,10 @@ setup(
     url="https://github.com/Open-EO/openeo-aggregator",
     packages=find_packages(where="src", include=["openeo_aggregator", "openeo_aggregator.*"]),
     package_dir={"": "src"},
+    include_package_data=True,
+    data_files=[
+        ("openeo-aggregator", ["CHANGELOG.md"]),
+    ],
     python_requires=">=3.8",
     install_requires=[
         "requests",
