@@ -4,6 +4,7 @@ import datetime
 import itertools
 import logging
 import time
+from contextlib import nullcontext
 from typing import Callable, Dict, List, Sequence
 
 import openeo
@@ -180,7 +181,9 @@ def _loop():
         yield i
 
 
-def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> dict:
+def run_partitioned_job(
+    pjob: PartitionedJob, connection: openeo.Connection, fail_fast: bool = True
+) -> dict:
     """
     Run partitioned job (probably with dependencies between subjobs)
 
@@ -202,7 +205,10 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
     # Map subjob_id to a batch job instances
     batch_jobs: Dict[str, BatchJob] = {}
 
-    skip_intermittent_failures = SkipIntermittentFailures(limit=3)
+    if not fail_fast:
+        skip_intermittent_failures = SkipIntermittentFailures(limit=3)
+    else:
+        skip_intermittent_failures = nullcontext()
 
     for _ in _loop():
         need_sleep = True
@@ -251,6 +257,8 @@ def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection) -> 
                         f"Started batch job {batch_job.job_id!r} for subjob {subjob_id!r}"
                     )
                 except Exception as e:
+                    if fail_fast:
+                        raise
                     states[subjob_id] = SUBJOB_STATES.ERROR
                     _log.warning(
                         f"Failed to start batch job for subjob {subjob_id!r}: {e}",
