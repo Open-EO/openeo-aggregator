@@ -1437,6 +1437,85 @@ class TestBatchJobs:
         res = api100.get("/jobs/nope-and-nope/results")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
 
+    def test_get_results_canonical_link(self, api100, requests_mock, backend1):
+        """https://github.com/Open-EO/openeo-aggregator/issues/98"""
+        m1 = requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "status": "finished",
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=200,
+            json={
+                "assets": {},
+                "links": [
+                    {
+                        "rel": "canonical",
+                        "href": "https://res.b1.test/123/456789/abc",
+                        "type": "application/json",
+                    }
+                ],
+            },
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
+        assert res["id"] == "b1-th3j0b"
+        assert [l for l in res["links"] if l["rel"] == "canonical"] == [
+            {
+                "rel": "canonical",
+                "href": "https://res.b1.test/123/456789/abc",
+                "type": "application/json",
+            },
+        ]
+        assert m1.call_count == 1
+        assert m2.call_count == 1
+
+    def test_get_results_links(self, api100, requests_mock, backend1):
+        """https://github.com/Open-EO/openeo-aggregator/issues/98"""
+        m1 = requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "status": "finished",
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=200,
+            json={
+                "assets": {},
+                "links": [
+                    {"rel": "canonical", "href": "https://c.b1.test/123"},
+                    {"rel": "self", "href": "https://b1.test/123"},
+                ],
+            },
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
+        assert res["id"] == "b1-th3j0b"
+        # Preserve original "canonical" link
+        assert [l for l in res["links"] if l["rel"] == "canonical"] == [
+            {
+                "rel": "canonical",
+                "href": "https://c.b1.test/123",
+            },
+        ]
+        # Aggregator's "self" link
+        assert [l for l in res["links"] if l["rel"] == "self"] == [
+            {
+                "rel": "self",
+                "href": "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b/results",
+                "type": "application/json",
+            },
+        ]
+        assert m1.call_count == 1
+        assert m2.call_count == 1
+
     def test_get_logs(self, api100, requests_mock, backend1):
         def get_logs(request, context):
             offset = request.qs.get("offset", ["_"])[0]

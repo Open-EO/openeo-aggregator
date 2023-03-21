@@ -23,6 +23,7 @@ from openeo_driver.backend import (
     Processing,
     SecondaryServices,
     ServiceMetadata,
+    BatchJobResultMetadata,
 )
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import (
@@ -701,13 +702,35 @@ class AggregatorBatchJobs(BatchJobs):
                 self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).delete_job()
 
-    def get_results(self, job_id: str, user_id: str) -> Dict[str, dict]:
+    def get_result_assets(self, job_id: str, user_id: str) -> Dict[str, dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
         return {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
+
+    def get_result_metadata(self, job_id: str, user_id: str) -> BatchJobResultMetadata:
+        con, backend_job_id = self._get_connection_and_backend_job_id(
+            aggregator_job_id=job_id
+        )
+        with con.authenticated_from_request(
+            request=flask.request, user=User(user_id)
+        ), self._translate_job_errors(job_id=job_id):
+            results = con.job(backend_job_id).get_results()
+            metadata = results.get_metadata()
+            assets = results.get_assets()
+
+        assets = {
+            a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}}
+            for a in assets
+        }
+        # TODO: better white/black list for links?
+        links = [k for k in metadata.get("links", []) if k.get("rel") != "self"]
+        return BatchJobResultMetadata(
+            assets=assets,
+            links=links,
+        )
 
     def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)

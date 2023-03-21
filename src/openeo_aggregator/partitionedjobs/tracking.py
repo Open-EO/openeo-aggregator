@@ -378,13 +378,17 @@ class PartitionedJobConnection:
             """Interface `RESTJob.get_results`"""
             return self
 
-        def get_assets(self):
-            """Interface `openeo.rest.JobResult.get_asserts`"""
+        def get_assets(self) -> List[ResultAsset]:
+            """Interface `openeo.rest.JobResult.get_assets`"""
             return self.connection.partitioned_job_tracker.get_assets(
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request
             )
+
+        def get_metadata(self) -> dict:
+            """Interface `openeo.rest.JobResult.get_metadata`"""
+            return {}
 
         def logs(self, offset=None) -> List[LogEntry]:
             """Interface `RESTJob.logs`"""
