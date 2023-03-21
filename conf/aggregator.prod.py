@@ -1,5 +1,6 @@
-from openeo_aggregator.config import AggregatorConfig
 from openeo_driver.users.oidc import OidcProvider
+
+from openeo_aggregator.config import AggregatorConfig
 
 _DEFAULT_OIDC_CLIENT_EGI = {
     "id": "openeo-platform-default-client",

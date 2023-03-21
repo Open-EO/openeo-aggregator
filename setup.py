@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 # Single source version handling. Also see https://packaging.python.org/guides/single-sourcing-package-version
 __version__ = None

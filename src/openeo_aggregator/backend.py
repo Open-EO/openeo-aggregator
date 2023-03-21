@@ -16,6 +16,7 @@ from openeo.util import TimingLogger, deep_get, dict_no_none
 from openeo_driver.backend import (
     AbstractCollectionCatalog,
     BatchJobMetadata,
+    BatchJobResultMetadata,
     BatchJobs,
     LoadParameters,
     OidcProvider,
@@ -23,7 +24,6 @@ from openeo_driver.backend import (
     Processing,
     SecondaryServices,
     ServiceMetadata,
-    BatchJobResultMetadata,
 )
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import (
