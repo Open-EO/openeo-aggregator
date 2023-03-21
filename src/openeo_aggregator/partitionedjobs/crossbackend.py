@@ -1,7 +1,6 @@
 import collections
 import copy
 import datetime
-import functools
 import itertools
 import logging
 import time
@@ -9,7 +8,6 @@ from typing import Callable, Dict, List, Sequence
 
 import openeo
 from openeo import BatchJob
-from openeo.util import ContextTimer
 from openeo_driver.jobregistry import JOB_STATUS
 
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
@@ -137,9 +135,19 @@ def resolve_dependencies(
             _log.info(
                 f"resolve_dependencies: replace placeholder {dep_id!r} with concrete {batch_job.job_id!r}"
             )
+            try:
+                # Try to get "canonical" result URL (signed URL)
+                links = batch_job.get_results().get_metadata()["links"]
+                [result_url] = [k["href"] for k in links if k.get("rel") == "canonical"]
+            except Exception as e:
+                result_url = batch_job.get_results_metadata_url(full=True)
+                _log.warning(
+                    f"Failed to get canonical result metadata URL for {batch_job.job_id!r}: {e}. "
+                    f"Falling back on default result metadata URL {result_url!r}."
+                )
             result[node_id] = {
                 "process_id": "load_result",
-                "arguments": {"id": batch_job.get_results_metadata_url(full=True)},
+                "arguments": {"id": result_url},
             }
         else:
             result[node_id] = copy.deepcopy(node)

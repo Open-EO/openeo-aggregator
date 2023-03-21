@@ -52,8 +52,8 @@ def main():
         },
     }
 
-    # backend_url = "openeocloud-dev.vito.be"
-    backend_url = "openeo.cloud"
+    backend_url = "openeocloud-dev.vito.be"
+    # backend_url = "openeo.cloud"
 
     with TimingLogger(title=f"Connecting to {backend_url}", logger=_log):
         connection = openeo.connect(url=backend_url).authenticate_oidc()
