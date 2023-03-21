@@ -37,7 +37,7 @@ ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-mas
 config = AggregatorConfig(
     config_source=__file__,
     aggregator_backends={
-        "vito": "https://openeo.vito.be/openeo/1.0/",
+        "vito": "https://openeo.vito.be/openeo/1.1/",
         "eodc": "https://openeo.eodc.eu/v1.0/",
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
