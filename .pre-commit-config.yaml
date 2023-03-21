@@ -13,3 +13,8 @@ repos:
     rev: 1.7.0
     hooks:
       - id: darker
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        name: isort (python)
