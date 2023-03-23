@@ -16,6 +16,17 @@ _UNSET = object()
 _log = logging.getLogger(__name__)
 
 
+# Type-hinting alias for "process graph with metadata" constructs:
+# containing at least a "process_graph" field with a process graph in "flat-graph" representation
+# TODO move this upstream to openeo-python-driver
+PGWithMetadata = dict
+
+
+# Type-hinting alias for process graphs in "flat-graph" representation.
+# TODO move this upstream to openeo-python-driver
+FlatPG = dict
+
+
 class MultiDictGetter:
     """
     Helper to get (and combine) items (where available) from a collection of dictionaries.
@@ -216,3 +227,48 @@ def common_prefix(lists: Iterable[Iterable[Any]]) -> List[Any]:
             for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, other))
         ]
     return prefix
+
+
+class SkipIntermittentFailures:
+    """
+    Context manager for skipping intermittent failures.
+    It swallows exceptions, but only up to a certain point:
+    if there are too many successive failures,
+    it will not block exceptions anymore.
+
+    Usage:
+
+        skip_intermittent_failures = SkipIntermittentFailures(limit=3)
+
+        for item in items:
+            with skip_intermittent_failures:
+                # Look up status on flaky remote service
+                check_status(item)
+    """
+
+    # TODO: not only look at successive failures, but also fail rate?
+
+    def __init__(self, limit: int = 5):
+        self._limit = limit
+        self._successive_failures = 0
+
+    def __enter__(self):
+        return
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self._successive_failures += 1
+            if self._successive_failures > self._limit:
+                _log.error(
+                    f"Failure tolerance exceeded ({self._successive_failures} > {self._limit}) with {exc_val!r}"
+                )
+                # Enough already!
+                return False
+            else:
+                _log.warning(
+                    f"Exception considered intermittent ({self._successive_failures} <= {self._limit}): skipping {exc_val!r} "
+                )
+                return True
+        else:
+            # Reset counter of successive failures
+            self._successive_failures = 0

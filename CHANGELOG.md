@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Current: 0.7.x]
+## [Current: 0.8.x]
+
+### Added
+
+- Initial, experimental (client-side) proof of concept for cross-backend processing
+  ([#95](https://github.com/Open-EO/openeo-aggregator/issues/95))
+
+### Changed
+
+### Fixed
+
+
+## [0.7.x]
 
 ### Added
 

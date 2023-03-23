@@ -29,7 +29,9 @@ def test_flimsy_splitter(multi_backend_connection, catalog, config):
     process = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
     pjob = splitter.split(process)
     assert len(pjob.subjobs) == 1
-    assert pjob.subjobs[0].process_graph == {
+    ((sjob_id, sjob),) = pjob.subjobs.items()
+    assert sjob_id == "0000"
+    assert sjob.process_graph == {
         "add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
     }
 
@@ -97,7 +99,8 @@ class TestTileGridSplitter:
 
         pjob = splitter.split(process=process, job_options={"tile_grid": tile_grid})
         assert len(pjob.subjobs) == 1
-        new_process_graph = pjob.subjobs[0].process_graph
+        ((sjob_id, sjob),) = pjob.subjobs.items()
+        new_process_graph = sjob.process_graph
         assert len(new_process_graph) == 3
         new_node_id, = set(new_process_graph.keys()).difference(process["process_graph"].keys())
         assert new_process_graph["lc"] == process["process_graph"]["lc"]
@@ -137,7 +140,7 @@ class TestTileGridSplitter:
 
         filter_bbox_extents = []
 
-        for subjob in pjob.subjobs:
+        for subjob_id, subjob in pjob.subjobs.items():
             new_process_graph = subjob.process_graph
             assert len(new_process_graph) == 3
             new_node_id, = set(new_process_graph.keys()).difference(process["process_graph"].keys())
