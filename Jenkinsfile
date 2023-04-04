@@ -10,8 +10,8 @@ pythonPipeline {
   upload_dev_wheels = false
   build_container_image = true
   docker_deploy = true
-  dev_hosts = 'docker-services01.vgt.vito.be'
-  prod_hosts = 'docker-services01-prod.vgt.vito.be'
+  dev_hosts = 'docker-services-dev-01.vgt.vito.be'
+  prod_hosts = 'docker-services-prod-01.vgt.vito.be'
   docker_run_options_dev = ['-e ENV=dev', '-p 8081:8080']
   docker_run_options_prod = ['-e ENV=prod', '-p 8081:8080']
   pep440 = true
