@@ -3,7 +3,7 @@ import itertools
 import json
 import pathlib
 import time
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 from unittest import mock
 
 import kazoo
@@ -203,3 +203,70 @@ def build_capabilities(
         )
 
     return capabilities
+
+
+class MetadataBuilder:
+    """Helper for building openEO/STAC-style metadata dictionaries"""
+
+    def collection(self, id="S2", *, license="proprietary") -> dict:
+        """Build collection metadata"""
+        return {
+            "id": id,
+            "license": license,
+            "stac_version": "1.0.0",
+            "description": id,
+            "extent": {
+                "spatial": {"bbox": [[2, 50, 5, 55]]},
+                "temporal": {"interval": [["2017-01-01T00:00:00Z", None]]},
+            },
+            "links": [
+                {
+                    "rel": "license",
+                    "href": "https://oeoa.test/licence",
+                }
+            ],
+        }
+
+    def collections(self, *args) -> dict:
+        """Build `GET /collections` metadata"""
+        collections = []
+        for arg in args:
+            if isinstance(arg, str):
+                collection = self.collection(id=arg)
+            elif isinstance(arg, dict):
+                collection = self.collection(**arg)
+            else:
+                raise ValueError(arg)
+            collections.append(collection)
+
+        return {"collections": collections, "links": []}
+
+    def process(
+        self,
+        id,
+        *,
+        parameters: Optional[List[dict]] = None,
+        returns: Optional[dict] = None,
+    ) -> dict:
+        """Build process metadata"""
+        return {
+            "id": id,
+            "description": id,
+            "parameters": parameters or [],
+            "returns": returns
+            or {"schema": {"type": "object", "subtype": "raster-cube"}},
+        }
+
+    def processes(self, *args) -> dict:
+        """Build `GET /processes` metadata"""
+        processes = []
+        for arg in args:
+            if isinstance(arg, str):
+                process = self.collection(id=arg)
+            elif isinstance(arg, dict):
+                process = self.collection(**arg)
+            else:
+                raise ValueError(arg)
+            processes.append(process)
+
+        return {"processes": processes, "links": []}

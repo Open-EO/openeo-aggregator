@@ -986,6 +986,85 @@ class TestProcessing:
         assert res.json == 111
         assert (b1_mock.call_count, b2_mock.call_count) == (1, 0)
 
+    @pytest.mark.parametrize(
+        ["process_id", "call_counts", "expected_warnings"],
+        [
+            (
+                "blargh",
+                (1, 0),
+                [
+                    RegexMatcher(
+                        "Multiple back-end candidates.*Naively picking first one"
+                    )
+                ],
+            ),
+            ("wibble", (1, 0), []),
+            ("snorfle", (0, 1), []),
+            (
+                "frobnicate",
+                (1, 0),
+                [
+                    RegexMatcher("Skipping unknown process 'frobnicate'"),
+                    RegexMatcher(
+                        "Multiple back-end candidates.*Naively picking first one"
+                    ),
+                ],
+            ),
+        ],
+    )
+    def test_result_backend_by_process(
+        self,
+        api100,
+        requests_mock,
+        backend1,
+        backend2,
+        process_id,
+        call_counts,
+        caplog,
+        bldr,
+        expected_warnings,
+    ):
+        requests_mock.get(backend1 + "/collections", json=bldr.collections("S2"))
+        common_processes = [{"id": "load_collection"}, {"id": "blargh"}]
+        requests_mock.get(
+            backend1 + "/processes",
+            json={"processes": common_processes + [{"id": "wibble"}]},
+        )
+        requests_mock.get(backend2 + "/collections", json=bldr.collections("S2"))
+        requests_mock.get(
+            backend2 + "/processes",
+            json={"processes": common_processes + [{"id": "snorfle"}]},
+        )
+
+        def post_result(request: requests.Request, context):
+            assert (
+                request.headers["Authorization"]
+                == TEST_USER_AUTH_HEADER["Authorization"]
+            )
+            assert request.json()["process"]["process_graph"] == pg
+            context.headers["Content-Type"] = "application/json"
+            return 123
+
+        b1_mock = requests_mock.post(backend1 + "/result", json=post_result)
+        b2_mock = requests_mock.post(backend2 + "/result", json=post_result)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {
+            "lc": {
+                "process_id": "load_collection",
+                "arguments": {"id": "S2"},
+            },
+            "process": {
+                "process_id": process_id,
+                "arguments": {"data": {"from_node": "lc"}, "factor": 5},
+                "result": True,
+            },
+        }
+        request = {"process": {"process_graph": pg}}
+        res = api100.post("/result", json=request).assert_status_code(200)
+        assert res.json == 123
+        assert (b1_mock.call_count, b2_mock.call_count) == call_counts
+        assert caplog.messages == expected_warnings
+
 
 class TestBatchJobs:
 

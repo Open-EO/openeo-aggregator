@@ -12,27 +12,50 @@ from openeo_aggregator.backend import (
     MultiBackendConnection,
 )
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyKazooClient, build_capabilities
+from openeo_aggregator.testing import (
+    DummyKazooClient,
+    MetadataBuilder,
+    build_capabilities,
+)
+
+_DEFAULT_PROCESSES = [
+    "load_collection",
+    "load_result",
+    "save_result",
+    "merge_cubes",
+    "mask",
+    "load_ml_model",
+    "add",
+    "large",
+]
 
 
 @pytest.fixture
-def backend1(requests_mock) -> str:
+def backend1(requests_mock, bldr) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
     requests_mock.get(domain + "/", json=build_capabilities())
-    requests_mock.get(domain + "/credentials/oidc", json={"providers": [
-        {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
-    ]})
+    requests_mock.get(
+        domain + "/credentials/oidc",
+        json={
+            "providers": [{"id": "egi", "issuer": "https://egi.test", "title": "EGI"}]
+        },
+    )
+    requests_mock.get(domain + "/processes", json=bldr.processes(*_DEFAULT_PROCESSES))
     return domain
 
 
 @pytest.fixture
-def backend2(requests_mock) -> str:
+def backend2(requests_mock, bldr) -> str:
     domain = "https://b2.test/v1"
     requests_mock.get(domain + "/", json=build_capabilities())
-    requests_mock.get(domain + "/credentials/oidc", json={"providers": [
-        {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
-    ]})
+    requests_mock.get(
+        domain + "/credentials/oidc",
+        json={
+            "providers": [{"id": "egi", "issuer": "https://egi.test", "title": "EGI"}]
+        },
+    )
+    requests_mock.get(domain + "/processes", json=bldr.processes(*_DEFAULT_PROCESSES))
     return domain
 
 
@@ -179,3 +202,8 @@ def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
         backends=multi_backend_connection,
         config=config
     )
+
+
+@pytest.fixture
+def bldr() -> MetadataBuilder:
+    return MetadataBuilder()

@@ -5,8 +5,20 @@ import logging
 import pathlib
 import re
 import time
+import typing
 from collections import defaultdict
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 import flask
 import openeo_driver.util.view_helpers
@@ -198,7 +210,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
     def get_backend_candidates_for_collections(self, collections: Iterable[str]) -> List[str]:
         """
-        Get best backend id providing all given collections
+        Get backend ids providing all given collections
         :param collections: list/set of collection ids
         :return:
         """
@@ -217,6 +229,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         elif len(backend_combos) == 1:
             backend_candidates = list(backend_combos.pop())
         else:
+            # TODO: order preservation is not necessary (anymore), which allows to simplify all this logic.
             # Search for common backends in all sets (and preserve order)
             intersection = functools.reduce(lambda a, b: [x for x in a if x in b], backend_combos)
             if intersection:
@@ -324,14 +337,17 @@ class AggregatorProcessing(Processing):
             # TODO: only check for mismatch in major version?
             _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
 
-        combined_processes = self._memoizer.get_or_call(
-            key=("all", str(api_version)),
-            callback=self._get_merged_process_metadata,
-        )
+        combined_processes = self.get_merged_process_metadata()
         process_registry = ProcessRegistry()
         for pid, spec in combined_processes.items():
             process_registry.add_spec(spec=spec)
         return process_registry
+
+    def get_merged_process_metadata(self) -> Dict[str, dict]:
+        return self._memoizer.get_or_call(
+            key=("all", str(self.backends.api_version)),
+            callback=self._get_merged_process_metadata,
+        )
 
     def _get_merged_process_metadata(self) -> dict:
         processes_per_backend = {}
@@ -346,6 +362,30 @@ class AggregatorProcessing(Processing):
             processes_per_backend=processes_per_backend
         )
         return combined_processes
+
+    def _get_backend_candidates_for_processes(
+        self, processes: typing.Collection[str]
+    ) -> Union[List[str], None]:
+        """
+        Get backend ids providing all given processes
+        :param processes: collection process ids
+        :return:
+        """
+        processes = set(processes)
+        process_metadata = self.get_merged_process_metadata()
+        candidates: Union[Set[str], None] = None
+        for pid in processes:
+            if pid in process_metadata:
+                backends = process_metadata[pid][STAC_PROPERTY_FEDERATION_BACKENDS]
+                if candidates is None:
+                    candidates = set(backends)
+                else:
+                    candidates = candidates.intersection(backends)
+            else:
+                _log.warning(
+                    f"Skipping unknown process {pid!r} in `_get_backend_candidates_for_processes`"
+                )
+        return candidates
 
     def get_backend_for_process_graph(
         self, process_graph: dict, api_version: str, job_options: Optional[dict] = None
@@ -367,12 +407,13 @@ class AggregatorProcessing(Processing):
                 )
             return bid
 
-        # TODO: also check used processes?
         collections = set()
         collection_backend_constraints = []
+        processes = set()
         try:
             for pg_node in process_graph.values():
                 process_id = pg_node["process_id"]
+                processes.add(process_id)
                 arguments = pg_node["arguments"]
                 if process_id == "load_collection":
                     collections.add(arguments["id"])
@@ -414,13 +455,25 @@ class AggregatorProcessing(Processing):
             collection_candidates = self._catalog.get_backend_candidates_for_collections(collections=collections)
             backend_candidates = [b for b in backend_candidates if b in collection_candidates]
 
-            if collection_backend_constraints:
-                conditions = self._catalog.generate_backend_constraint_callables(
-                    process_graphs=collection_backend_constraints
-                )
-                backend_candidates = [b for b in backend_candidates if all(c(b) for c in conditions)]
+        if collection_backend_constraints:
+            conditions = self._catalog.generate_backend_constraint_callables(
+                process_graphs=collection_backend_constraints
+            )
+            backend_candidates = [
+                b for b in backend_candidates if all(c(b) for c in conditions)
+            ]
 
-            if len(backend_candidates) > 1:
+        if processes:
+            process_candidates = self._get_backend_candidates_for_processes(processes)
+            if process_candidates:
+                backend_candidates = [
+                    b for b in backend_candidates if b in process_candidates
+                ]
+            else:
+                # TODO: make this an exception like we do with collections? (BackendLookupFailureException)
+                _log.warning(f"No process based backend candidates ({processes=})")
+
+        if len(backend_candidates) > 1:
                 # TODO #42 Check `/validation` instead of naively picking first one?
                 _log.warning(
                     f"Multiple back-end candidates {backend_candidates} for collections {collections}."

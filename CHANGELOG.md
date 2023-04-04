@@ -10,6 +10,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Initial, experimental (client-side) proof of concept for cross-backend processing
   ([#95](https://github.com/Open-EO/openeo-aggregator/issues/95))
+- Consider process availability in backend selection
+  ([#100](https://github.com/Open-EO/openeo-aggregator/issues/100))
 
 ### Changed
 
