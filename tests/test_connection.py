@@ -20,6 +20,8 @@ from openeo_aggregator.connection import (
 )
 from openeo_aggregator.testing import clock_mock
 
+from .conftest import DEFAULT_MEMOIZER_CONFIG
+
 
 class TestBackendConnection:
 
@@ -237,6 +239,16 @@ class TestMultiBackendConnection:
             "b2": {"orig_url": "https://b2.test/v1", "root_url": "https://b2.test/v1"},
         }
 
+    @pytest.mark.parametrize(
+        "memoizer_config",
+        [
+            DEFAULT_MEMOIZER_CONFIG,
+            {
+                "type": "jsondict",
+                "config": {"default_ttl": 66},
+            },  # Test caching with JSON serialization too
+        ],
+    )
     def test_api_version(
         self,
         multi_backend_connection,
@@ -244,17 +256,64 @@ class TestMultiBackendConnection:
         backend1,
         backend2,
         memoizer_config,
+        caplog,
     ):
         m1 = requests_mock.get(backend1 + "/", json={"api_version": "1.2.3"})
         m2 = requests_mock.get(backend2 + "/", json={"api_version": "1.2.3"})
         assert (m1.call_count, m2.call_count) == (0, 0)
-        assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+        v123 = ComparableVersion("1.2.3")
+        assert multi_backend_connection.api_version_minimum == v123
+        assert multi_backend_connection.api_version_maximum == v123
         assert (m1.call_count, m2.call_count) == (1, 1)
-        assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+        assert multi_backend_connection.api_version_minimum == v123
+        assert multi_backend_connection.api_version_maximum == v123
         assert (m1.call_count, m2.call_count) == (1, 1)
         with clock_mock(offset=memoizer_config["config"]["default_ttl"] + 1):
-            assert multi_backend_connection.api_version == ComparableVersion("1.2.3")
+            assert multi_backend_connection.api_version_minimum == v123
+            assert multi_backend_connection.api_version_maximum == v123
             assert (m1.call_count, m2.call_count) == (2, 2)
+
+        assert caplog.messages == []
+
+    @pytest.mark.parametrize(
+        "memoizer_config",
+        [
+            DEFAULT_MEMOIZER_CONFIG,
+            {
+                "type": "jsondict",
+                "config": {"default_ttl": 66},
+            },  # Test caching with JSON serialization too
+        ],
+    )
+    def test_api_versions(
+        self,
+        multi_backend_connection,
+        requests_mock,
+        backend1,
+        backend2,
+        memoizer_config,
+        caplog,
+    ):
+        m1 = requests_mock.get(backend1 + "/", json={"api_version": "1.2.3"})
+        m2 = requests_mock.get(backend2 + "/", json={"api_version": "1.3.5"})
+        assert (m1.call_count, m2.call_count) == (0, 0)
+        v123 = ComparableVersion("1.2.3")
+        v135 = ComparableVersion("1.3.5")
+        assert multi_backend_connection.api_version_minimum == v123
+        assert multi_backend_connection.api_version_maximum == v135
+        assert multi_backend_connection.get_api_versions() == {v123, v135}
+        assert (m1.call_count, m2.call_count) == (1, 1)
+        assert multi_backend_connection.api_version_minimum == v123
+        assert multi_backend_connection.api_version_maximum == v135
+        assert multi_backend_connection.get_api_versions() == {v123, v135}
+        assert (m1.call_count, m2.call_count) == (1, 1)
+        with clock_mock(offset=memoizer_config["config"]["default_ttl"] + 1):
+            assert multi_backend_connection.api_version_minimum == v123
+            assert multi_backend_connection.api_version_maximum == v135
+            assert multi_backend_connection.get_api_versions() == {v123, v135}
+            assert (m1.call_count, m2.call_count) == (2, 2)
+
+        assert caplog.messages == []
 
     @pytest.mark.parametrize(["pid", "issuer", "title"], [
         ("egi", "https://egi.test", "EGI"),

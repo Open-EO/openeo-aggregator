@@ -721,6 +721,28 @@ class TestProcessing:
         assert res.json == 123
         assert (b1_mock.call_count, b2_mock.call_count) == call_counts
 
+    def test_processes_different_versions(
+        self, api100, requests_mock, backend1, backend2, bldr
+    ):
+        """
+        This used to fail with
+            OpenEOApiException: Only single version is supported, but found: {'1.2.3', '1.3.5'}
+        """
+        requests_mock.get(backend1 + "/", json=build_capabilities(api_version="1.2.3"))
+        requests_mock.get(backend2 + "/", json=build_capabilities(api_version="1.3.5"))
+        requests_mock.get(backend1 + "/processes", json=bldr.processes("add", "mean"))
+        requests_mock.get(backend2 + "/processes", json=bldr.processes("prod", "mean"))
+
+        res = api100.get("/processes").assert_status_code(200).json
+        assert res == {
+            "processes": [
+                DictSubSet({"id": "add", "federation:backends": ["b1"]}),
+                DictSubSet({"id": "mean", "federation:backends": ["b1", "b2"]}),
+                DictSubSet({"id": "prod", "federation:backends": ["b2"]}),
+            ],
+            "links": [],
+        }
+
     def test_result_backend_by_collection_multiple_hits(self, api100, requests_mock, backend1, backend2, caplog):
         caplog.set_level(logging.WARNING)
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}, ]})

@@ -172,6 +172,7 @@ def build_capabilities(
     """
     Helper to build a capabilities doc.
     """
+    # TODO: move this to MetadataBuilder
     # Basic start point
     capabilities = {
         "api_version": api_version,

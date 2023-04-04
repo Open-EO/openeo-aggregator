@@ -284,19 +284,30 @@ class MultiBackendConnection:
             for c in self.get_connections()
         }
 
-    def _get_api_version(self) -> str:
-        # TODO: ignore patch level of API versions?
-        versions = set(v for (i, v) in self.map(lambda c: c.capabilities().api_version()))
-        if len(versions) != 1:
-            raise OpenEOApiException(f"Only single version is supported, but found: {versions}")
-        return versions.pop()
+    def _get_api_versions(self) -> List[str]:
+        return list(set(c.capabilities().api_version() for c in self.get_connections()))
+
+    def get_api_versions(self) -> Set[ComparableVersion]:
+        """Get set of API versions reported by backends"""
+        versions = self._memoizer.get_or_call(
+            key="api_versions", callback=self._get_api_versions
+        )
+        versions = set(ComparableVersion(v) for v in versions)
+        return versions
 
     @property
-    def api_version(self) -> ComparableVersion:
-        version = self._memoizer.get_or_call(key="api_version", callback=self._get_api_version)
-        return ComparableVersion(version)
+    def api_version_minimum(self) -> ComparableVersion:
+        """Get the lowest API version of all back-ends"""
+        return min(self.get_api_versions())
 
-    def map(self, callback: Callable[[BackendConnection], Any]) -> Iterator[Tuple[str, Any]]:
+    @property
+    def api_version_maximum(self) -> ComparableVersion:
+        """Get the highest API version of all back-ends"""
+        return max(self.get_api_versions())
+
+    def map(
+        self, callback: Callable[[BackendConnection], Any]
+    ) -> Iterator[Tuple[str, Any]]:
         """
         Query each backend connection with given callable and return results as iterator
 

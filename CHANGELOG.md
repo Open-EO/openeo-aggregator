@@ -12,6 +12,9 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
   ([#95](https://github.com/Open-EO/openeo-aggregator/issues/95))
 - Consider process availability in backend selection
   ([#100](https://github.com/Open-EO/openeo-aggregator/issues/100))
+- Relax openEO API version constraints for upstream back-ends
+  ([#103](https://github.com/Open-EO/openeo-aggregator/issues/103))
+
 
 ### Changed
 

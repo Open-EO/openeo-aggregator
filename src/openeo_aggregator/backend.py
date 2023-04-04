@@ -332,10 +332,17 @@ class AggregatorProcessing(Processing):
         # TODO #42 /validation support
         self.validate = None
 
-    def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
-        if api_version != self.backends.api_version:
-            # TODO: only check for mismatch in major version?
-            _log.warning(f"API mismatch: requested {api_version} != upstream {self.backends.api_version}")
+    def get_process_registry(
+        self, api_version: Union[str, ComparableVersion]
+    ) -> ProcessRegistry:
+        if (
+            api_version < self.backends.api_version_minimum
+            or api_version > self.backends.api_version_maximum
+        ):
+            # TODO: more relaxed version check? How useful is this check anyway?
+            _log.warning(
+                f"API mismatch: requested {api_version} outside of {self.backends.get_api_versions()}"
+            )
 
         combined_processes = self.get_merged_process_metadata()
         process_registry = ProcessRegistry()
@@ -345,7 +352,7 @@ class AggregatorProcessing(Processing):
 
     def get_merged_process_metadata(self) -> Dict[str, dict]:
         return self._memoizer.get_or_call(
-            key=("all", str(self.backends.api_version)),
+            key=("all", str(self.backends.api_version_minimum)),
             callback=self._get_merged_process_metadata,
         )
 
