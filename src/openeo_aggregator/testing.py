@@ -163,51 +163,52 @@ def clock_mock(
     return mock.patch.object(Clock, "_time", new=itertools.count(start, step=step).__next__)
 
 
-def build_capabilities(
-    *,
-    api_version: str = "1.1.0",
-    stac_version: str = "0.9.0",
-    support_secondary_services: bool = False,
-) -> dict:
-    """
-    Helper to build a capabilities doc.
-    """
-    # TODO: move this to MetadataBuilder
-    # Basic start point
-    capabilities = {
-        "api_version": api_version,
-        "backend_version": openeo_aggregator.about.__version__,
-        "stac_version": stac_version,
-        "id": "openeo-aggregator-testing",
-        "title": "Fake test backend (aggregator)",
-        "description": "Fake test backend for openEO Aggregator",
-        "endpoints": [
-            {"path": "/collections", "methods": ["GET"]},
-            {"path": "/collections/{collection_id}", "methods": ["GET"]},
-            {"path": "/processes", "methods": ["GET"]},
-        ],
-        "links": [],
-    }
-
-    # Additional features
-    if support_secondary_services:
-        capabilities["endpoints"].extend(
-            [
-                {"path": "/service_types", "methods": ["GET"]},
-                {"path": "/services", "methods": ["GET", "POST"]},
-                {
-                    "path": "/services/{service_id}",
-                    "methods": ["GET", "PATCH", "DELETE"],
-                },
-                {"path": "/services/{service_id}/logs", "methods": ["GET"]},
-            ]
-        )
-
-    return capabilities
 
 
 class MetadataBuilder:
     """Helper for building openEO/STAC-style metadata dictionaries"""
+
+    def capabilities(
+        self,
+        *,
+        api_version: str = "1.1.0",
+        stac_version: str = "0.9.0",
+        secondary_services: bool = False,
+    ) -> dict:
+        """
+        Helper to build a capabilities doc.
+        """
+        # Basic start point
+        capabilities = {
+            "api_version": api_version,
+            "backend_version": openeo_aggregator.about.__version__,
+            "stac_version": stac_version,
+            "id": "openeo-aggregator-testing",
+            "title": "Test openEO Aggregator",
+            "description": "Test instance of openEO Aggregator",
+            "endpoints": [
+                {"path": "/collections", "methods": ["GET"]},
+                {"path": "/collections/{collection_id}", "methods": ["GET"]},
+                {"path": "/processes", "methods": ["GET"]},
+            ],
+            "links": [],
+        }
+
+        # Additional features
+        if secondary_services:
+            capabilities["endpoints"].extend(
+                [
+                    {"path": "/service_types", "methods": ["GET"]},
+                    {"path": "/services", "methods": ["GET", "POST"]},
+                    {
+                        "path": "/services/{service_id}",
+                        "methods": ["GET", "PATCH", "DELETE"],
+                    },
+                    {"path": "/services/{service_id}/logs", "methods": ["GET"]},
+                ]
+            )
+
+        return capabilities
 
     def collection(self, id="S2", *, license="proprietary") -> dict:
         """Build collection metadata"""

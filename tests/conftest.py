@@ -12,11 +12,7 @@ from openeo_aggregator.backend import (
     MultiBackendConnection,
 )
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import (
-    DummyKazooClient,
-    MetadataBuilder,
-    build_capabilities,
-)
+from openeo_aggregator.testing import DummyKazooClient, MetadataBuilder
 
 _DEFAULT_PROCESSES = [
     "load_collection",
@@ -31,31 +27,31 @@ _DEFAULT_PROCESSES = [
 
 
 @pytest.fixture
-def backend1(requests_mock, bldr) -> str:
+def backend1(requests_mock, mbldr) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
-    requests_mock.get(domain + "/", json=build_capabilities())
+    requests_mock.get(domain + "/", json=mbldr.capabilities())
     requests_mock.get(
         domain + "/credentials/oidc",
         json={
             "providers": [{"id": "egi", "issuer": "https://egi.test", "title": "EGI"}]
         },
     )
-    requests_mock.get(domain + "/processes", json=bldr.processes(*_DEFAULT_PROCESSES))
+    requests_mock.get(domain + "/processes", json=mbldr.processes(*_DEFAULT_PROCESSES))
     return domain
 
 
 @pytest.fixture
-def backend2(requests_mock, bldr) -> str:
+def backend2(requests_mock, mbldr) -> str:
     domain = "https://b2.test/v1"
-    requests_mock.get(domain + "/", json=build_capabilities())
+    requests_mock.get(domain + "/", json=mbldr.capabilities())
     requests_mock.get(
         domain + "/credentials/oidc",
         json={
             "providers": [{"id": "egi", "issuer": "https://egi.test", "title": "EGI"}]
         },
     )
-    requests_mock.get(domain + "/processes", json=bldr.processes(*_DEFAULT_PROCESSES))
+    requests_mock.get(domain + "/processes", json=mbldr.processes(*_DEFAULT_PROCESSES))
     return domain
 
 
@@ -205,5 +201,6 @@ def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
 
 
 @pytest.fixture
-def bldr() -> MetadataBuilder:
+def mbldr() -> MetadataBuilder:
+    """Metadata builder"""
     return MetadataBuilder()
