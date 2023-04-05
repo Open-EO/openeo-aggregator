@@ -13,6 +13,72 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 
 _log = logging.getLogger("crossbackend-poc")
 
+POC_VITO_ONLY = {
+    "lc1": {
+        "process_id": "load_collection",
+        "arguments": {
+            "id": "TERRASCOPE_S2_TOC_V2",
+            "temporal_extent": ["2022-09-01", "2022-09-10"],
+            "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
+            "bands": ["B02", "B03"],
+        },
+    },
+    "lc2": {
+        "process_id": "load_collection",
+        "arguments": {
+            "id": "TERRASCOPE_S2_TOC_V2",
+            "temporal_extent": ["2022-09-01", "2022-09-10"],
+            "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
+            "bands": ["B04"],
+        },
+    },
+    "mc1": {
+        "process_id": "merge_cubes",
+        "arguments": {
+            "cube1": {"from_node": "lc1"},
+            "cube2": {"from_node": "lc2"},
+        },
+    },
+    "sr1": {
+        "process_id": "save_result",
+        "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+        "result": True,
+    },
+}
+
+POC_VITO_SH = {
+    "lc1": {
+        "process_id": "load_collection",
+        "arguments": {
+            "id": "TERRASCOPE_S2_TOC_V2",
+            "temporal_extent": ["2022-09-01", "2022-09-10"],
+            "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
+            "bands": ["B02", "B03"],
+        },
+    },
+    "lc2": {
+        "process_id": "load_collection",
+        "arguments": {
+            "id": "SENTINEL2_L2A_SENTINELHUB",
+            "temporal_extent": ["2022-09-01", "2022-09-10"],
+            "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
+            "bands": ["B04"],
+        },
+    },
+    "mc1": {
+        "process_id": "merge_cubes",
+        "arguments": {
+            "cube1": {"from_node": "lc1"},
+            "cube2": {"from_node": "lc2"},
+        },
+    },
+    "sr1": {
+        "process_id": "save_result",
+        "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+        "result": True,
+    },
+}
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -24,17 +90,17 @@ def main():
             "process_id": "load_collection",
             "arguments": {
                 "id": "TERRASCOPE_S2_TOC_V2",
-                "temporal_extent": temporal_extent,
-                "spatial_extent": spatial_extent,
+                "temporal_extent": ["2020-09-01", "2020-09-20"],
+                "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
                 "bands": ["B02", "B03"],
             },
         },
         "lc2": {
             "process_id": "load_collection",
             "arguments": {
-                "id": "TERRASCOPE_S2_TOC_V2",
-                "temporal_extent": temporal_extent,
-                "spatial_extent": spatial_extent,
+                "id": "boa_sentinel_2",
+                "temporal_extent": ["2020-09-01", "2020-09-20"],
+                "spatial_extent": {"west": 3, "south": 51, "east": 3.1, "north": 51.1},
                 "bands": ["B04"],
             },
         },
@@ -61,7 +127,7 @@ def main():
     @functools.lru_cache(maxsize=100)
     def backend_for_collection(collection_id) -> str:
         metadata = connection.describe_collection(collection_id)
-        return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][0]
+        return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][-1]
 
     splitter = CrossBackendSplitter(
         backend_for_collection=backend_for_collection, always_split=True
