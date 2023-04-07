@@ -8,6 +8,7 @@ _log = logging.getLogger(__name__)
 
 def test_openeo_cloud_root_return_sensible_response(connection: openeo.Connection):
     """Check that ${ENDPOINT}/openeo/1.0/ returns something sensible."""
+
     path = "/"
     response = connection.get(path)
 
@@ -38,13 +39,27 @@ def test_openeo_cloud_root_return_sensible_response(connection: openeo.Connectio
     assert all([k in actual_keys_in_response for k in required_keys])
 
 
-@pytest.mark.xfail(reason="Not implemented yet")
-def test_collections():
-    """Does /collections look ok?"""
-    assert False
+def test_collections(connection):
+    """Check that GET /collections looks OK"""
+
+    path = "/collections"
+    response = connection.get(path)
+
+    _log.info("As curl:\n" + connection.as_curl(data={}, path=path, method="GET"))
+    _log.info(f"{response=}")
+    _log.info(f"{response.json()=}")
+
+    assert response.status_code == 200
 
 
-@pytest.mark.xfail(reason="Not implemented yet")
-def test_processes():
-    """Does /processes look ok?"""
-    assert False
+def test_processes(connection):
+    """Check that GET /processes looks OK"""
+
+    path = "/processes"
+    response = connection.get(path)
+
+    _log.info("As curl:\n" + connection.as_curl(data={}, path=path, method="GET"))
+    _log.info(f"{response=}")
+    _log.info(f"{response.json()=}")
+
+    assert response.status_code == 200
