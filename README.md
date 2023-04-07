@@ -85,3 +85,53 @@ Which config to pick is determined through env variables:
 ### Logging
 
 Logging is set up (by default) through `config/logging-json.conf`.
+
+## Running tests
+
+You can run the unit tests with pytest, the usual way.
+
+    pytest
+
+This will only pick up the unit tests, which you can find in the directory `tests`.
+
+That is to say, when you run the command `pytest` without specifying a specific directory or file
+it will _not_ run the integration tests, only the unit tests.
+That is a deliberate choice because the integration tests could take long and they run
+against a backend server. We want to avoid that you have to wait a long time for each test run during your development cycle.
+
+So if you want integration tests then you have to run those separately, as described below.
+### Running integration tests
+
+To make it easier to run the integration test suite against the _default_ backend you can run the following shell script (from the root of your local git repository):
+
+    ./scripts/run-integration-tests.sh
+
+To run the integration test suite against any other OpenEO backend:
+
+- first, specify the backend base URL in environment variable `ENDPOINT` ,
+- then run the tests with `pytest integration-tests/`
+
+For example:
+
+    export ENDPOINT=http://localhost:8080/
+    pytest integration-tests/
+
+
+Pytest provides [various options](https://docs.pytest.org/en/latest/usage.html#specifying-tests-selecting-tests)
+to run a subset or just a single test.
+Some examples (that can be combined):
+
+-   select by substring of the name of a test with the `-k` option:
+
+        # Run all tests with `collections` in their name
+        pytest -k collections
+
+### Debugging and troubleshooting tips
+
+- The `tmp_path` fixture provides a [fresh temporary folder for a test to work in](https://docs.pytest.org/en/latest/tmpdir.html).
+It is cleaned up automatically, except for the last 3 runs, so you can inspect
+generated files post-mortem. The temp folders are typically situated under `/tmp/pytest-of-$USERNAME`.
+
+- To disable pytest's default log/output capturing, to better see what is going on in "real time", add these options:
+
+        --capture=no --log-cli-level=INFO
