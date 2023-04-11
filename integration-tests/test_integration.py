@@ -47,7 +47,15 @@ def test_collections(connection):
 
     _log.info("As curl:\n" + connection.as_curl(data={}, path=path, method="GET"))
     _log.info(f"{response=}")
-    _log.info(f"{response.json()=}")
+
+    # This is quite a lot of information, a bit too long for INFO.
+    _log.debug(f"{response.json()=}")
+
+    data = response.json()
+    assert "collections" in data
+
+    # Verify that there are indeed processes in the list
+    assert data["collections"]
 
     assert response.status_code == 200
 
@@ -60,6 +68,14 @@ def test_processes(connection):
 
     _log.info("As curl:\n" + connection.as_curl(data={}, path=path, method="GET"))
     _log.info(f"{response=}")
-    _log.info(f"{response.json()=}")
+
+    # This is quite a lot of information, a bit too long for INFO.
+    _log.debug(f"{response.json()=}")
+
+    data = response.json()
+    assert "processes" in data
+
+    # Verify that there are indeed processes in the list
+    assert data["processes"]
 
     assert response.status_code == 200
