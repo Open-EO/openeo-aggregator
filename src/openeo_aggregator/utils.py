@@ -266,7 +266,7 @@ class SkipIntermittentFailures:
                 return False
             else:
                 _log.warning(
-                    f"Exception considered intermittent ({self._successive_failures} <= {self._limit}): skipping {exc_val!r} "
+                    f"Exception handled as intermittent ({self._successive_failures} <= {self._limit}): skipping {exc_val!r} "
                 )
                 return True
         else:
