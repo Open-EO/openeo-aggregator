@@ -803,11 +803,17 @@ class AggregatorBatchJobs(BatchJobs):
             links=links,
         )
 
-    def get_log_entries(self, job_id: str, user_id: str, offset: Optional[str] = None) -> List[dict]:
+    def get_log_entries(
+        self,
+        job_id: str,
+        user_id: str,
+        offset: Optional[str] = None,
+        level: Optional[str] = None,
+    ) -> Iterable[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
                 self._translate_job_errors(job_id=job_id):
-            return con.job(backend_job_id).logs(offset=offset)
+            return con.job(backend_job_id).logs(offset=offset, level=level)
 
 
 class ServiceIdMapping:
