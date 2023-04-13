@@ -1,13 +1,12 @@
 import logging
 
 import openeo
-import pytest
 
 _log = logging.getLogger(__name__)
 
 
 def test_openeo_cloud_root_return_sensible_response(connection: openeo.Connection):
-    """Check that ${ENDPOINT}/openeo/1.0/ returns something sensible."""
+    """Check that ${OPENEO_BACKEND_URL}/ returns something sensible."""
 
     path = "/"
     response = connection.get(path)

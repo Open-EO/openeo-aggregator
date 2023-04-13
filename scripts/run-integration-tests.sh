@@ -1,2 +1,2 @@
-export ENDPOINT=https://openeocloud.vito.be
+export OPENEO_BACKEND_URL=https://openeo.cloud/
 pytest -ra -vv integration-tests/

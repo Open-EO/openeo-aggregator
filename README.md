@@ -108,12 +108,12 @@ To make it easier to run the integration test suite against the _default_ backen
 
 To run the integration test suite against any other OpenEO backend:
 
-- first, specify the backend base URL in environment variable `ENDPOINT` ,
+- first, specify the backend base URL in environment variable `OPENEO_BACKEND_URL` ,
 - then run the tests with `pytest integration-tests/`
 
 For example:
 
-    export ENDPOINT=http://localhost:8080/
+    export OPENEO_BACKEND_URL=http://localhost:8080/
     pytest integration-tests/
 
 
