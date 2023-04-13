@@ -99,7 +99,28 @@ it will _not_ run the integration tests, only the unit tests.
 That is a deliberate choice because the integration tests could take long and they run
 against a backend server. We want to avoid that you have to wait a long time for each test run during your development cycle.
 
-So if you want integration tests then you have to run those separately, as described below.
+So if you want integration tests then you have to run those separately, as described below
+in [Running integration tests](#running-integration-tests).
+
+### Running subsets of tests
+
+Pytest provides [various options](https://docs.pytest.org/en/latest/usage.html#specifying-tests-selecting-tests)
+to run a subset or just a single test.
+
+Run pytest -h for a quick overview or check the pytest documentation for more information.
+
+Some examples (that can be combined):
+
+- Select by substring of the name of a test with the `-k` option:
+
+        # Run all tests with `collections` in their name
+        pytest -k collections
+
+- Skip tests that are marked as slow:
+
+        # Run all tests that do not have the maker "slow": @pytest.mark.slow
+        pytest -m "not slow"
+
 ### Running integration tests
 
 To make it easier to run the integration test suite against the _default_ backend you can run the following shell script (from the root of your local git repository):
@@ -115,16 +136,6 @@ For example:
 
     export OPENEO_BACKEND_URL=http://localhost:8080/
     pytest integration-tests/
-
-
-Pytest provides [various options](https://docs.pytest.org/en/latest/usage.html#specifying-tests-selecting-tests)
-to run a subset or just a single test.
-Some examples (that can be combined):
-
--   select by substring of the name of a test with the `-k` option:
-
-        # Run all tests with `collections` in their name
-        pytest -k collections
 
 ### Debugging and troubleshooting tips
 
