@@ -17,6 +17,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 
 ### Changed
+- Support log level for retrieving BatchJob logs
+  ([#106](https://github.com/Open-EO/openeo-aggregator/issues/106))
 
 ### Fixed
 
