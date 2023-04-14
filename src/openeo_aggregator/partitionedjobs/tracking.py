@@ -316,7 +316,12 @@ class PartitionedJobTracker:
         return assets
 
     def get_logs(
-            self, user_id: str, pjob_id: str, flask_request: flask.Request, offset: Optional[int] = None
+        self,
+        user_id: str,
+        pjob_id: str,
+        flask_request: flask.Request,
+        offset: Optional[str] = None,
+        level: Optional[str] = None,
     ) -> List[LogEntry]:
         sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         all_logs = []
@@ -326,7 +331,7 @@ class PartitionedJobTracker:
                     job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
                     con = self._backends.get_connection(sjob_metadata["backend_id"])
                     with con.authenticated_from_request(request=flask_request):
-                        logs = con.job(job_id).logs(offset=offset)
+                        logs = con.job(job_id).logs(offset=offset, level=level)
                         for log in logs:
                             log["id"] = f"{sjob_id}-{log.id}"
                         all_logs.extend(logs)
@@ -391,13 +396,18 @@ class PartitionedJobConnection:
             """Interface `openeo.rest.JobResult.get_metadata`"""
             return {}
 
-        def logs(self, offset=None) -> List[LogEntry]:
+        def logs(
+            self,
+            offset: Optional[str] = None,
+            level: Optional[str] = None,
+        ) -> List[LogEntry]:
             """Interface `RESTJob.logs`"""
             return self.connection.partitioned_job_tracker.get_logs(
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
                 flask_request=self.connection._flask_request,
-                offset=offset
+                offset=offset,
+                level=level,
             )
 
     def __init__(self, partitioned_job_tracker: PartitionedJobTracker):
