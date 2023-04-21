@@ -21,6 +21,9 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
   ([#106](https://github.com/Open-EO/openeo-aggregator/issues/106))
 
 ### Fixed
+-
+- User job listing: skip upstream jobs that trigger parse issues instead of failing the whole listing
+  ([#109](https://github.com/Open-EO/openeo-aggregator/issues/109))
 
 
 ## [0.7.x]
