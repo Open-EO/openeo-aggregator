@@ -1233,8 +1233,7 @@ class TestBatchJobs:
         assert res == {
             "jobs": [
                 {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-                # TODO: support fractional second parsing https://github.com/Open-EO/openeo-aggregator/issues/109
-                # {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56.789Z"},
+                {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
             "links": [],
         }
