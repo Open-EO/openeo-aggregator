@@ -225,7 +225,7 @@ class MultiBackendConnection:
                 #       Additional health check necessary?
                 yield BackendConnection(id=bid, url=url, configured_oidc_providers=self._configured_oidc_providers)
             except Exception as e:
-                _log.warning(f"Failed to create backend {bid!r} connection to {url!r}: {e!r}")
+                _log.warning(f"Failed to create backend {bid!r} connection to {url!r}: {e!r}", exc_info=True)
                 if not skip_failures:
                     raise
 
