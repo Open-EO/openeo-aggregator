@@ -56,14 +56,12 @@ class MultiDictGetter:
     def available_keys(self, keys: List[str]) -> List[str]:
         return [k for k in keys if self.has_key(k)]
 
-    def concat(self, key: str, skip_duplicates=False, none_means_empty=False) -> list:
+    def concat(self, key: str, skip_duplicates=False) -> list:
         """
         Concatenate all lists/tuples at given `key (optionally skipping duplicate items in the process)
         """
         result = []
         for items in self.get(key):
-            if none_means_empty:
-                items = []
             if isinstance(items, (list, tuple)):
                 for item in items:
                     if skip_duplicates and item in result:

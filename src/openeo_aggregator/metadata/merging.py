@@ -281,47 +281,6 @@ class ProcessMetadataMerger:
     def __init__(self, report: Callable = DEFAULT_REPORTER.report):
         self.report = report
 
-        self._tolerant_defaults = True
-        """Be tolerant to unnecessary values for fields in type schema's.
-
-        Mostly, if the field is explicitely None were the default is False and
-        basically that field should have been empty, then treat the field as
-        its default value of False.
-
-        For example:
-
-        - [ ] **https://openeo-dev.eodc.eu/openeo/1.1.0/ : absolute** (merging.py:454): Parameter 'x' field 'schema' value differs from merged.
-        - merged `{'type': ['number', 'null']}`
-        - value `{'type': ['number', 'null'], 'subtype': None, 'pattern': None, 'enum': None, 'minimum': None, 'maximum': None, 'minItems': 0.0, 'maxItems': None, 'items': None, 'deprecated': None, 'parameters': None, 'returns': None}`
-        - JSON diff:
-
-            --- merged
-            +++ https://openeo-dev.eodc.eu/openeo/1.1.0/
-            @@ -1,4 +1,15 @@
-            {
-            +  "deprecated": null,
-            +  "enum": null,
-            +  "items": null,
-            +  "maxItems": null,
-            +  "maximum": null,
-            +  "minItems": 0.0,
-            +  "minimum": null,
-            +  "parameters": null,
-            +  "pattern": null,
-            +  "returns": null,
-            +  "subtype": null,
-                "type": [
-                "number",
-                "null"
-
-        All of these fields with a + sign should not have been present and will be treated as their default:
-        deprecated: False
-        enum: Not present, this is not an enum type
-        maxItems: not present / 0
-        minItems: should have been the integer value 0, not float 0.0
-        subtype": None, could have left it out.
-        """
-
     def merge_processes_metadata(
         self, processes_per_backend: Dict[str, Dict[str, dict]]
     ) -> Dict[str, dict]:
@@ -389,12 +348,8 @@ class ProcessMetadataMerger:
 
         merged["deprecated"] = any(getter.get("deprecated"))
         merged["experimental"] = any(getter.get("experimental"))
-        merged["examples"] = getter.concat(
-            "examples", skip_duplicates=True, none_means_empty=self._tolerant_defaults
-        )
-        merged["links"] = getter.concat(
-            "links", skip_duplicates=True, none_means_empty=self._tolerant_defaults
-        )
+        merged["examples"] = getter.concat("examples", skip_duplicates=True)
+        merged["links"] = getter.concat("links", skip_duplicates=True)
 
         return merged
 
@@ -433,23 +388,14 @@ class ProcessMetadataMerger:
         # TODO: real merge instead of taking first?
         merged = []
         merged_params_by_name = {}
-        for backend_id, process_metadata in sorted(by_backend.items()):
+        # for backend_id, process_metadata in sorted(by_backend.items()):
+        for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             if params:
-                # normalizer = ProcessParameterNormalizer(
-                #     strip_description=False,
-                #     add_optionals=False,
-                #     report=functools.partial(
-                #         self.report, backend_id=backend_id, process_id=process_id
-                #     ),
-                # )
                 normalizer = ProcessParameterNormalizer(
                     strip_description=False,
-                    add_optionals=True,
-                    tolerant_defaults=self._tolerant_defaults,
-                    report=functools.partial(
-                        self.report, backend_id=backend_id, process_id=process_id
-                    ),
+                    add_optionals=False,
+                    report=functools.partial(self.report, backend_id=backend_id, process_id=process_id),
                 )
                 merged = normalizer.normalize_parameters(params)
 
@@ -459,14 +405,13 @@ class ProcessMetadataMerger:
                 break
 
         # Check other parameter listings against merged
-        for backend_id, process_metadata in sorted(by_backend.items()):
+        # for backend_id, process_metadata in sorted(by_backend.items()):
+        for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             params_by_name = self._get_parameters_by_name(
                 parameters=params, backend_id=backend_id, process_id=process_id
             )
-            missing_parameters = sorted(
-                set(merged_params_by_name).difference(params_by_name)
-            )
+            missing_parameters = set(merged_params_by_name).difference(params_by_name)
             if missing_parameters:
                 self.report(
                     "Missing parameters.",
@@ -474,9 +419,7 @@ class ProcessMetadataMerger:
                     process_id=process_id,
                     missing_parameters=missing_parameters,
                 )
-            extra_parameters = sorted(
-                set(params_by_name).difference(merged_params_by_name)
-            )
+            extra_parameters = set(params_by_name).difference(merged_params_by_name)
             if extra_parameters:
                 self.report(
                     "Extra parameters (not in merged listing).",
@@ -488,7 +431,6 @@ class ProcessMetadataMerger:
                 normalizer = ProcessParameterNormalizer(
                     strip_description=True,
                     add_optionals=True,
-                    tolerant_defaults=self._tolerant_defaults,
                     report=functools.partial(
                         self.report, backend_id=backend_id, process_id=process_id
                     ),
@@ -497,19 +439,10 @@ class ProcessMetadataMerger:
                     merged_params_by_name[name]
                 )
                 other_param = normalizer.normalize_parameter(params_by_name[name])
-                fields_with_default_false = ["optional", "deprecated", "experimental"]
                 for field in merged_param.keys():
                     merged_value = merged_param[field]
                     other_value = other_param[field]
                     if merged_value != other_value:
-                        if (
-                            self._tolerant_defaults
-                            and field in fields_with_default_false
-                        ):
-                            if (merged_value is False and other_value is None) or (
-                                merged_value is None and other_value is False
-                            ):
-                                continue
                         self.report(
                             f"Parameter {name!r} field {field!r} value differs from merged.",
                             backend_id=backend_id,
@@ -538,12 +471,9 @@ class ProcessMetadataMerger:
         getter = MultiDictGetter(by_backend.values())
         # TODO: real merge instead of taking first schema as "merged" schema?
         merged = getter.first("returns", {"schema": {}})
-        if self._tolerant_defaults:
-            merged = remove_defaults_from_schema(merged)
 
         for backend_id, process_metadata in by_backend.items():
             other_returns = process_metadata.get("returns", {"schema": {}})
-            merged = remove_defaults_from_schema(other_returns)
             if ignore_description(other_returns) != ignore_description(merged):
                 self.report(
                     f"Returns schema is different from merged.",
@@ -565,8 +495,6 @@ class ProcessMetadataMerger:
             if isinstance(exceptions, dict):
                 # TODO: take value from first backend instead of last one here?
                 merged.update(exceptions)
-            elif exceptions is None:
-                continue
             else:
                 self.report(
                     f"Invalid process exceptions listing",
@@ -600,18 +528,16 @@ class ProcessParameterNormalizer:
     e.g. for comparison purposes.
     """
 
-    __slots__ = ["strip_description", "add_optionals", "tolerant_defaults", "report"]
+    __slots__ = ["strip_description", "add_optionals", "report"]
 
     def __init__(
         self,
         strip_description: bool = False,
         add_optionals: bool = True,
-        tolerant_defaults: bool = False,
         report: Callable = DEFAULT_REPORTER.report,
     ):
         self.strip_description = strip_description
         self.add_optionals = add_optionals
-        self.tolerant_defaults = tolerant_defaults
         self.report = report
 
     def normalize_parameter(self, param: dict) -> dict:
@@ -644,12 +570,7 @@ class ProcessParameterNormalizer:
             normalized["default"] = param.get("default", None)
 
         # Recurse into sub-process graphs under "schema" to normalize nested parameters
-        if self.tolerant_defaults:
-            normalized["schema"] = self.normalize_recursively(
-                remove_defaults_from_schema(normalized["schema"])
-            )
-        else:
-            normalized["schema"] = self.normalize_recursively(normalized["schema"])
+        normalized["schema"] = self.normalize_recursively(normalized["schema"])
 
         return normalized
 
@@ -679,68 +600,3 @@ class ProcessParameterNormalizer:
             return [self.normalize_recursively(v) for v in x]
         else:
             return x
-
-
-# def remove_defaults_from_schema(schema):
-#     cleaned_schema = {}
-#     schema_defaults = {
-#         "type": None,
-#         "subtype": None,
-#         "deprecated": None,
-#         "enum": None,
-#         "items": None,
-#         "maxItems": None,
-#         "maximum": None,
-#         "minItems": 0.0,
-#         "minimum": None,
-#         "parameters": None,
-#         "pattern": None,
-#         "returns": None,
-#     }
-#     for key, value in schema.items():
-#         if key not in schema_defaults:
-#             cleaned_schema[key] = value
-#         elif value != schema_defaults.get(key):
-#             cleaned_schema[key] = value
-#     return cleaned_schema
-
-
-def remove_defaults_from_schema(schema):
-    cleaned_schema = {}
-
-    def map_to_correct_default(key, value):
-        conversion = {
-            "type": {False: None},
-            "subtype": {False: None},
-            "deprecated": {None: False},
-        }
-        if key in conversion:
-            if value is conversion.get(key):
-                return conversion[key][value]
-
-        return value
-
-    defaults_to_remove = {
-        "type": None,
-        "subtype": None,
-        "enum": None,
-        "items": None,
-        "maxItems": None,
-        "maximum": None,
-        "minItems": 0.0,
-        "minimum": None,
-        "parameters": None,
-        "pattern": None,
-        "returns": None,
-    }
-
-    for key, value in schema.items():
-        if key not in defaults_to_remove:
-            cleaned_schema[key] = value
-        elif value != defaults_to_remove.get(key):
-            cleaned_schema[key] = value
-
-    cleaned_schema = {
-        k: map_to_correct_default(k, v) for k, v in cleaned_schema.items()
-    }
-    return cleaned_schema

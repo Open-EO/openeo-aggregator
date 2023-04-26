@@ -539,12 +539,9 @@ class TestProcessing:
                 True,
                 [
                     {
-                        "id": "multiply",
-                        "description": "multiply",
-                        "parameters": [
-                            {"name": "x", "schema": {}, "description": "x"},
-                            {"name": "y", "schema": {}, "description": "y"},
-                        ],
+                        "id": "mean",
+                        "description": "mean",
+                        "parameters": [{"name": "data", "schema": {}, "description": "data"}],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
                         'deprecated': False,
@@ -553,10 +550,11 @@ class TestProcessing:
                         'links': []
                     },
                     {
-                        "id": "mean",
-                        "description": "mean",
+                        "id": "multiply",
+                        "description": "multiply",
                         "parameters": [
-                            {"name": "data", "schema": {}, "description": "data"}
+                            {"name": "x", "schema": {}, "description": "x"},
+                            {"name": "y", "schema": {}, "description": "y"},
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
