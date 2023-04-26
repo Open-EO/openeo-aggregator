@@ -388,8 +388,7 @@ class ProcessMetadataMerger:
         # TODO: real merge instead of taking first?
         merged = []
         merged_params_by_name = {}
-        # for backend_id, process_metadata in sorted(by_backend.items()):
-        for backend_id, process_metadata in by_backend.items():
+        for backend_id, process_metadata in sorted(by_backend.items()):
             params = process_metadata.get("parameters", [])
             if params:
                 normalizer = ProcessParameterNormalizer(
@@ -405,8 +404,7 @@ class ProcessMetadataMerger:
                 break
 
         # Check other parameter listings against merged
-        # for backend_id, process_metadata in sorted(by_backend.items()):
-        for backend_id, process_metadata in by_backend.items():
+        for backend_id, process_metadata in sorted(by_backend.items()):
             params = process_metadata.get("parameters", [])
             params_by_name = self._get_parameters_by_name(
                 parameters=params, backend_id=backend_id, process_id=process_id
