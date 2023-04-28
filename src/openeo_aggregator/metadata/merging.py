@@ -364,7 +364,7 @@ class ProcessMetadataMerger:
                     names[param["name"]] = param
                 except Exception as e:
                     self.report(
-                        f"Invalid parameter metadata",
+                        "Invalid parameter metadata",
                         process_id=process_id,
                         backend_id=backend_id,
                         parameter=param,
@@ -372,7 +372,7 @@ class ProcessMetadataMerger:
                     )
         except Exception as e:
             self.report(
-                f"Invalid parameter listing",
+                "Invalid parameter listing",
                 backend_id=backend_id,
                 process_id=process_id,
                 parameters=parameters,
@@ -410,6 +410,7 @@ class ProcessMetadataMerger:
                 parameters=params, backend_id=backend_id, process_id=process_id
             )
             missing_parameters = set(merged_params_by_name).difference(params_by_name)
+            missing_parameters = sorted(missing_parameters)
             if missing_parameters:
                 self.report(
                     "Missing parameters.",
@@ -418,6 +419,7 @@ class ProcessMetadataMerger:
                     missing_parameters=missing_parameters,
                 )
             extra_parameters = set(params_by_name).difference(merged_params_by_name)
+            extra_parameters = sorted(extra_parameters)
             if extra_parameters:
                 self.report(
                     "Extra parameters (not in merged listing).",
