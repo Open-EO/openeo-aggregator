@@ -1196,6 +1196,46 @@ class TestBatchJobs:
             warnings = "\n".join(r.msg for r in caplog.records if r.levelno == logging.WARNING)
             assert "Failed to create backend 'b2' connection" in warnings
 
+    def test_list_jobs_invalid_metadata(self, api100, requests_mock, backend1, backend2, caplog):
+        """https://github.com/Open-EO/openeo-aggregator/issues/109"""
+        requests_mock.get(
+            backend1 + "/jobs",
+            json={"jobs": [{"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"}]},
+        )
+        requests_mock.get(
+            backend2 + "/jobs",
+            json={"jobs": [{"id": "job05", "status": "running", "created": "not a date obviously"}]},
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [{"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"}],
+            "links": [],
+        }
+
+        errors = "\n".join(r.msg for r in caplog.records if r.levelno == logging.ERROR)
+        assert "get_user_jobs: skipping job with parse issue" in errors
+
+    def test_list_jobs_fractional_second_parsing(self, api100, requests_mock, backend1, backend2):
+        """https://github.com/Open-EO/openeo-aggregator/issues/109"""
+        requests_mock.get(
+            backend1 + "/jobs",
+            json={"jobs": [{"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"}]},
+        )
+        requests_mock.get(
+            backend2 + "/jobs",
+            json={"jobs": [{"id": "job05", "status": "running", "created": "2021-06-05T12:34:56.789Z"}]},
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+            ],
+            "links": [],
+        }
+
     def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
 

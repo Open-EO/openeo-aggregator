@@ -595,9 +595,11 @@ class AggregatorBatchJobs(BatchJobs):
                     federation_missing.add(con.id)
                     backend_jobs = []
                 for job in backend_jobs:
-                    # TODO: try-except around processing of job metadata?
-                    job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
-                    jobs.append(BatchJobMetadata.from_api_dict(job))
+                    try:
+                        job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=con.id)
+                        jobs.append(BatchJobMetadata.from_api_dict(job))
+                    except Exception as e:
+                        _log.error(f"get_user_jobs: skipping job with parse issue: {e!r}", exc_info=True)
 
         if self.partitioned_job_tracker:
             for job in self.partitioned_job_tracker.list_user_jobs(user_id=user_id):
