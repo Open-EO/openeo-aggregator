@@ -298,7 +298,7 @@ class ProcessMetadataMerger:
                 grouped[process_id][backend_id] = process_metadata
 
         merged: Dict[str, dict] = {}
-        for process_id, by_backend in grouped.items():
+        for process_id, by_backend in sorted(grouped.items()):
             try:
                 merged[process_id] = self.merge_process_metadata(by_backend)
             except Exception as e:
@@ -364,7 +364,7 @@ class ProcessMetadataMerger:
                     names[param["name"]] = param
                 except Exception as e:
                     self.report(
-                        f"Invalid parameter metadata",
+                        "Invalid parameter metadata",
                         process_id=process_id,
                         backend_id=backend_id,
                         parameter=param,
@@ -372,7 +372,7 @@ class ProcessMetadataMerger:
                     )
         except Exception as e:
             self.report(
-                f"Invalid parameter listing",
+                "Invalid parameter listing",
                 backend_id=backend_id,
                 process_id=process_id,
                 parameters=parameters,
@@ -388,15 +388,13 @@ class ProcessMetadataMerger:
         # TODO: real merge instead of taking first?
         merged = []
         merged_params_by_name = {}
-        for backend_id, process_metadata in by_backend.items():
+        for backend_id, process_metadata in sorted(by_backend.items()):
             params = process_metadata.get("parameters", [])
             if params:
                 normalizer = ProcessParameterNormalizer(
                     strip_description=False,
                     add_optionals=False,
-                    report=functools.partial(
-                        self.report, backend_id=backend_id, process_id=process_id
-                    ),
+                    report=functools.partial(self.report, backend_id=backend_id, process_id=process_id),
                 )
                 merged = normalizer.normalize_parameters(params)
 
@@ -406,28 +404,30 @@ class ProcessMetadataMerger:
                 break
 
         # Check other parameter listings against merged
-        for backend_id, process_metadata in by_backend.items():
+        for backend_id, process_metadata in sorted(by_backend.items()):
             params = process_metadata.get("parameters", [])
             params_by_name = self._get_parameters_by_name(
                 parameters=params, backend_id=backend_id, process_id=process_id
             )
             missing_parameters = set(merged_params_by_name).difference(params_by_name)
+            missing_parameters = sorted(missing_parameters)
             if missing_parameters:
                 self.report(
-                    f"Missing parameters.",
+                    "Missing parameters.",
                     backend_id=backend_id,
                     process_id=process_id,
                     missing_parameters=missing_parameters,
                 )
             extra_parameters = set(params_by_name).difference(merged_params_by_name)
+            extra_parameters = sorted(extra_parameters)
             if extra_parameters:
                 self.report(
-                    f"Extra parameters (not in merged listing).",
+                    "Extra parameters (not in merged listing).",
                     backend_id=backend_id,
                     process_id=process_id,
                     extra_parameters=extra_parameters,
                 )
-            for name in set(merged_params_by_name).intersection(params_by_name):
+            for name in sorted(set(merged_params_by_name).intersection(params_by_name)):
                 normalizer = ProcessParameterNormalizer(
                     strip_description=True,
                     add_optionals=True,

@@ -357,7 +357,7 @@ class TestMergeProcessMetadata:
                 "msg": "Missing parameters.",
                 "backend_id": "b2",
                 "process_id": "cos",
-                "missing_parameters": {"x"},
+                "missing_parameters": ["x"],
             },
         ]
 
@@ -462,7 +462,7 @@ class TestMergeProcessMetadata:
                 "msg": "Missing parameters.",
                 "backend_id": "b2",
                 "process_id": "cos",
-                "missing_parameters": {"x"},
+                "missing_parameters": ["x"],
             },
         ]
 
