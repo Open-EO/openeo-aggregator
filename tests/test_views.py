@@ -2288,11 +2288,7 @@ class TestSecondaryServices:
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
-        mock_patch = requests_mock.patch(
-            backend1 + "/services/wmts-foo",
-            json=service_metadata_wmts_foo.prepare_for_json(),
-            status_code=204
-        )
+        mock_patch = requests_mock.patch(backend1 + "/services/wmts-foo", status_code=204)
         process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
         json_payload = {"process": {"process_graph": process_graph}}
 
