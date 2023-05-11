@@ -47,7 +47,9 @@ pipeline {
           ]
           def extra_env_secrets = ''
           def pre_test_script = ''
-          python.test(docker_registry, python_version, tests_location, hadoop, extra_container_volumes, extra_env_variables, extra_env_secrets, pre_test_script)
+          dir("integration-tests") {
+            python.test(docker_registry, python_version, tests_location, hadoop, extra_container_volumes, extra_env_variables, extra_env_secrets, pre_test_script)
+          }
         }
       }
     }
