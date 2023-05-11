@@ -1,0 +1,55 @@
+#!/usr/bin/env groovy
+
+@Library('lib')_
+
+def node_label = 'devdmz'
+def wipeout_workspace = true
+def python_version = "3.8"
+def docker_registry = globalDefaults.docker_registry_prod()
+
+
+pipeline {
+  agent {
+    node {
+      label node_label
+    }
+  }
+  options {
+    // Disable default checkout to have more control over checkout step
+    skipDefaultCheckout(true)
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        script {
+          git.checkoutDefault(true)
+          git.checkoutRepo('https://github.com/Open-EO/openeo-aggregator', '*/master')
+        }
+      }
+    }
+    stage("Build test venv") {
+      steps {
+        script {
+          dir("integration-tests") {
+            python.createVenv(docker_registry, python_version)
+          }
+        }
+      }
+    }
+    stage("Run tests") {
+      steps {
+        script {
+          def tests_location = '.'
+          def hadoop = false
+          def extra_container_volumes  = ''
+          def extra_env_variables = [
+            "OPENEO_BACKEND_URL=https://openeocloud-dev.vito.be/",
+          ]
+          def extra_env_secrets = ''
+          def pre_test_script = ''
+          python.test(docker_registry, python_version, tests_location, hadoop, extra_container_volumes, extra_env_variables, extra_env_secrets, pre_test_script)
+        }
+      }
+    }
+  }
+}
