@@ -6,9 +6,8 @@ def node_label = 'devdmz'
 def wipeout_workspace = true
 def python_version = "3.8"
 def docker_registry = globalDefaults.docker_registry_prod()
-def pylint = false
-def pylint_results = 'test_results/pylint.out'
 def pytest_results = 'test_results/pytest_results.xml'
+def pylint = false
 def test_coverage = false
 
 
@@ -69,8 +68,14 @@ pipeline {
           dir("integration-tests") {
             python.test(docker_registry, python_version, tests_location, hadoop, extra_container_volumes, extra_env_variables, extra_env_secrets, pre_test_script)
           }
-
-          sh "ln -s integration-tests/test_results ./"
+        }
+      }
+      post {
+        always {
+          script {
+            // Based on python.recordTestResults()
+            junit "integration-tests/test_results/pytest_results.xml"
+          }
         }
       }
     }
