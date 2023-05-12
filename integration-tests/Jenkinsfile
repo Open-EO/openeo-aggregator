@@ -6,6 +6,10 @@ def node_label = 'devdmz'
 def wipeout_workspace = true
 def python_version = "3.8"
 def docker_registry = globalDefaults.docker_registry_prod()
+def pylint = false
+def pylint_results = '../test_results/pylint.out'
+def pytest_results = '../test_results/pytest_results.xml'
+def test_coverage = false
 
 
 pipeline {
@@ -14,6 +18,21 @@ pipeline {
       label node_label
     }
   }
+  environment {
+    BRANCH_NAME                 = "${env.BRANCH_NAME}"
+    BUILD_NUMBER                = "${env.BUILD_NUMBER}"
+    BUILD_URL                   = "${env.BUILD_URL}"
+    DATE                        = utils.getDate()
+    JOB_NAME                    = "${env.JOB_NAME}"
+    JOB_URL                     = "${env.JOB_URL}"
+    WORKSPACE                   = "${env.WORKSPACE}"
+    PYTEST_RESULTS              = "${pytest_results}"
+    PYLINT                      = "${pylint}"
+    TEST_COVERAGE               = "${test_coverage}"
+    EXTRAS_REQUIRE              = "${extras_require}"
+    SYSTEM_SITE_PACKAGES        = "nope"
+  }
+
   options {
     // Disable default checkout to have more control over checkout step
     skipDefaultCheckout(true)
