@@ -1,6 +1,7 @@
 import logging
 
 import openeo
+import pytest
 
 _log = logging.getLogger(__name__)
 
@@ -78,3 +79,20 @@ def test_processes(connection):
     assert data["processes"]
 
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/",
+        "/file_formats",
+        "/udf_runtimes",
+        "/service_types",
+        "/credentials/oidc",
+    ],
+)
+def test_capabilities_generic(connection, path):
+    """Just check that some generic capability docs return with JSON."""
+    response = connection.get(path)
+    assert response.status_code == 200
+    assert response.json()
