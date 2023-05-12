@@ -7,8 +7,8 @@ def wipeout_workspace = true
 def python_version = "3.8"
 def docker_registry = globalDefaults.docker_registry_prod()
 def pylint = false
-def pylint_results = '../test_results/pylint.out'
-def pytest_results = '../test_results/pytest_results.xml'
+def pylint_results = 'test_results/pylint.out'
+def pytest_results = 'test_results/pytest_results.xml'
 def test_coverage = false
 
 
