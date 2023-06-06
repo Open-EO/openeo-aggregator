@@ -201,10 +201,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         env = processing.get_basic_env()
 
         def evaluate(backend_id, pg):
-            return processing.evaluate(
-                process_graph=pg,
-                env=env.push(parameters={"value": backend_id})
-            )
+            return processing.evaluate(process_graph=pg, env=env.push_parameters({"value": backend_id}))
 
         return [functools.partial(evaluate, pg=pg) for pg in process_graphs]
 
