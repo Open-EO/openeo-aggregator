@@ -7,7 +7,7 @@ from typing import Any
 
 import flask
 import openeo_driver.views
-from openeo_driver.server import build_backend_deploy_metadata
+from openeo_driver.config.load import ConfigGetter
 from openeo_driver.util.logging import (
     LOGGING_CONTEXT_FLASK,
     get_logging_config,
@@ -15,12 +15,11 @@ from openeo_driver.util.logging import (
 )
 from openeo_driver.utils import smart_bool
 
-import openeo_aggregator.about
 from openeo_aggregator.backend import (
     AggregatorBackendImplementation,
     MultiBackendConnection,
 )
-from openeo_aggregator.config import AggregatorConfig, get_config
+from openeo_aggregator.config import AggregatorConfig, get_config, get_config_dir
 
 _log = logging.getLogger(__name__)
 
@@ -51,6 +50,8 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
             context=LOGGING_CONTEXT_FLASK,
         ))
 
+    os.environ.setdefault(ConfigGetter.OPENEO_BACKEND_CONFIG, str(get_config_dir() / "backend_config.py"))
+
     config: AggregatorConfig = get_config(config)
     _log.info(f"Using config: {config}")
 
@@ -66,14 +67,9 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
         error_handling=config.flask_error_handling,
     )
 
-    deploy_metadata = build_backend_deploy_metadata(
-        packages=["openeo", "openeo_driver", "openeo_aggregator"],
-    )
     app.config.from_mapping(
-        OPENEO_TITLE="openEO Platform",
-        OPENEO_DESCRIPTION="openEO Platform, provided through openEO Aggregator Driver",
-        OPENEO_BACKEND_VERSION=openeo_aggregator.about.__version__,
-        OPENEO_BACKEND_DEPLOY_METADATA=deploy_metadata,
+        # Config hack to make backend_implementation available from pytest fixture
+        # TODO: is there another, less hackish way?
         OPENEO_BACKEND_IMPLEMENTATION=backend_implementation,
     )
 

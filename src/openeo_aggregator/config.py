@@ -27,7 +27,7 @@ class ConfigException(ValueError):
     pass
 
 
-# TODO #112 subclass from OpenEoBackendConfig
+# TODO #112 subclass from OpenEoBackendConfig (attrs based instead of dictionary based)
 class AggregatorConfig(dict):
     """
     Simple dictionary based configuration for aggregator backend

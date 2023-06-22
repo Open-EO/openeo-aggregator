@@ -48,6 +48,12 @@ class TestGeneral:
             "b2": {"url": "https://b2.test/v1"},
         }
 
+    def test_title_and_description(self, api100):
+        res = api100.get("/").assert_status_code(200)
+        capabilities = res.json
+        assert capabilities["title"] == "openEO Platform"
+        assert capabilities["description"] == "openEO Platform, provided through openEO Aggregator Driver"
+
     def test_capabilities_validation(self, api100):
         """https://github.com/Open-EO/openeo-aggregator/issues/42"""
         res = api100.get("/").assert_status_code(200)
