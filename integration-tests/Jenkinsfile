@@ -79,5 +79,12 @@ pipeline {
         }
       }
     }
+    stage("Trigger CDSE deploy") {
+      steps {
+        script {
+          utils.triggerJob("openEO/openeo-aggregator-cdse", [])
+        }
+      }
+    }
   }
 }
