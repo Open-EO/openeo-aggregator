@@ -48,14 +48,14 @@ class CrossBackendSplitter(AbstractJobSplitter):
         process_graph = process["process_graph"]
 
         # Extract necessary back-ends from `load_collection` usage
-        backend_usage = collections.Counter(
-            self.backend_for_collection(node["arguments"]["id"])
-            for node in process_graph.values()
-            if node["process_id"] == "load_collection"
-        )
-        _log.info(
-            f"Extracted backend usage from `load_collection` nodes: {backend_usage}"
-        )
+        backend_per_collection: Dict[str, str] = {
+            cid: self.backend_for_collection(cid)
+            for cid in (
+                node["arguments"]["id"] for node in process_graph.values() if node["process_id"] == "load_collection"
+            )
+        }
+        backend_usage = collections.Counter(backend_per_collection.values())
+        _log.info(f"Extracted backend usage from `load_collection` nodes: {backend_usage=} {backend_per_collection=}")
 
         primary_backend = backend_usage.most_common(1)[0][0] if backend_usage else None
         secondary_backends = {b for b in backend_usage if b != primary_backend}
@@ -70,7 +70,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
 
         for node_id, node in process_graph.items():
             if node["process_id"] == "load_collection":
-                bid = self.backend_for_collection(node["arguments"]["id"])
+                bid = backend_per_collection[node["arguments"]["id"]]
                 if bid == primary_backend and not (
                     self._always_split and primary_has_load_collection
                 ):
