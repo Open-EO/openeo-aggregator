@@ -186,6 +186,7 @@ def run_partitioned_job(
 ) -> dict:
     """
     Run partitioned job (probably with dependencies between subjobs)
+    with an active polling loop for tracking and scheduling the subjobs
 
     .. warning::
         this is experimental functionality

@@ -111,6 +111,7 @@ class _InternalCollectionMetadata:
         self._data[cid]["backends"] = list(backends)
 
     def get_backends_for_collection(self, cid: str) -> List[str]:
+        """Get backend ids that provide given collection id."""
         if cid not in self._data:
             raise CollectionNotFoundException(collection_id=cid)
         return self._data[cid]["backends"]
@@ -204,6 +205,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             return processing.evaluate(process_graph=pg, env=env.push_parameters({"value": backend_id}))
 
         return [functools.partial(evaluate, pg=pg) for pg in process_graphs]
+
+    def get_backends_for_collection(self, cid: str) -> List[str]:
+        """Get backend ids that provide given collection id."""
+        metadata, internal = self._get_all_metadata_cached()
+        return internal.get_backends_for_collection(cid=cid)
 
     def get_backend_candidates_for_collections(self, collections: Iterable[str]) -> List[str]:
         """
@@ -568,13 +574,16 @@ class AggregatorProcessing(Processing):
 class AggregatorBatchJobs(BatchJobs):
 
     def __init__(
-            self,
-            backends: MultiBackendConnection,
-            processing: AggregatorProcessing,
-            partitioned_job_tracker: Optional[PartitionedJobTracker] = None,
+        self,
+        *,
+        backends: MultiBackendConnection,
+        catalog: AggregatorCollectionCatalog,
+        processing: AggregatorProcessing,
+        partitioned_job_tracker: Optional[PartitionedJobTracker] = None,
     ):
         super(AggregatorBatchJobs, self).__init__()
         self.backends = backends
+        self._catalog = catalog
         self.processing = processing
         self.partitioned_job_tracker = partitioned_job_tracker
 
@@ -1127,8 +1136,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
         batch_jobs = AggregatorBatchJobs(
             backends=backends,
+            catalog=catalog,
             processing=processing,
-            partitioned_job_tracker=partitioned_job_tracker
+            partitioned_job_tracker=partitioned_job_tracker,
         )
 
         secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing, config=config)
