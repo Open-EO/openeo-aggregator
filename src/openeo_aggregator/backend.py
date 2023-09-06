@@ -85,12 +85,17 @@ from openeo_aggregator.metadata.merging import (
 )
 from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
+from openeo_aggregator.partitionedjobs.crossbackend import (
+    CrossBackendSplitter,
+    SubGraphId,
+)
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import (
     PartitionedJobConnection,
     PartitionedJobTracker,
 )
 from openeo_aggregator.utils import (
+    Clock,
     FlatPG,
     PGWithMetadata,
     dict_merge,
@@ -620,18 +625,29 @@ class AggregatorBatchJobs(BatchJobs):
         })
 
     def create_job(
-            self, user_id: str, process: dict, api_version: str,
-            metadata: dict, job_options: dict = None
+        self,
+        user_id: str,
+        process: dict,
+        api_version: str,
+        metadata: dict,
+        job_options: Optional[dict] = None,
     ) -> BatchJobMetadata:
         if "process_graph" not in process:
             raise ProcessGraphMissingException()
 
         # TODO: better, more generic/specific job_option(s)?
-        if job_options and (
-            job_options.get(JOB_OPTION_SPLIT_STRATEGY)
-            or job_options.get(JOB_OPTION_TILE_GRID)
-        ):
-            return self._create_partitioned_job(
+        if job_options and (job_options.get(JOB_OPTION_SPLIT_STRATEGY) or job_options.get(JOB_OPTION_TILE_GRID)):
+            if job_options.get(JOB_OPTION_SPLIT_STRATEGY) == "crossbackend":
+                # TODO this is temporary feature flag to trigger "crossbackend" splitting
+                return self._create_crossbackend_job(
+                    user_id=user_id,
+                    process=process,
+                    api_version=api_version,
+                    metadata=metadata,
+                    job_options=job_options,
+                )
+            else:
+                return self._create_partitioned_job(
                 user_id=user_id,
                 process=process,
                 api_version=api_version,
@@ -690,8 +706,9 @@ class AggregatorBatchJobs(BatchJobs):
                 raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(
             id=JobIdMapping.get_aggregator_job_id(backend_job_id=job.job_id, backend_id=backend_id),
-            # Note: required, but unused metadata
-            status="dummy", created="dummy", process={"dummy": "dummy"}
+            # Note: additional required, but unused metadata
+            status="dummy",
+            created="dummy",
         )
 
     def _create_partitioned_job(
@@ -719,11 +736,52 @@ class AggregatorBatchJobs(BatchJobs):
             raise ValueError("Could not determine splitting strategy from job options")
         pjob: PartitionedJob = splitter.split(process=process, metadata=metadata, job_options=job_options)
 
-        job_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
+        pjob_id = self.partitioned_job_tracker.create(user_id=user_id, pjob=pjob, flask_request=flask.request)
 
         return BatchJobMetadata(
-            id=JobIdMapping.get_aggregator_job_id(backend_job_id=job_id, backend_id=JobIdMapping.AGG),
-            status="dummy", created="dummy", process={"dummy": "dummy"}
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=pjob_id, backend_id=JobIdMapping.AGG),
+            # Note: additional required, but unused metadata
+            status="dummy",
+            created="dummy",
+        )
+
+    def _create_crossbackend_job(
+        self,
+        user_id: str,
+        process: PGWithMetadata,
+        api_version: str,
+        metadata: dict,
+        job_options: Optional[dict] = None,
+    ) -> BatchJobMetadata:
+        """
+        Advanced/handled batch job creation:
+
+        - split original job in (possibly) multiple sub-jobs,
+          e.g. split the process graph based on `load_collection` availability
+        - distribute sub-jobs across (possibly) multiple back-ends
+        - keep track of them through a "parent job" in a `PartitionedJobTracker`.
+        """
+        if not self.partitioned_job_tracker:
+            raise FeatureUnsupportedException(message="Partitioned job tracking is not supported")
+
+        def backend_for_collection(collection_id) -> str:
+            return self._catalog.get_backends_for_collection(cid=collection_id)[0]
+
+        splitter = CrossBackendSplitter(
+            backend_for_collection=backend_for_collection,
+            # TODO: job option for `always_split` feature?
+            always_split=True,
+        )
+
+        pjob_id = self.partitioned_job_tracker.create_crossbackend_pjob(
+            user_id=user_id, process=process, metadata=metadata, job_options=job_options, splitter=splitter
+        )
+
+        return BatchJobMetadata(
+            id=JobIdMapping.get_aggregator_job_id(backend_job_id=pjob_id, backend_id=JobIdMapping.AGG),
+            # Note: additional required, but unused metadata
+            status="dummy",
+            created="dummy",
         )
 
     def _get_connection_and_backend_job_id(

@@ -34,6 +34,7 @@ class PartitionedJob(NamedTuple):
         """Helper to convert a collection of SubJobs to a dictionary"""
         # TODO: hide this logic in a setter or __init__ (e.g. when outgrowing the constraints of typing.NamedTuple)
         if isinstance(subjobs, Sequence):
+            # TODO: eliminate this `Sequence` code path, and just always work with dict?
             return {f"{i:04d}": j for i, j in enumerate(subjobs)}
         elif isinstance(subjobs, dict):
             return {str(k): v for k, v in subjobs.items()}

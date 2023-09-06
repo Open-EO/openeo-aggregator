@@ -12,6 +12,7 @@ from openeo_aggregator.partitionedjobs import (
     STATUS_INSERTED,
     PartitionedJob,
     PartitionedJobFailure,
+    SubJob,
 )
 from openeo_aggregator.utils import Clock, strip_join, timestamp_to_rfc3339
 
@@ -90,6 +91,21 @@ class ZooKeeperPartitionedJobDB:
         """Deserialize bytes (assuming UTF8 encoded JSON mapping)"""
         return json.loads(value.decode("utf8"))
 
+    def obtain_new_pjob_id(self, user_id: str, initial_value: bytes = b"", attempts: int = 3) -> str:
+        """Obtain new, unique partitioned job id"""
+        # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
+        base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
+        for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, attempts)]:
+            try:
+                self._client.create(path=self._path(user_id, pjob_id), value=initial_value, makepath=True)
+                # We obtained our unique id
+                return pjob_id
+            except NodeExistsError:
+                # TODO: check that NodeExistsError is thrown on existing job_ids
+                # TODO: add a sleep() to back off a bit?
+                continue
+        raise PartitionedJobFailure("Too much attempts to create new pjob_id")
+
     def insert(self, user_id: str, pjob: PartitionedJob) -> str:
         """
         Insert a new partitioned job.
@@ -98,7 +114,7 @@ class ZooKeeperPartitionedJobDB:
         """
         with self._connect():
             # Insert parent node, with "static" (write once) metadata as associated data
-            job_node_value = self.serialize(
+            pjob_node_value = self.serialize(
                 user_id=user_id,
                 # TODO: more BatchJobMetdata fields
                 created=Clock.time(),
@@ -107,24 +123,9 @@ class ZooKeeperPartitionedJobDB:
                 job_options=pjob.job_options,
                 # TODO: pjob.dependencies #95
             )
-            # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
-            base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
-            for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, 3)]:
-                try:
-                    self._client.create(path=self._path(user_id, pjob_id), value=job_node_value, makepath=True)
-                    break
-                except NodeExistsError:
-                    # TODO: check that NodeExistsError is thrown on existing job_ids
-                    # TODO: add a sleep() to back off a bit?
-                    continue
-            else:
-                raise PartitionedJobFailure("Too much attempts to create new pjob_id")
-
+            pjob_id = self.obtain_new_pjob_id(user_id=user_id, initial_value=pjob_node_value)
             # Updatable metadata
-            self._client.create(
-                path=self._path(user_id, pjob_id, "status"),
-                value=self.serialize(status=STATUS_INSERTED)
-            )
+            self.set_pjob_status(user_id=user_id, pjob_id=pjob_id, status=STATUS_INSERTED, create=True)
 
             # Insert subjobs
             # TODO #95 some subjobs are not fully defined if they have dependencies
@@ -132,21 +133,26 @@ class ZooKeeperPartitionedJobDB:
             #       Only create them when fully concrete,,
             #       or allow updates on this metadata?
             for i, (sjob_id, subjob) in enumerate(pjob.subjobs.items()):
-                self._client.create(
-                    path=self._path(user_id, pjob_id, "sjobs", sjob_id),
-                    value=self.serialize(
-                        process_graph=subjob.process_graph,
-                        backend_id=subjob.backend_id,
-                        title=f"Partitioned job {pjob_id} part {sjob_id} ({i + 1}/{len(pjob.subjobs)})",
-                    ),
-                    makepath=True,
-                )
-                self._client.create(
-                    path=self._path(user_id, pjob_id, "sjobs", sjob_id, "status"),
-                    value=self.serialize(status=STATUS_INSERTED),
-                )
+                title = f"Partitioned job {pjob_id} part {sjob_id} ({i + 1}/{len(pjob.subjobs)})"
+                self.insert_sjob(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, subjob=subjob, title=title)
 
         return pjob_id
+
+    def insert_sjob(
+        self,
+        user_id: str,
+        pjob_id: str,
+        sjob_id: str,
+        subjob: SubJob,
+        title: Optional[str] = None,
+        status: str = STATUS_INSERTED,
+    ):
+        self._client.create(
+            path=self._path(user_id, pjob_id, "sjobs", sjob_id),
+            value=self.serialize(process_graph=subjob.process_graph, backend_id=subjob.backend_id, title=title),
+            makepath=True,
+        )
+        self.set_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=status, create=True)
 
     def get_pjob_metadata(self, user_id: str, pjob_id: str) -> dict:
         """Get metadata of partitioned job, given by storage id."""
@@ -194,20 +200,32 @@ class ZooKeeperPartitionedJobDB:
                 raise NoJobIdForSubJobException(f"No job_id for {pjob_id}:{sjob_id}.")
             return self.deserialize(value)["job_id"]
 
-    def set_pjob_status(self, user_id: str, pjob_id: str, status: str, message: Optional[str] = None,
-                        progress: int = None):
+    def set_pjob_status(
+        self,
+        user_id: str,
+        pjob_id: str,
+        status: str,
+        message: Optional[str] = None,
+        progress: int = None,
+        create: bool = False,
+    ):
         """
         Store status of partitioned job (with optional message).
 
         :param pjob_id: (storage) id of partitioned job
         :param status: global status of partitioned job
         :param message: optional message, e.g. describing error
+        :param create: whether to create the node instead of updating
         """
         with self._connect():
-            self._client.set(
+            kwargs = dict(
                 path=self._path(user_id, pjob_id, "status"),
                 value=self.serialize(status=status, message=message, timestamp=Clock.time(), progress=progress)
             )
+            if create:
+                self._client.create(**kwargs)
+            else:
+                self._client.set(**kwargs)
 
     def get_pjob_status(self, user_id: str, pjob_id: str) -> dict:
         """
@@ -222,13 +240,25 @@ class ZooKeeperPartitionedJobDB:
             value, stat = self._client.get(self._path(user_id, pjob_id, "status"))
             return self.deserialize(value)
 
-    def set_sjob_status(self, user_id: str, pjob_id: str, sjob_id: str, status: str, message: Optional[str] = None):
+    def set_sjob_status(
+        self,
+        user_id: str,
+        pjob_id: str,
+        sjob_id: str,
+        status: str,
+        message: Optional[str] = None,
+        create: bool = False,
+    ):
         """Store status of sub-job (with optional message)"""
         with self._connect():
-            self._client.set(
+            kwargs = dict(
                 path=self._path(user_id, pjob_id, "sjobs", sjob_id, "status"),
                 value=self.serialize(status=status, message=message, timestamp=Clock.time()),
             )
+            if create:
+                self._client.create(**kwargs)
+            else:
+                self._client.set(**kwargs)
 
     def get_sjob_status(self, user_id: str, pjob_id: str, sjob_id: str) -> dict:
         """Get status of sub-job"""

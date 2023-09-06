@@ -93,7 +93,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
         (e.g. creating openEO batch jobs on the fly and injecting the corresponding batch job ids appropriately).
 
         :return: tuple containing:
-            - subgraph id
+            - subgraph id, recommended to handle it as opaque id (but usually format '{backend_id}:{node_id}')
             - SubJob
             - dependencies as list of subgraph ids
         """
