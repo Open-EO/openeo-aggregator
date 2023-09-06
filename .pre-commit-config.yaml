@@ -11,7 +11,7 @@ repos:
       - id: check-yaml
       - id: check-toml
   - repo: https://github.com/akaihola/darker
-    rev: 1.7.1
+    rev: 1.7.2
     hooks:
       - id: darker
   - repo: https://github.com/pycqa/isort
