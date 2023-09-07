@@ -32,6 +32,8 @@ from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
 from openeo_aggregator.utils import _UNSET, Clock, PGWithMetadata, timestamp_to_rfc3339
 
+PJOB_METADATA_FIELD_RESULT_JOBS = "result_jobs"
+
 _log = logging.getLogger(__name__)
 
 
@@ -79,12 +81,16 @@ class PartitionedJobTracker:
         before we have finalised sub-processgraphs, whose metadata can then be persisted in the ZooKeeperPartitionedJobDB
         """
         # Start with reserving a new partitioned job id based on initial metadata
+        main_subgraph_id = "main"
         pjob_node_value = self._db.serialize(
             user_id=user_id,
             created=Clock.time(),
             process=process,
             metadata=metadata,
             job_options=job_options,
+            **{
+                PJOB_METADATA_FIELD_RESULT_JOBS: [main_subgraph_id],
+            },
         )
         pjob_id = self._db.obtain_new_pjob_id(user_id=user_id, initial_value=pjob_node_value)
         self._db.set_pjob_status(user_id=user_id, pjob_id=pjob_id, status=STATUS_INSERTED, create=True)
@@ -107,7 +113,7 @@ class PartitionedJobTracker:
             }
 
         for sjob_id, subjob, subjob_dependencies in splitter.split_streaming(
-            process_graph=process["process_graph"], get_replacement=get_replacement
+            process_graph=process["process_graph"], get_replacement=get_replacement, main_subgraph_id=main_subgraph_id
         ):
             subjobs[sjob_id] = subjob
             dependencies[sjob_id] = subjob_dependencies
@@ -380,9 +386,21 @@ class PartitionedJobTracker:
         # TODO: do a sync if latest sync is too long ago?
         pjob_metadata = self._db.get_pjob_metadata(user_id=user_id, pjob_id=pjob_id)
         sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
+        if pjob_metadata.get(PJOB_METADATA_FIELD_RESULT_JOBS):
+            result_jobs = set(pjob_metadata[PJOB_METADATA_FIELD_RESULT_JOBS])
+            result_sjob_ids = [s for s in sjobs if s in result_jobs]
+            log_msg = f"Collect {pjob_id} subjob assets: subset {result_sjob_ids} (from {len(sjobs)})"
+        else:
+            # Collect results of all subjobs by default
+            result_sjob_ids = list(sjobs.keys())
+            log_msg = f"Collect {pjob_id} subjob assets: all {len(sjobs)})"
+
         assets = []
-        with TimingLogger(title=f"Collect assets of {pjob_id} ({len(sjobs)} sub-jobs)", logger=_log):
-            for sjob_id, sjob_metadata in sjobs.items():
+        with TimingLogger(title=log_msg, logger=_log):
+            for sjob_id in result_sjob_ids:
+                sjob_metadata = sjobs[sjob_id]
+
+                # TODO: skip subjobs that are just dependencies for a main/grouping job
                 sjob_status = self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"]
                 if sjob_status in {STATUS_INSERTED, STATUS_CREATED, STATUS_RUNNING}:
                     raise JobNotFinishedException

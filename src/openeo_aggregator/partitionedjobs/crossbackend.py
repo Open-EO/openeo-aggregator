@@ -82,6 +82,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
         self,
         process_graph: FlatPG,
         get_replacement: GetReplacementCallable = _default_get_replacement,
+        main_subgraph_id: SubGraphId = "main",
     ) -> Iterator[Tuple[SubGraphId, SubJob, List[SubGraphId]]]:
         """
         Split given process graph in sub-process graphs and return these as an iterator
@@ -113,7 +114,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
         secondary_backends = {b for b in backend_usage if b != primary_backend}
         _log.info(f"Backend split: {primary_backend=} {secondary_backends=}")
 
-        primary_id = "main"
+        primary_id = main_subgraph_id
         primary_pg = {}
         primary_has_load_collection = False
         primary_dependencies = []

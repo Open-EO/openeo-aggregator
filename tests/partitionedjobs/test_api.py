@@ -44,6 +44,7 @@ class _Now:
 
 @pytest.fixture
 def dummy1(backend1, requests_mock) -> DummyBackend:
+    # TODO: rename this fixture to dummy_backed1
     dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
     dummy.setup_basic_requests_mocks()
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
@@ -651,6 +652,7 @@ class TestCrossBackendSplitting:
             "process": {"process_graph": pg},
             "metadata": {},
             "job_options": {"split_strategy": "crossbackend"},
+            "result_jobs": ["main"],
         }
 
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
@@ -722,6 +724,7 @@ class TestCrossBackendSplitting:
             "process": {"process_graph": pg},
             "metadata": {},
             "job_options": {"split_strategy": "crossbackend"},
+            "result_jobs": ["main"],
         }
 
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
@@ -797,3 +800,76 @@ class TestCrossBackendSplitting:
                 "result": True,
             },
         }
+
+    @now.mock
+    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1):
+        """Run the jobs and get results"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": "crossbackend"},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # start job
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="running")
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="queued")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
+
+        # First job is ready
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="finished")
+        dummy1.setup_assets(job_id=f"1-jb-0", assets=["1-jb-0-result.tif"])
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="running")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 50})
+
+        # Main job is ready too
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="finished")
+        dummy1.setup_assets(job_id=f"1-jb-1", assets=["1-jb-1-result.tif"])
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
+
+        # Get results
+        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        assert res.json == DictSubSet(
+            {
+                "id": expected_job_id,
+                "assets": {
+                    "main-1-jb-1-result.tif": {
+                        "file:nodata": [None],
+                        "href": "https://b1.test/v1/jobs/1-jb-1/results/1-jb-1-result.tif",
+                        "roles": ["data"],
+                        "title": "main-1-jb-1-result.tif",
+                        "type": "application/octet-stream",
+                    },
+                },
+            }
+        )
