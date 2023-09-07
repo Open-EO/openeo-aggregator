@@ -112,57 +112,61 @@ class PartitionedJobTracker:
                 }
             }
 
-        for sjob_id, subjob, subjob_dependencies in splitter.split_streaming(
-            process_graph=process["process_graph"], get_replacement=get_replacement, main_subgraph_id=main_subgraph_id
-        ):
-            subjobs[sjob_id] = subjob
-            dependencies[sjob_id] = subjob_dependencies
-            try:
-                # TODO: how to error handle this? job creation? Fail whole partitioned job or try to finish what is possible?
-                con = self._backends.get_connection(subjob.backend_id)
-                with con.authenticated_from_request(request=flask.request), con.override(
-                    default_timeout=CONNECTION_TIMEOUT_JOB_START
-                ):
-                    with TimingLogger(title=f"Create batch job {pjob_id=}:{sjob_id} on {con.id=}", logger=_log.info):
-                        job = con.create_job(
-                            process_graph=subjob.process_graph,
-                            title=f"Crossbackend job {pjob_id}:{sjob_id}",
-                            plan=metadata.get("plan"),
-                            budget=metadata.get("budget"),
-                            additional=job_options,
-                        )
-                        _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
-                        batch_jobs[sjob_id] = job
-                        title = f"Partitioned job {pjob_id=} {sjob_id=}"
-                        self._db.insert_sjob(
-                            user_id=user_id,
-                            pjob_id=pjob_id,
-                            sjob_id=sjob_id,
-                            subjob=subjob,
-                            title=title,
-                            status=STATUS_CREATED,
-                        )
-                        self._db.set_backend_job_id(
-                            user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id
-                        )
-                        create_stats[STATUS_CREATED] += 1
-            except Exception as exc:
-                _log.error(f"Creation of {pjob_id}:{sjob_id} failed", exc_info=True)
-                msg = f"Create failed: {exc}"
-                self._db.set_sjob_status(
-                    user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR, message=msg
-                )
-                create_stats[STATUS_ERROR] += 1
+        try:
+            for sjob_id, subjob, subjob_dependencies in splitter.split_streaming(
+                process_graph=process["process_graph"],
+                get_replacement=get_replacement,
+                main_subgraph_id=main_subgraph_id,
+            ):
+                subjobs[sjob_id] = subjob
+                dependencies[sjob_id] = subjob_dependencies
+                try:
+                    title = f"Partitioned job {pjob_id=} {sjob_id=}"
+                    self._db.insert_sjob(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, subjob=subjob, title=title)
 
-        # TODO: this is currently unused, don't bother building it at all?
-        partitioned_job = PartitionedJob(
-            process=process, metadata=metadata, job_options=job_options, subjobs=subjobs, dependencies=dependencies
-        )
+                    # TODO: how to error handle this? job creation? Fail whole partitioned job or try to finish what is possible?
+                    con = self._backends.get_connection(subjob.backend_id)
+                    with con.authenticated_from_request(request=flask.request), con.override(
+                        default_timeout=CONNECTION_TIMEOUT_JOB_START
+                    ):
+                        with TimingLogger(
+                            title=f"Create batch job {pjob_id=}:{sjob_id} on {con.id=}", logger=_log.info
+                        ):
+                            job = con.create_job(
+                                process_graph=subjob.process_graph,
+                                title=f"Crossbackend job {pjob_id}:{sjob_id}",
+                                plan=metadata.get("plan"),
+                                budget=metadata.get("budget"),
+                                additional=job_options,
+                            )
+                            _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
+                            batch_jobs[sjob_id] = job
+                            self._db.set_sjob_status(
+                                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_CREATED
+                            )
+                            self._db.set_backend_job_id(
+                                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id
+                            )
+                            create_stats[STATUS_CREATED] += 1
+                except Exception as exc:
+                    _log.error(f"Creation of {pjob_id}:{sjob_id} failed", exc_info=True)
+                    msg = f"Create failed: {exc}"
+                    self._db.set_sjob_status(
+                        user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR, message=msg
+                    )
+                    create_stats[STATUS_ERROR] += 1
 
-        pjob_status = STATUS_CREATED if create_stats[STATUS_CREATED] > 0 else STATUS_ERROR
-        self._db.set_pjob_status(
-            user_id=user_id, pjob_id=pjob_id, status=pjob_status, message=repr(create_stats), progress=0
-        )
+            # TODO: this is currently unused, don't bother building it at all?
+            partitioned_job = PartitionedJob(
+                process=process, metadata=metadata, job_options=job_options, subjobs=subjobs, dependencies=dependencies
+            )
+
+            pjob_status = STATUS_CREATED if create_stats[STATUS_CREATED] > 0 else STATUS_ERROR
+            self._db.set_pjob_status(
+                user_id=user_id, pjob_id=pjob_id, status=pjob_status, message=repr(create_stats), progress=0
+            )
+        except Exception as exc:
+            self._db.set_pjob_status(user_id=user_id, pjob_id=pjob_id, status=STATUS_ERROR, message=str(exc))
 
         return pjob_id
 

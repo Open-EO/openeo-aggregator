@@ -65,6 +65,7 @@ class DummyBackend:
         self.job_id_template = job_id_template
         self.jobs: Dict[Tuple[str, str], DummyBatchJobData] = {}
         self.users: Dict[str, str] = {}
+        self.fail_create_job = False
 
     def register_user(self, bearer_token: str, user_id: str):
         self.users[bearer_token] = user_id
@@ -77,7 +78,7 @@ class DummyBackend:
 
     def get_job_data(self, user_id, job_id) -> DummyBatchJobData:
         if (user_id, job_id) not in self.jobs:
-            raise JobNotFoundException
+            raise JobNotFoundException(job_id=job_id)
         return self.jobs[user_id, job_id]
 
     def setup_basic_requests_mocks(self):
@@ -127,6 +128,8 @@ class DummyBackend:
 
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""
+        if self.fail_create_job:
+            raise RuntimeError("nope!")
         user_id = self.get_user_id(request)
         job_id = self.job_id_template.format(i=len(self.jobs))
         assert (user_id, job_id) not in self.jobs

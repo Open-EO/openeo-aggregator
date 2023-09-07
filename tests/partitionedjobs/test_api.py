@@ -873,3 +873,40 @@ class TestCrossBackendSplitting:
                 },
             }
         )
+
+    @now.mock
+    def test_failing_create(self, flask_app, api100, zk_db, dummy1):
+        """Run what happens when creation of sub batch job fails on upstream backend"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        dummy1.fail_create_job = True
+
+        pg = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": "crossbackend"},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "error",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
