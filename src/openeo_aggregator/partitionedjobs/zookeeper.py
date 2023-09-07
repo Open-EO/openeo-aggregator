@@ -95,15 +95,16 @@ class ZooKeeperPartitionedJobDB:
         """Obtain new, unique partitioned job id"""
         # A couple of pjob_id attempts: start with current time based name and a suffix to counter collisions (if any)
         base_pjob_id = "pj-" + Clock.utcnow().strftime("%Y%m%d-%H%M%S")
-        for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, attempts)]:
-            try:
-                self._client.create(path=self._path(user_id, pjob_id), value=initial_value, makepath=True)
-                # We obtained our unique id
-                return pjob_id
-            except NodeExistsError:
-                # TODO: check that NodeExistsError is thrown on existing job_ids
-                # TODO: add a sleep() to back off a bit?
-                continue
+        with self._connect():
+            for pjob_id in [base_pjob_id] + [f"{base_pjob_id}-{i}" for i in range(1, attempts)]:
+                try:
+                    self._client.create(path=self._path(user_id, pjob_id), value=initial_value, makepath=True)
+                    # We obtained our unique id
+                    return pjob_id
+                except NodeExistsError:
+                    # TODO: check that NodeExistsError is thrown on existing job_ids
+                    # TODO: add a sleep() to back off a bit?
+                    continue
         raise PartitionedJobFailure("Too much attempts to create new pjob_id")
 
     def insert(self, user_id: str, pjob: PartitionedJob) -> str:
@@ -147,12 +148,13 @@ class ZooKeeperPartitionedJobDB:
         title: Optional[str] = None,
         status: str = STATUS_INSERTED,
     ):
-        self._client.create(
-            path=self._path(user_id, pjob_id, "sjobs", sjob_id),
-            value=self.serialize(process_graph=subjob.process_graph, backend_id=subjob.backend_id, title=title),
-            makepath=True,
-        )
-        self.set_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=status, create=True)
+        with self._connect():
+            self._client.create(
+                path=self._path(user_id, pjob_id, "sjobs", sjob_id),
+                value=self.serialize(process_graph=subjob.process_graph, backend_id=subjob.backend_id, title=title),
+                makepath=True,
+            )
+            self.set_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=status, create=True)
 
     def get_pjob_metadata(self, user_id: str, pjob_id: str) -> dict:
         """Get metadata of partitioned job, given by storage id."""

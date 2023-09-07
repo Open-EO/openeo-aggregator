@@ -32,7 +32,12 @@ class DummyKazooClient:
         assert self.state == "open"
         self.state = "closed"
 
+    def _assert_open(self):
+        if not self.state == "open":
+            raise kazoo.exceptions.ConnectionClosedError("Connection has been closed")
+
     def create(self, path: str, value, makepath: bool = False):
+        self._assert_open()
         if path in self.data:
             raise kazoo.exceptions.NodeExistsError()
         parent = str(pathlib.Path(path).parent)
@@ -44,20 +49,24 @@ class DummyKazooClient:
         self.data[path] = value
 
     def exists(self, path):
+        self._assert_open()
         return path in self.data
 
     def get(self, path):
+        self._assert_open()
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()
         return (self.data[path], None)
 
     def get_children(self, path):
+        self._assert_open()
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()
         parent = path.split("/")
         return [p.split("/")[-1] for p in self.data if p.split("/")[:-1] == parent]
 
     def set(self, path, value, version=-1):
+        self._assert_open()
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()
         self.data[path] = value
