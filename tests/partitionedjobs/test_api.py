@@ -44,9 +44,18 @@ class _Now:
 
 @pytest.fixture
 def dummy1(backend1, requests_mock) -> DummyBackend:
-    # TODO: rename this fixture to dummy_backed1
+    # TODO: rename this fixture to dummy_backed1 for clarity
     dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
     dummy.setup_basic_requests_mocks()
+    dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
+    return dummy
+
+
+@pytest.fixture
+def dummy2(backend2, requests_mock) -> DummyBackend:
+    # TODO: rename this fixture to dummy_backed2 for clarity
+    dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend2, job_id_template="2-jb-{i}")
+    dummy.setup_basic_requests_mocks(collections=["S22"])
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
     return dummy
 
@@ -613,6 +622,7 @@ class TestTileGridBatchJobSplitting:
     # TODO: more/full TileGridSplitter batch job tests
 
 
+@pytest.mark.usefixtures("dummy1", "dummy2")
 class TestCrossBackendSplitting:
     now = _Now("2022-01-19T12:34:56Z")
 
