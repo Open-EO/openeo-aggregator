@@ -102,13 +102,14 @@ class PartitionedJobTracker:
         create_stats = collections.Counter()
 
         def get_replacement(node_id: str, node: dict, subgraph_id: SubGraphId) -> dict:
-            # TODO: use `load_stac` iso `load_result`, and use canonical URL?
             nonlocal batch_jobs
-            job_id = batch_jobs[subgraph_id].job_id
+            # TODO: use canonical URL to circumvent auth issues
+            #   but how does `parial` work there? (https://github.com/Open-EO/openeo-api/issues/507)
+            stac_url = batch_jobs[subgraph_id].get_results_metadata_url(full=True) + "?partial=true"
             return {
                 node_id: {
-                    "process_id": "load_result",
-                    "arguments": {"id": job_id},
+                    "process_id": "load_stac",
+                    "arguments": {"url": stac_url},
                 }
             }
 

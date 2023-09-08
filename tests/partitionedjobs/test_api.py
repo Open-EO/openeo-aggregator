@@ -753,7 +753,10 @@ class TestCrossBackendSplitting:
                 "backend_id": "b1",
                 "process_graph": {
                     "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-                    "lc2": {"process_id": "load_result", "arguments": {"id": "1-jb-0"}},
+                    "lc2": {
+                        "process_id": "load_stac",
+                        "arguments": {"url": "https://b1.test/v1/jobs/1-jb-0/results?partial=true"},
+                    },
                     "merge": {
                         "process_id": "merge_cubes",
                         "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
@@ -775,7 +778,10 @@ class TestCrossBackendSplitting:
         assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
         assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "lc2": {"process_id": "load_result", "arguments": {"id": "1-jb-0"}},
+            "lc2": {
+                "process_id": "load_stac",
+                "arguments": {"url": "https://b1.test/v1/jobs/1-jb-0/results?partial=true"},
+            },
             "merge": {
                 "process_id": "merge_cubes",
                 "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
