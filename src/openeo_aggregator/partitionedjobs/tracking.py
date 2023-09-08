@@ -22,6 +22,7 @@ from openeo_aggregator.partitionedjobs import (
     STATUS_INSERTED,
     STATUS_RUNNING,
     PartitionedJob,
+    PartitionedJobFailure,
     SubJob,
 )
 from openeo_aggregator.partitionedjobs.crossbackend import (
@@ -103,9 +104,20 @@ class PartitionedJobTracker:
 
         def get_replacement(node_id: str, node: dict, subgraph_id: SubGraphId) -> dict:
             nonlocal batch_jobs
-            # TODO: use canonical URL to circumvent auth issues
-            #   but how does `parial` work there? (https://github.com/Open-EO/openeo-api/issues/507)
-            stac_url = batch_jobs[subgraph_id].get_results_metadata_url(full=True) + "?partial=true"
+            try:
+                job: BatchJob = batch_jobs[subgraph_id]
+                with job.connection.authenticated_from_request(flask.request):
+                    result_url = job.get_results_metadata_url(full=True)
+                    result_metadata = job.connection.get(
+                        result_url, params={"partial": "true"}, expected_status=200
+                    ).json()
+                # Will canonical link also be partial? (https://github.com/Open-EO/openeo-api/issues/507)
+                canonical_links = [link for link in result_metadata.get("links", {}) if link.get("rel") == "canonical"]
+                stac_url = canonical_links[0]["href"]
+            except Exception as e:
+                msg = f"Failed to obtain partial canonical batch job result URL for {subgraph_id=}: {e}"
+                _log.exception(msg)
+                raise PartitionedJobFailure(msg) from e
             return {
                 node_id: {
                     "process_id": "load_stac",

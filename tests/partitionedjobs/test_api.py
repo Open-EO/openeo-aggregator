@@ -695,7 +695,7 @@ class TestCrossBackendSplitting:
         assert pg == {"lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection", "result": True}}
 
     @now.mock
-    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1):
+    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1, requests_mock):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
@@ -707,6 +707,11 @@ class TestCrossBackendSplitting:
                 "result": True,
             },
         }
+
+        requests_mock.get(
+            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+        )
 
         res = api100.post(
             "/jobs",
@@ -765,7 +770,7 @@ class TestCrossBackendSplitting:
                     "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
                     "lc2": {
                         "process_id": "load_stac",
-                        "arguments": {"url": "https://b1.test/v1/jobs/1-jb-0/results?partial=true"},
+                        "arguments": {"url": "https://data.b1.test/123abc"},
                     },
                     "merge": {
                         "process_id": "merge_cubes",
@@ -790,7 +795,7 @@ class TestCrossBackendSplitting:
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "lc2": {
                 "process_id": "load_stac",
-                "arguments": {"url": "https://b1.test/v1/jobs/1-jb-0/results?partial=true"},
+                "arguments": {"url": "https://data.b1.test/123abc"},
             },
             "merge": {
                 "process_id": "merge_cubes",
@@ -818,7 +823,7 @@ class TestCrossBackendSplitting:
         }
 
     @now.mock
-    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1):
+    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1, requests_mock):
         """Run the jobs and get results"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -831,6 +836,11 @@ class TestCrossBackendSplitting:
                 "result": True,
             },
         }
+
+        requests_mock.get(
+            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+        )
 
         res = api100.post(
             "/jobs",
