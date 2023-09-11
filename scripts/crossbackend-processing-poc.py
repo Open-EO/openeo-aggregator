@@ -58,7 +58,6 @@ def main():
     with TimingLogger(title=f"Connecting to {backend_url}", logger=_log):
         connection = openeo.connect(url=backend_url).authenticate_oidc()
 
-    @functools.lru_cache(maxsize=100)
     def backend_for_collection(collection_id) -> str:
         metadata = connection.describe_collection(collection_id)
         return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][0]

@@ -1,5 +1,6 @@
 import dataclasses
 import re
+import types
 from typing import Dict, List, Optional
 from unittest import mock
 
@@ -13,12 +14,13 @@ from openeo_driver.testing import DictSubSet
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
     CrossBackendSplitter,
+    SubGraphId,
     run_partitioned_job,
 )
 
 
 class TestCrossBackendSplitter:
-    def test_simple(self):
+    def test_split_simple(self):
         process_graph = {
             "add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}
         }
@@ -26,9 +28,16 @@ class TestCrossBackendSplitter:
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {"main": SubJob(process_graph, backend_id=None)}
-        assert res.dependencies == {"main": []}
+        assert res.dependencies == {}
 
-    def test_basic(self):
+    def test_split_streaming_simple(self):
+        process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
+        res = splitter.split_streaming(process_graph)
+        assert isinstance(res, types.GeneratorType)
+        assert list(res) == [("main", SubJob(process_graph, backend_id=None), [])]
+
+    def test_split_basic(self):
         process_graph = {
             "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
             "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
@@ -92,6 +101,156 @@ class TestCrossBackendSplitter:
             ),
         }
         assert res.dependencies == {"main": ["B2:lc2"]}
+
+    def test_split_streaming_basic(self):
+        process_graph = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
+            "mc1": {
+                "process_id": "merge_cubes",
+                "arguments": {
+                    "cube1": {"from_node": "lc1"},
+                    "cube2": {"from_node": "lc2"},
+                },
+            },
+            "sr1": {
+                "process_id": "save_result",
+                "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+                "result": True,
+            },
+        }
+        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        result = splitter.split_streaming(process_graph)
+        assert isinstance(result, types.GeneratorType)
+
+        assert list(result) == [
+            (
+                "B2:lc2",
+                SubJob(
+                    process_graph={
+                        "lc2": {
+                            "process_id": "load_collection",
+                            "arguments": {"id": "B2_FAPAR"},
+                        },
+                        "sr1": {
+                            "process_id": "save_result",
+                            "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
+                            "result": True,
+                        },
+                    },
+                    backend_id="B2",
+                ),
+                [],
+            ),
+            (
+                "main",
+                SubJob(
+                    process_graph={
+                        "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
+                        "lc2": {"process_id": "load_result", "arguments": {"id": "_placeholder:B2:lc2"}},
+                        "mc1": {
+                            "process_id": "merge_cubes",
+                            "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                        },
+                        "sr1": {
+                            "process_id": "save_result",
+                            "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
+                            "result": True,
+                        },
+                    },
+                    backend_id="B1",
+                ),
+                ["B2:lc2"],
+            ),
+        ]
+
+    def test_split_streaming_get_replacement(self):
+        process_graph = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
+            "lc3": {"process_id": "load_collection", "arguments": {"id": "B3_SCL"}},
+            "merge": {
+                "process_id": "merge",
+                "arguments": {
+                    "cube1": {"from_node": "lc1"},
+                    "cube2": {"from_node": "lc2"},
+                    "cube3": {"from_node": "lc3"},
+                },
+                "result": True,
+            },
+        }
+        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+
+        batch_jobs = {}
+
+        def get_replacement(node_id: str, node: dict, subgraph_id: SubGraphId) -> dict:
+            return {
+                node_id: {
+                    "process_id": "load_batch_job",
+                    "arguments": {"batch_job": batch_jobs[subgraph_id]},
+                }
+            }
+
+        substream = splitter.split_streaming(process_graph, get_replacement=get_replacement)
+
+        result = []
+        for subgraph_id, subjob, dependencies in substream:
+            batch_jobs[subgraph_id] = f"job-{111 * (len(batch_jobs) + 1)}"
+            result.append((subgraph_id, subjob, dependencies))
+
+        assert list(result) == [
+            (
+                "B2:lc2",
+                SubJob(
+                    process_graph={
+                        "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
+                        "sr1": {
+                            "process_id": "save_result",
+                            "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
+                            "result": True,
+                        },
+                    },
+                    backend_id="B2",
+                ),
+                [],
+            ),
+            (
+                "B3:lc3",
+                SubJob(
+                    process_graph={
+                        "lc3": {"process_id": "load_collection", "arguments": {"id": "B3_SCL"}},
+                        "sr1": {
+                            "process_id": "save_result",
+                            "arguments": {"data": {"from_node": "lc3"}, "format": "GTiff"},
+                            "result": True,
+                        },
+                    },
+                    backend_id="B3",
+                ),
+                [],
+            ),
+            (
+                "main",
+                SubJob(
+                    process_graph={
+                        "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
+                        "lc2": {"process_id": "load_batch_job", "arguments": {"batch_job": "job-111"}},
+                        "lc3": {"process_id": "load_batch_job", "arguments": {"batch_job": "job-222"}},
+                        "merge": {
+                            "process_id": "merge",
+                            "arguments": {
+                                "cube1": {"from_node": "lc1"},
+                                "cube2": {"from_node": "lc2"},
+                                "cube3": {"from_node": "lc3"},
+                            },
+                            "result": True,
+                        },
+                    },
+                    backend_id="B1",
+                ),
+                ["B2:lc2", "B3:lc3"],
+            ),
+        ]
 
 
 @dataclasses.dataclass

@@ -33,6 +33,7 @@ class _Now:
     """Helper to mock "now" to given datetime"""
 
     # TODO: move to testing utilities and reuse  more?
+    # TODO: just migrate to a more standard time mock library like time_machine?
 
     def __init__(self, date: str):
         self.rfc3339 = rfc3339.normalize(date)
@@ -43,8 +44,18 @@ class _Now:
 
 @pytest.fixture
 def dummy1(backend1, requests_mock) -> DummyBackend:
+    # TODO: rename this fixture to dummy_backed1 for clarity
     dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
     dummy.setup_basic_requests_mocks()
+    dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
+    return dummy
+
+
+@pytest.fixture
+def dummy2(backend2, requests_mock) -> DummyBackend:
+    # TODO: rename this fixture to dummy_backed2 for clarity
+    dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend2, job_id_template="2-jb-{i}")
+    dummy.setup_basic_requests_mocks(collections=["S22"])
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
     return dummy
 
@@ -609,3 +620,319 @@ class TestTileGridBatchJobSplitting:
         assert res.json == DictSubSet({"type": "FeatureCollection"})
 
     # TODO: more/full TileGridSplitter batch job tests
+
+
+@pytest.mark.usefixtures("dummy1", "dummy2")
+class TestCrossBackendSplitting:
+    now = _Now("2022-01-19T12:34:56Z")
+
+    @now.mock
+    def test_create_job_simple(self, flask_app, api100, zk_db, dummy1):
+        """Handling of single "load_collection" process graph"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {"lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": "crossbackend"},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # Inspect stored parent job metadata
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "user_id": TEST_USER,
+            "created": self.now.epoch,
+            "process": {"process_graph": pg},
+            "metadata": {},
+            "job_options": {"split_strategy": "crossbackend"},
+            "result_jobs": ["main"],
+        }
+
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "status": "created",
+            "message": approx_str_contains("{'created': 1}"),
+            "timestamp": pytest.approx(self.now.epoch, abs=1),
+            "progress": 0,
+        }
+
+        # Inspect stored subjob metadata
+        subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
+        assert subjobs == {
+            "main": {
+                "backend_id": "b1",
+                "process_graph": {"lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection", "result": True}},
+                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+            }
+        }
+        sjob_id = "main"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": pytest.approx(self.now.epoch, abs=1),
+            "message": None,
+        }
+        job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id)
+        assert job_id == "1-jb-0"
+
+        assert dummy1.get_job_status(TEST_USER, job_id) == "created"
+        pg = dummy1.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
+        assert pg == {"lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection", "result": True}}
+
+    @now.mock
+    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1, requests_mock):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        requests_mock.get(
+            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+        )
+
+        res = api100.post(
+            "/jobs",
+            json={"process": {"process_graph": pg}, "job_options": {"split_strategy": "crossbackend"}},
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # Inspect stored parent job metadata
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "user_id": TEST_USER,
+            "created": self.now.epoch,
+            "process": {"process_graph": pg},
+            "metadata": {},
+            "job_options": {"split_strategy": "crossbackend"},
+            "result_jobs": ["main"],
+        }
+
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "status": "created",
+            "message": approx_str_contains("{'created': 2}"),
+            "timestamp": pytest.approx(self.now.epoch, abs=5),
+            "progress": 0,
+        }
+
+        # Inspect stored subjob metadata
+        subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
+        assert subjobs == {
+            "b1:lc2": {
+                "backend_id": "b1",
+                "process_graph": {
+                    "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "sr1": {
+                        "process_id": "save_result",
+                        "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
+                        "result": True,
+                    },
+                },
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='b1:lc2'",
+            },
+            "main": {
+                "backend_id": "b1",
+                "process_graph": {
+                    "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "lc2": {
+                        "process_id": "load_stac",
+                        "arguments": {"url": "https://data.b1.test/123abc"},
+                    },
+                    "merge": {
+                        "process_id": "merge_cubes",
+                        "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                        "result": True,
+                    },
+                },
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='main'",
+            },
+        }
+
+        sjob_id = "main"
+        expected_job_id = "1-jb-1"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": self.now.epoch,
+            "message": None,
+        }
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == expected_job_id
+        assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
+        assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {
+                "process_id": "load_stac",
+                "arguments": {"url": "https://data.b1.test/123abc"},
+            },
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        sjob_id = "b1:lc2"
+        expected_job_id = "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": self.now.epoch,
+            "message": None,
+        }
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == expected_job_id
+        assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
+        assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "sr1": {
+                "process_id": "save_result",
+                "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
+                "result": True,
+            },
+        }
+
+    @now.mock
+    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1, requests_mock):
+        """Run the jobs and get results"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        requests_mock.get(
+            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+        )
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": "crossbackend"},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # start job
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="running")
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="queued")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
+
+        # First job is ready
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="finished")
+        dummy1.setup_assets(job_id=f"1-jb-0", assets=["1-jb-0-result.tif"])
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="running")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 50})
+
+        # Main job is ready too
+        dummy1.set_job_status(TEST_USER, "1-jb-1", status="finished")
+        dummy1.setup_assets(job_id=f"1-jb-1", assets=["1-jb-1-result.tif"])
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
+
+        # Get results
+        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        assert res.json == DictSubSet(
+            {
+                "id": expected_job_id,
+                "assets": {
+                    "main-1-jb-1-result.tif": {
+                        "file:nodata": [None],
+                        "href": "https://b1.test/v1/jobs/1-jb-1/results/1-jb-1-result.tif",
+                        "roles": ["data"],
+                        "title": "main-1-jb-1-result.tif",
+                        "type": "application/octet-stream",
+                    },
+                },
+            }
+        )
+
+    @now.mock
+    def test_failing_create(self, flask_app, api100, zk_db, dummy1):
+        """Run what happens when creation of sub batch job fails on upstream backend"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        dummy1.fail_create_job = True
+
+        pg = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": "crossbackend"},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "error",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }

@@ -1,6 +1,6 @@
 import collections
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 import pytest
 import requests
@@ -65,6 +65,7 @@ class DummyBackend:
         self.job_id_template = job_id_template
         self.jobs: Dict[Tuple[str, str], DummyBatchJobData] = {}
         self.users: Dict[str, str] = {}
+        self.fail_create_job = False
 
     def register_user(self, bearer_token: str, user_id: str):
         self.users[bearer_token] = user_id
@@ -77,13 +78,14 @@ class DummyBackend:
 
     def get_job_data(self, user_id, job_id) -> DummyBatchJobData:
         if (user_id, job_id) not in self.jobs:
-            raise JobNotFoundException
+            raise JobNotFoundException(job_id=job_id)
         return self.jobs[user_id, job_id]
 
-    def setup_basic_requests_mocks(self):
+    def setup_basic_requests_mocks(self, collections: Iterable[str] = ("S2",)):
         # Basic collections
-        self.requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": "S2"}]})
-        self.requests_mock.get(self.backend_url + "/collections/S2", json={"id": "S2"})
+        for cid in collections:
+            self.requests_mock.get(self.backend_url + "/collections", json={"collections": [{"id": cid}]})
+            self.requests_mock.get(self.backend_url + f"/collections/{cid}", json={"id": cid})
         # Batch job handling: list jobs
         self.requests_mock.get(self.backend_url + "/jobs", json=self._handle_get_jobs)
         # Batch job handling: create job
@@ -127,6 +129,8 @@ class DummyBackend:
 
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""
+        if self.fail_create_job:
+            raise RuntimeError("nope!")
         user_id = self.get_user_id(request)
         job_id = self.job_id_template.format(i=len(self.jobs))
         assert (user_id, job_id) not in self.jobs
