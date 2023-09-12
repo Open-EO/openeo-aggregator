@@ -21,6 +21,7 @@ from typing import (
 )
 
 import flask
+import openeo
 import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError, OpenEoClientException, OpenEoRestError
@@ -36,6 +37,8 @@ from openeo_driver.backend import (
     Processing,
     SecondaryServices,
     ServiceMetadata,
+    UserDefinedProcesses,
+    UserDefinedProcessMetadata,
 )
 from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import (
@@ -47,6 +50,7 @@ from openeo_driver.errors import (
     PermissionsInsufficientException,
     ProcessGraphInvalidException,
     ProcessGraphMissingException,
+    ProcessGraphNotFoundException,
     ServiceNotFoundException,
     ServiceUnsupportedException,
 )
@@ -1172,6 +1176,42 @@ class AggregatorSecondaryServices(SecondaryServices):
                 ) from e
 
 
+class AggregatorUserDefinedProcesses(UserDefinedProcesses):
+    def __init__(self, backends: MultiBackendConnection):
+        super(AggregatorUserDefinedProcesses, self).__init__()
+        self._backends = backends
+
+    @contextlib.contextmanager
+    def _get_connection(self, process_graph_id: Optional[str] = None) -> Iterator[openeo.Connection]:
+        """Get connection and handle/translate common errors"""
+        try:
+            # TODO: we blindly pick "first" upstream backend for now. Do better!
+            with self._backends.first().authenticated_from_request(request=flask.request) as con:
+                yield con
+        except OpenEoApiError as e:
+            if e.code == ProcessGraphNotFoundException.code:
+                raise ProcessGraphNotFoundException(process_graph_id=process_graph_id)
+            raise
+
+    def get(self, user_id: str, process_id: str) -> Union[UserDefinedProcessMetadata, None]:
+        with self._get_connection(process_graph_id=process_id) as con:
+            metadata = con.get(f"/process_graphs/{process_id}", expected_status=200).json()
+            return UserDefinedProcessMetadata.from_dict(metadata)
+
+    def get_for_user(self, user_id: str) -> List[UserDefinedProcessMetadata]:
+        with self._get_connection() as con:
+            data = con.get(f"/process_graphs", expected_status=200).json()
+            return [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
+
+    def save(self, user_id: str, process_id: str, spec: dict) -> None:
+        with self._get_connection(process_graph_id=process_id) as con:
+            con.put(f"/process_graphs/{process_id}", json=spec, expected_status=200)
+
+    def delete(self, user_id: str, process_id: str) -> None:
+        with self._get_connection(process_graph_id=process_id) as con:
+            con.delete(f"/process_graphs/{process_id}", expected_status=204)
+
+
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
     enable_basic_auth = False
@@ -1200,13 +1240,14 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
         secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing, config=config)
+        user_defined_processes = AggregatorUserDefinedProcesses(backends=backends)
 
         super().__init__(
             catalog=catalog,
             processing=processing,
             secondary_services=secondary_services,
             batch_jobs=batch_jobs,
-            user_defined_processes=None,
+            user_defined_processes=user_defined_processes,
         )
         self._configured_oidc_providers: List[OidcProvider] = config.configured_oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check

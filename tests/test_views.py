@@ -13,6 +13,7 @@ from openeo_driver.errors import (
     JobNotFoundException,
     ProcessGraphInvalidException,
     ProcessGraphMissingException,
+    ProcessGraphNotFoundException,
 )
 from openeo_driver.testing import (
     TEST_USER,
@@ -2361,6 +2362,119 @@ class TestSecondaryServices:
         assert resp.status_code == backend_http_status
         assert mock_patch.called
         assert mock_patch.last_request.json() == json_payload
+
+
+class TestUserDefinedProcesses:
+    _UDP_EVI = {
+        "id": "evi",
+        "summary": "Enhanced Vegetation Index",
+        "description": "Computes the Enhanced Vegetation Index (EVI).",
+        "parameters": [
+            {"name": "red", "description": "Value from the red band.", "schema": {"type": "number"}},
+            {"name": "blue", "description": "Value from the blue band.", "schema": {"type": "number"}},
+            {"name": "nir", "description": "Value from the near infrared band.", "schema": {"type": "number"}},
+        ],
+        "returns": {"description": "Computed EVI.", "schema": {"type": "number"}},
+    }
+
+    def _with_expected_auth_headers(self, data: dict):
+        """Helper to build a dynamic requests_mock response handler that also checks for auth headers"""
+
+        def handle(request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            return data
+
+        return handle
+
+    def test_list_udps_no_auth(self, api100):
+        api100.get("/process_graphs").assert_error(401, "AuthenticationRequired")
+
+    def test_list_udps_empty(self, api100, requests_mock, backend1):
+        upstream = requests_mock.get(
+            backend1 + "/process_graphs", status_code=200, json=self._with_expected_auth_headers({"processes": []})
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/process_graphs").assert_status_code(200).json
+        assert res == {"processes": [], "links": []}
+        assert upstream.call_count == 1
+
+    def test_list_udps_existing(self, api100, requests_mock, backend1):
+        upstream = requests_mock.get(
+            backend1 + "/process_graphs",
+            json=self._with_expected_auth_headers(
+                {
+                    "processes": [
+                        # A full UDP metadata entry
+                        self._UDP_EVI,
+                        # A Minimal UDP metadata entry
+                        {"id": "somethingelse"},
+                    ],
+                    "links": [],
+                }
+            ),
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/process_graphs").assert_status_code(200).json
+        assert res == {
+            "processes": [
+                self._UDP_EVI,
+                {"id": "somethingelse"},
+            ],
+            "links": [],
+        }
+        assert upstream.call_count == 1
+
+    def test_get_existing(self, api100, requests_mock, backend1):
+        upstream = requests_mock.get(
+            backend1 + "/process_graphs/evi", json=self._with_expected_auth_headers(self._UDP_EVI)
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/process_graphs/evi").assert_status_code(200).json
+        expected = self._UDP_EVI.copy()
+        assert res == expected
+        assert upstream.call_count == 1
+
+    def test_get_non_existing(self, api100, requests_mock, backend1):
+        upstream = requests_mock.get(
+            backend1 + "/process_graphs/evi",
+            status_code=ProcessGraphNotFoundException.status_code,
+            json=self._with_expected_auth_headers(ProcessGraphNotFoundException(process_graph_id="dummy").to_dict()),
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api100.get("/process_graphs/evi").assert_error(
+            status_code=404, error_code="ProcessGraphNotFound", message="'evi' does not exist"
+        )
+        assert upstream.call_count == 1
+
+    def test_store(self, api100, requests_mock, backend1):
+        udp_id = "add35"
+        data = {
+            "id": udp_id,
+            "process_graph": {
+                "add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
+            },
+        }
+
+        def handle_put(request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            assert request.json() == data
+            context.status_code = 200
+            return {}
+
+        upstream = requests_mock.put(backend1 + f"/process_graphs/{udp_id}", json=handle_put)
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api100.put(f"/process_graphs/{udp_id}", json=data).assert_status_code(200)
+        assert upstream.call_count == 1
+
+    def test_delete_existing(self, api100, requests_mock, backend1):
+        upstream = requests_mock.delete(
+            backend1 + f"/process_graphs/evi", status_code=204, json=self._with_expected_auth_headers({})
+        )
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api100.delete(f"/process_graphs/evi").assert_status_code(204)
+        assert upstream.call_count == 1
 
 
 class TestResilience:

@@ -127,7 +127,9 @@ class BackendConnection(Connection):
             raise AuthenticationSchemeInvalidException
 
     @contextlib.contextmanager
-    def authenticated_from_request(self, request: flask.Request, user: Optional[User] = None):
+    def authenticated_from_request(
+        self, request: flask.Request, user: Optional[User] = None
+    ) -> Iterator["BackendConnection"]:
         """
         Context manager to temporarily authenticate upstream connection based on current incoming flask request.
         """
