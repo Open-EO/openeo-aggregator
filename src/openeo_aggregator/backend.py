@@ -195,7 +195,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 except Exception as e:
                     _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
                     continue
-            metadata = normalize_collection_metadata(metadata, app=flask.current_app)
+            metadata = normalize_collection_metadata(metadata)
             collections_metadata.append(metadata)
             internal_data.set_backends_for_collection(cid, by_backend.keys())
 
@@ -287,7 +287,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             metadata = merge_collection_metadata(
                 by_backend=by_backend, full_metadata=True
             )
-        return normalize_collection_metadata(metadata, app=flask.current_app)
+        return normalize_collection_metadata(metadata)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
         raise RuntimeError("openeo-aggregator does not implement concrete collection loading")

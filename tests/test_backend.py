@@ -934,38 +934,10 @@ class TestAggregatorCollectionCatalog:
             {
                 "id": "S2",
                 "summaries": {"federation:backends": ["b1"]},
-                "links": [
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S2",
-                        "rel": "self",
-                    },
-                ],
             },
             {
                 "id": "S3",
                 "summaries": {"federation:backends": ["b2"]},
-                "links": [
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S3",
-                        "rel": "self",
-                    },
-                ],
             },
         ]
 
@@ -985,20 +957,6 @@ class TestAggregatorCollectionCatalog:
             {
                 "id": "S3",
                 "summaries": {"federation:backends": ["b1"]},
-                "links": [
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S3",
-                        "rel": "self",
-                    },
-                ],
             },
             {
                 "id": "S4",
@@ -1015,38 +973,10 @@ class TestAggregatorCollectionCatalog:
                     "federation:backends": ["b1", "b2"],
                     "provider:backend": ["b1", "b2"],
                 },
-                "links": [
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S4",
-                        "rel": "self",
-                    },
-                ],
             },
             {
                 "id": "S5",
                 "summaries": {"federation:backends": ["b2"]},
-                "links": [
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S5",
-                        "rel": "self",
-                    },
-                ],
             },
         ]
 
@@ -1161,18 +1091,6 @@ class TestAggregatorCollectionCatalog:
                         "rel": "license",
                         "href": "https://spdx.org/licenses/Apache-1.0.html",
                     },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "root",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections",
-                        "rel": "parent",
-                    },
-                    {
-                        "href": "http://oeoa.test/openeo/1.1.0/collections/S4",
-                        "rel": "self",
-                    },
                 ],
                 "type": "Collection",
             },
@@ -1222,21 +1140,11 @@ class TestAggregatorCollectionCatalog:
         assert metadata == {
             'id': 'S2', 'title': "b1's S2",
             "summaries": {"federation:backends": ["b1"]},
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S2', 'rel': 'self'},
-            ]
         }
         metadata = catalog.get_collection_metadata("S3")
         assert metadata == {
             "id": "S3", "title": "b2's S3",
             "summaries": {"federation:backends": ["b2"]},
-            'links': [
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'root'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections', 'rel': 'parent'},
-                {'href': 'http://oeoa.test/openeo/1.1.0/collections/S3', 'rel': 'self'},
-            ]
         }
 
         with pytest.raises(CollectionNotFoundException):
@@ -1333,9 +1241,6 @@ class TestAggregatorCollectionCatalog:
             "links": [
                 {"rel": "license", "href": "https://special.license.org"},
                 {"rel": "license", "href": "https://propietary.license"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
             ],
             "providers": [{"name": "provider1"}, {"name": "provider2"}],
             "type": "Collection",
@@ -1410,11 +1315,6 @@ class TestAggregatorCollectionCatalog:
             },
             "id": "S2",
             "license": "proprietary",
-            "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-            ],
             "stac_version": "0.9.0",
             "summaries": {
                 "constellation": ["sentinel-1"],
@@ -1501,11 +1401,6 @@ class TestAggregatorCollectionCatalog:
                 "spatial": {"bbox": [[-180, -90, 180, 90], [-10, -90, 120, 90]]},
                 "temporal": {"interval": [["2014-10-03T04:14:15Z", None]]},
             },
-            "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-            ],
             "summaries": {
                 "federation:backends": ["b1", "b2"],
                 "provider:backend": ["b1", "b2"],
@@ -1577,9 +1472,6 @@ class TestAggregatorCollectionCatalog:
             },
             "links": [
                 {"href": "http://some.license", "rel": "license"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
             ],
             "summaries": {
                 "federation:backends": ["b1", "b2"],
@@ -1656,9 +1548,6 @@ class TestAggregatorCollectionCatalog:
             "links": [
                 {"href": "http://some.license", "rel": "license"},
                 {"href": "http://some.about.page", "rel": "about"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
             ],
             "summaries": {
                 "federation:backends": ["b1", "b2"],
@@ -1780,11 +1669,6 @@ class TestAggregatorCollectionCatalog:
                 "spatial": {"bbox": [[-180, -90, 180, 90]]},
                 "temporal": {"interval": [[None, None]]},
             },
-            "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-            ],
         }
 
     @pytest.mark.parametrize(
@@ -1860,11 +1744,6 @@ class TestAggregatorCollectionCatalog:
                 "spatial": {"bbox": [[-180, -90, 180, 90]]},
                 "temporal": {"interval": [[None, None]]},
             },
-            "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-            ],
         }
 
     def test_get_collection_metadata_merging_with_error(
@@ -1886,11 +1765,6 @@ class TestAggregatorCollectionCatalog:
             "id": "S2",
             "title": "b2's S2",
             "summaries": {"federation:backends": ["b2"]},
-            "links": [
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "root"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections", "rel": "parent"},
-                {"href": "http://oeoa.test/openeo/1.1.0/collections/S2", "rel": "self"},
-            ],
         }
         # TODO: test that caching of result is different from merging without error? (#2)
 

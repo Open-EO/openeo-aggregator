@@ -212,6 +212,63 @@ class TestCatalog:
         api100.get("/collections/S4").assert_error(404, "CollectionNotFound")
         # TODO: test caching of results
 
+    def test_collections_links(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(
+            backend1 + "/collections",
+            json={
+                "collections": [
+                    {"id": "S1"},
+                    {
+                        "id": "S2",
+                        "links": [
+                            {"rel": "license", "href": "foo"},
+                            # These parent/root/self links should be overruled in the result
+                            {"rel": "parent", "href": "https://s2.test/"},
+                            {"rel": "self", "href": "https://s2.test/S2"},
+                        ],
+                    },
+                ]
+            },
+        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        res = api100.get("/collections").assert_status_code(200).json
+        assert res == {
+            "collections": [
+                DictSubSet(
+                    {
+                        "description": "S1",
+                        "links": [
+                            {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S1"},
+                        ],
+                    }
+                ),
+                DictSubSet(
+                    {
+                        "description": "S2",
+                        "links": [
+                            {"rel": "license", "href": "foo"},
+                            {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S2"},
+                        ],
+                    }
+                ),
+                DictSubSet(
+                    {
+                        "description": "S3",
+                        "links": [
+                            {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
+                            {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S3"},
+                        ],
+                    }
+                ),
+            ],
+            "links": [],
+        }
+
 
 class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):

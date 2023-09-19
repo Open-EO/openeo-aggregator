@@ -30,25 +30,17 @@ _log = logging.getLogger(__name__)
 DEFAULT_REPORTER = LoggerReporter(_log)
 
 
-def normalize_collection_metadata(metadata: dict, app: Optional[flask.Flask] = None) -> dict:
+def normalize_collection_metadata(metadata: dict) -> dict:
     cid = metadata.get("id", None)
     if cid is None:
         raise OpenEOApiException("Missing collection id in metadata")
-    if "links" not in metadata:
-        metadata["links"] = []
-    metadata["links"] = [l for l in metadata["links"] if l.get("rel") not in ("self", "parent", "root")]
-    if app:
-        metadata["links"].append({
-            "href": app.url_for("openeo.collections", _external = True), "rel": "root"
-        })
-        metadata["links"].append({
-            "href": app.url_for("openeo.collections", _external = True), "rel": "parent"
-        })
-        metadata["links"].append({
-            "href": app.url_for("openeo.collection_by_id", collection_id = cid, _external = True), "rel": "self"
-        })
-    else:
-        _log.warning("Unable to provide root/parent/self links in collection metadata outside flask app context")
+    # Remove the root/parent/self links, so that aggregator-specific ones
+    # are automatically added by `_normalize_collection_metadata` from openeo-python-driver (0.67.0, 133e6aa5)
+    if "links" in metadata:
+        links_to_keep = [ln for ln in metadata.pop("links") if ln.get("rel") not in ("self", "parent", "root")]
+        if links_to_keep:
+            metadata["links"] = links_to_keep
+
     return metadata
 
 
