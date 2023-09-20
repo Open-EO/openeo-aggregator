@@ -106,6 +106,7 @@ def base_config(
 ) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
+    conf.config_source = "test fixture base_config"
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
     conf.configured_oidc_providers = configured_oidc_providers
