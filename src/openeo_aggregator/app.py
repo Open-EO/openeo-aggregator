@@ -15,6 +15,7 @@ from openeo_driver.util.logging import (
 )
 from openeo_driver.utils import smart_bool
 
+import openeo_aggregator.about
 from openeo_aggregator.backend import (
     AggregatorBackendImplementation,
     MultiBackendConnection,
@@ -49,6 +50,8 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
             },
             context=LOGGING_CONTEXT_FLASK,
         ))
+
+    _log.info(f"create_app() with {openeo_aggregator.about.__version__=}")
 
     os.environ.setdefault(ConfigGetter.OPENEO_BACKEND_CONFIG, str(get_config_dir() / "backend_config.py"))
 
