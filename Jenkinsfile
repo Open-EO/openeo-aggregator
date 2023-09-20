@@ -12,8 +12,8 @@ pythonPipeline {
   docker_deploy = true
   dev_hosts = 'docker-services-dev-01.vgt.vito.be'
   prod_hosts = 'docker-services-prod-01.vgt.vito.be'
-  docker_run_options_dev = ['-e ENV=dev', '-p 8081:8080']
-  docker_run_options_prod = ['-e ENV=prod', '-p 8081:8080']
+  docker_run_options_dev = ['-e OPENEO_AGGREGATOR_CONFIG=/home/openeo/aggregator/conf/aggregator.dev.py', '-p 8081:8080']
+  docker_run_options_prod = ['-e OPENEO_AGGREGATOR_CONFIG=/home/openeo/aggregator/conf/aggregator.prod.py', '-p 8081:8080']
   pep440 = true
   notification_channel = 'openeo-devs'
   extra_env_variables = [

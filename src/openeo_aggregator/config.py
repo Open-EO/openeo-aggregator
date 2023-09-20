@@ -10,6 +10,8 @@ from openeo_driver.utils import dict_item
 _log = logging.getLogger(__name__)
 
 OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
+
+# TODO: #117 eliminate this (too simple) config handle
 ENVIRONMENT_INDICATOR = "ENV"
 
 CACHE_TTL_DEFAULT = 6 * 60 * 60
@@ -91,6 +93,7 @@ def get_config(x: Any = None) -> AggregatorConfig:
     - if it is already an `AggregatorConfig` object: return as is
     - if it is a string: try to parse it as JSON (file)
     """
+    # TODO #117 simplify this logic: just support direct file references, iso "aggregator.$ENV.py"
 
     if x is None:
         for env_var in [OPENEO_AGGREGATOR_CONFIG, ENVIRONMENT_INDICATOR]:
