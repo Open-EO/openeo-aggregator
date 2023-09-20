@@ -56,15 +56,15 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
     os.environ.setdefault(ConfigGetter.OPENEO_BACKEND_CONFIG, str(get_config_dir() / "backend_config.py"))
 
     config: AggregatorConfig = get_config(config)
-    _log.info(f"Using config: {config}")
+    _log.info(f"Using config: {config.config_source=!r}")
 
-    _log.info(f"Creating MultiBackendConnection with {config.aggregator_backends}")
+    _log.info(f"Creating MultiBackendConnection with {config.aggregator_backends=!r}")
     backends = MultiBackendConnection.from_config(config)
 
     _log.info("Creating AggregatorBackendImplementation")
     backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
 
-    _log.info("Building Flask app")
+    _log.info(f"Building Flask app with {backend_implementation=!r}")
     app = openeo_driver.views.build_app(
         backend_implementation=backend_implementation,
         error_handling=config.flask_error_handling,
@@ -85,7 +85,7 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
         }
         return flask.jsonify(info)
 
-    _log.info(f"Built app {app}")
+    _log.info(f"Built {app=!r}")
     return app
 
 
