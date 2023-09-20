@@ -5,7 +5,6 @@ from unittest import mock
 import pytest
 
 from openeo_aggregator.config import (
-    ENVIRONMENT_INDICATOR,
     OPENEO_AGGREGATOR_CONFIG,
     STREAM_CHUNK_SIZE_DEFAULT,
     AggregatorConfig,
@@ -48,7 +47,6 @@ def test_config_from_py_file(tmp_path):
 
 def test_get_config_default_no_env():
     assert OPENEO_AGGREGATOR_CONFIG not in os.environ
-    assert ENVIRONMENT_INDICATOR not in os.environ
     config = get_config()
     assert config.config_source.endswith("/conf/aggregator.dev.py")
 
@@ -63,18 +61,6 @@ def test_get_config_py_file_path(tmp_path, convertor):
     assert config.streaming_chunk_size == 123
 
 
-@pytest.mark.parametrize(["value", "expected"], [
-    ("dev", "/conf/aggregator.dev.py"),
-    ("DEV", "/conf/aggregator.dev.py"),
-    ("prod", "/conf/aggregator.prod.py"),
-    ("PROD", "/conf/aggregator.prod.py"),
-])
-def test_get_config_arg(value, expected):
-    with mock.patch.dict(os.environ, {OPENEO_AGGREGATOR_CONFIG: "meh", ENVIRONMENT_INDICATOR: "pft"}):
-        config = get_config(value)
-    assert config.config_source.endswith(expected)
-
-
 def test_get_config_env_py_file(tmp_path):
     path = tmp_path / "aggregator-conf.py"
     path.write_text(CONFIG_PY_EXAMPLE)
@@ -84,25 +70,3 @@ def test_get_config_env_py_file(tmp_path):
     assert config.config_source == str(path)
     assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.streaming_chunk_size == 123
-
-
-@pytest.mark.parametrize("env_var", [
-    OPENEO_AGGREGATOR_CONFIG,
-    ENVIRONMENT_INDICATOR,
-])
-@pytest.mark.parametrize("value", ["dev", "DEV"])
-def test_get_config_none_env_dev(env_var, value):
-    with mock.patch.dict(os.environ, {env_var: value}):
-        config = get_config()
-    assert config.config_source.endswith("/conf/aggregator.dev.py")
-
-
-@pytest.mark.parametrize("env_var", [
-    OPENEO_AGGREGATOR_CONFIG,
-    ENVIRONMENT_INDICATOR,
-])
-@pytest.mark.parametrize("value", ["prod", "PROD"])
-def test_get_config_none_env_prod(env_var, value):
-    with mock.patch.dict(os.environ, {env_var: value}):
-        config = get_config()
-    assert config.config_source.endswith("/conf/aggregator.prod.py")

@@ -76,11 +76,12 @@ variant of this application config:
 - `conf/aggregator.dev.py`
 - `conf/aggregator.prod.py`
 
-Which config to pick is determined through env variables:
+Use the env var `OPENEO_AGGREGATOR_CONFIG` to point to the desired config path.
+Currently, the dev config is used as fallback.
 
-- if set, env variable `OPENEO_AGGREGATOR_CONFIG` is the path to the desired config file
-- otherwise, if set, env variable `ENV` must be `dev` or `prod`
-- otherwise, `dev` is used as default
+Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
+at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
+and probably only a dummy default config will be preserved.
 
 ### Logging
 

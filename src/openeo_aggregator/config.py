@@ -11,9 +11,6 @@ _log = logging.getLogger(__name__)
 
 OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
 
-# TODO: #117 eliminate this (too simple) config handle
-ENVIRONMENT_INDICATOR = "ENV"
-
 CACHE_TTL_DEFAULT = 6 * 60 * 60
 
 # Timeouts for requests to back-ends
@@ -86,27 +83,24 @@ def get_config_dir() -> Path:
     raise RuntimeError("No config dir found")
 
 
-def get_config(x: Any = None) -> AggregatorConfig:
+def get_config(x: Union[str, Path, AggregatorConfig, None] = None) -> AggregatorConfig:
     """
     Get aggregator config from given object:
     - if None: check env variable "OPENEO_AGGREGATOR_CONFIG" or return default config
     - if it is already an `AggregatorConfig` object: return as is
-    - if it is a string: try to parse it as JSON (file)
+    - if it is a string and looks like a path of a Python file: load config from that
     """
-    # TODO #117 simplify this logic: just support direct file references, iso "aggregator.$ENV.py"
 
     if x is None:
-        for env_var in [OPENEO_AGGREGATOR_CONFIG, ENVIRONMENT_INDICATOR]:
-            if env_var in os.environ:
-                x = os.environ[env_var]
-                _log.info(f"Config from env var {env_var}: {x!r}")
-                break
+        if OPENEO_AGGREGATOR_CONFIG in os.environ:
+            x = os.environ[OPENEO_AGGREGATOR_CONFIG]
+            _log.info(f"Config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
         else:
-            x = "dev"
+            # TODO #117 provide just a very simple default config, instead of a concrete dev one
+            x = get_config_dir() / "aggregator.dev.py"
+            _log.info(f"Config from fallback {x!r}")
 
     if isinstance(x, str):
-        if re.match("^[a-zA-Z]+$", x):
-            x = get_config_dir() / f"aggregator.{x.lower()}.py"
         x = Path(x)
 
     if isinstance(x, AggregatorConfig):
