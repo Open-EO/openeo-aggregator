@@ -20,7 +20,9 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ### Fixed
 
+### Removed
 
+- Removed `ENV` based config loading for clarity, `OPENEO_AGGREGATOR_CONFIG` must be full explicit path to config ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
 
 ## [0.9.x]
 
