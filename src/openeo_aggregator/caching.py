@@ -338,6 +338,7 @@ class ChainedMemoizer(Memoizer):
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         # Build chained callback function by iteratively wrapping callback in memoizer wrappers
         # (from the deepest level to top-level)
+        # TODO: pre-wrap the memoizers in __init__
         for memoizer in self._memoizers[::-1]:
             callback = memoizer.wrap(key=key, ttl=ttl)(callback)
         return callback()
@@ -376,6 +377,7 @@ class ZkMemoizer(Memoizer):
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
         self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
         # Minimum timestamp for valid entries
+        # TODO: parameterize this, e.g. to always accept value from cache?
         self._valid_threshold = Clock.time()
         _log.info(f"Created {self!r} with prefix={self._prefix!r} default_ttl={self._default_ttl}")
 

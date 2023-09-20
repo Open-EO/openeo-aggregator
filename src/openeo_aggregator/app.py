@@ -33,23 +33,7 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
     # see https://flask.palletsprojects.com/en/2.0.x/cli/#application-discovery
 
     if auto_logging_setup:
-        root_handlers = ["stderr_json"]
-        if smart_bool(os.environ.get("OPENEO_AGGREGATOR_SIMPLE_LOGGING")):
-            root_handlers = None
-
-        setup_logging(config=get_logging_config(
-            root_handlers=root_handlers,
-            loggers={
-                "openeo": {"level": "DEBUG"},
-                "openeo_driver": {"level": "DEBUG"},
-                "openeo_aggregator": {"level": "DEBUG"},
-                "flask": {"level": "INFO"},
-                "werkzeug": {"level": "INFO"},
-                "gunicorn": {"level": "INFO"},
-                'kazoo': {'level': 'WARN'},
-            },
-            context=LOGGING_CONTEXT_FLASK,
-        ))
+        setup_logging(config=get_aggregator_logging_config(context=LOGGING_CONTEXT_FLASK))
 
     _log.info(f"create_app() with {openeo_aggregator.about.__version__=}")
 
@@ -87,6 +71,30 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
 
     _log.info(f"Built {app=!r}")
     return app
+
+
+def get_aggregator_logging_config(
+    context: str = LOGGING_CONTEXT_FLASK,
+    handler_default_level: str = "DEBUG",
+) -> dict:
+    root_handlers = ["stderr_json"]
+    if smart_bool(os.environ.get("OPENEO_AGGREGATOR_SIMPLE_LOGGING")):
+        root_handlers = None
+
+    return get_logging_config(
+        root_handlers=root_handlers,
+        handler_default_level=handler_default_level,
+        loggers={
+            "openeo": {"level": "DEBUG"},
+            "openeo_driver": {"level": "DEBUG"},
+            "openeo_aggregator": {"level": "DEBUG"},
+            "flask": {"level": "INFO"},
+            "werkzeug": {"level": "INFO"},
+            "gunicorn": {"level": "INFO"},
+            "kazoo": {"level": "WARN"},
+        },
+        context=context,
+    )
 
 
 if __name__ == "__main__":
