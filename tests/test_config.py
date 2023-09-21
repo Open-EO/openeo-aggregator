@@ -48,7 +48,7 @@ def test_config_from_py_file(tmp_path):
 def test_get_config_default_no_env():
     assert OPENEO_AGGREGATOR_CONFIG not in os.environ
     config = get_config()
-    assert config.config_source.endswith("/conf/aggregator.dev.py")
+    assert config.config_source.endswith("/conf/aggregator.dummy.py")
 
 
 @pytest.mark.parametrize("convertor", [str, Path])
