@@ -47,8 +47,7 @@ config = AggregatorConfig(
     aggregator_backends={
         "vito": "https://openeo-dev.vito.be/openeo/1.1/",
         "eodc": "https://openeo-dev.eodc.eu/openeo/1.1.0/",
-        # internal version of https://openeo.creo.vito.be/openeo/1.1/
-        "creo": "https://openeo-dev.creo.vito.be/openeo/1.1",
+        "creo": "https://openeo-staging.creo.vito.be/openeo/1.1",
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
