@@ -543,6 +543,80 @@ class TestMergeProcessMetadata:
             }
         ]
 
+    def test_merge_process_parameters_differences_precedence(self, merger, reporter):
+        by_backend = {
+            "vito": {
+                "id": "filter_bbox",
+                "parameters": [
+                    {
+                        "name": "data",
+                        "description": "data",
+                        "schema": {"type": "object", "subtype": "raster-cube"},
+                    },
+                ],
+            },
+            "eodc": {
+                "id": "filter_bbox",
+                "parameters": [
+                    {
+                        "name": "data",
+                        "description": "data",
+                        "schema": [
+                            {"type": "object", "subtype": "datacube", "title": "Raster cube"},
+                            {"type": "object", "subtype": "datacube", "title": "Vector cube"},
+                        ],
+                    }
+                ],
+            },
+        }
+        merged = merger.merge_process_metadata(by_backend=by_backend)
+        assert merged == {
+            "id": "filter_bbox",
+            "description": "filter_bbox",
+            "parameters": [
+                {"name": "data", "description": "data", "schema": {"type": "object", "subtype": "raster-cube"}},
+            ],
+            "returns": {"schema": {}},
+            "federation:backends": ["vito", "eodc"],
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
+        }
+        assert reporter.logs == [
+            {
+                "backend_id": "eodc",
+                "diff": [
+                    "--- merged\n",
+                    "+++ eodc\n",
+                    "@@ -1,4 +1,12 @@\n",
+                    "-{\n",
+                    '-  "subtype": "raster-cube",\n',
+                    '-  "type": "object"\n',
+                    "-}\n",
+                    "+[\n",
+                    "+  {\n",
+                    '+    "subtype": "datacube",\n',
+                    '+    "title": "Raster cube",\n',
+                    '+    "type": "object"\n',
+                    "+  },\n",
+                    "+  {\n",
+                    '+    "subtype": "datacube",\n',
+                    '+    "title": "Vector cube",\n',
+                    '+    "type": "object"\n',
+                    "+  }\n",
+                    "+]\n",
+                ],
+                "merged": {"subtype": "raster-cube", "type": "object"},
+                "msg": "Parameter 'data' field 'schema' value differs from merged.",
+                "process_id": "filter_bbox",
+                "value": [
+                    {"subtype": "datacube", "title": "Raster cube", "type": "object"},
+                    {"subtype": "datacube", "title": "Vector cube", "type": "object"},
+                ],
+            }
+        ]
+
     def test_merge_process_parameters_recursive(self, merger, reporter):
         """
         Comparison use case with sub-process-graph with parameters

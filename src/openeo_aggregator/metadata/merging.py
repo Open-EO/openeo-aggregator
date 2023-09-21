@@ -380,7 +380,7 @@ class ProcessMetadataMerger:
         # TODO: real merge instead of taking first?
         merged = []
         merged_params_by_name = {}
-        for backend_id, process_metadata in sorted(by_backend.items()):
+        for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             if params:
                 normalizer = ProcessParameterNormalizer(
@@ -396,28 +396,26 @@ class ProcessMetadataMerger:
                 break
 
         # Check other parameter listings against merged
-        for backend_id, process_metadata in sorted(by_backend.items()):
+        for backend_id, process_metadata in by_backend.items():
             params = process_metadata.get("parameters", [])
             params_by_name = self._get_parameters_by_name(
                 parameters=params, backend_id=backend_id, process_id=process_id
             )
             missing_parameters = set(merged_params_by_name).difference(params_by_name)
-            missing_parameters = sorted(missing_parameters)
             if missing_parameters:
                 self.report(
                     "Missing parameters.",
                     backend_id=backend_id,
                     process_id=process_id,
-                    missing_parameters=missing_parameters,
+                    missing_parameters=sorted(missing_parameters),
                 )
             extra_parameters = set(params_by_name).difference(merged_params_by_name)
-            extra_parameters = sorted(extra_parameters)
             if extra_parameters:
                 self.report(
                     "Extra parameters (not in merged listing).",
                     backend_id=backend_id,
                     process_id=process_id,
-                    extra_parameters=extra_parameters,
+                    extra_parameters=sorted(extra_parameters),
                 )
             for name in sorted(set(merged_params_by_name).intersection(params_by_name)):
                 normalizer = ProcessParameterNormalizer(
