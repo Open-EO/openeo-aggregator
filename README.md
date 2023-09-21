@@ -77,7 +77,7 @@ variant of this application config:
 - `conf/aggregator.prod.py`
 
 Use the env var `OPENEO_AGGREGATOR_CONFIG` to point to the desired config path.
-Currently, the dev config is used as fallback.
+By default, `conf/aggregator.dummy.py` is loaded.
 
 Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
 at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))

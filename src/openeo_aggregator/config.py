@@ -76,6 +76,7 @@ class AggregatorConfig(dict):
 
 def get_config_dir() -> Path:
     # TODO: make this robust against packaging operations (e.g. no guaranteed real __file__ path)
+    # TODO #117: eliminate the need for this hardcoded, package based config dir
     for root in [Path.cwd(), Path(__file__).parent.parent.parent]:
         config_dir = root / "conf"
         if config_dir.is_dir():
@@ -96,8 +97,7 @@ def get_config(x: Union[str, Path, AggregatorConfig, None] = None) -> Aggregator
             x = os.environ[OPENEO_AGGREGATOR_CONFIG]
             _log.info(f"Config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
         else:
-            # TODO #117 provide just a very simple default config, instead of a concrete dev one
-            x = get_config_dir() / "aggregator.dev.py"
+            x = get_config_dir() / "aggregator.dummy.py"
             _log.info(f"Config from fallback {x!r}")
 
     if isinstance(x, str):
