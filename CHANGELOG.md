@@ -14,7 +14,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Added simple UDP support by directly proxying to "first" upstream backend (e.g. VITO)
   ([#90](https://github.com/Open-EO/openeo-aggregator/issues/90))
-
+- Background task to prime caches ([#74](https://github.com/Open-EO/openeo-aggregator/issues/74))
 
 ### Changed
 

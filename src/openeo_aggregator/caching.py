@@ -338,6 +338,7 @@ class ChainedMemoizer(Memoizer):
     def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
         # Build chained callback function by iteratively wrapping callback in memoizer wrappers
         # (from the deepest level to top-level)
+        # TODO: pre-wrap the memoizers in __init__
         for memoizer in self._memoizers[::-1]:
             callback = memoizer.wrap(key=key, ttl=ttl)(callback)
         return callback()
@@ -376,6 +377,7 @@ class ZkMemoizer(Memoizer):
         self._default_ttl = float(default_ttl or self.DEFAULT_TTL)
         self._zk_timeout = float(zk_timeout or self.DEFAULT_ZK_TIMEOUT)
         # Minimum timestamp for valid entries
+        # TODO: parameterize this, e.g. to always accept value from cache?
         self._valid_threshold = Clock.time()
         _log.info(f"Created {self!r} with prefix={self._prefix!r} default_ttl={self._default_ttl}")
 
@@ -502,8 +504,10 @@ def memoizer_from_config(
         elif memoizer_type == "jsondict":
             return JsonDictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "zookeeper":
+            kazoo_client_factory = config.kazoo_client_factory or KazooClient
+            kazoo_client = kazoo_client_factory(hosts=memoizer_conf.get("zk_hosts", "localhost:2181"))
             return ZkMemoizer(
-                client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
+                client=kazoo_client,
                 path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
                 namespace=namespace,
                 default_ttl=memoizer_conf.get("default_ttl"),
