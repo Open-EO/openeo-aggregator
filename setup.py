@@ -38,6 +38,9 @@ setup(
     extras_require={
         "dev": tests_require,
     },
+    entry_points={
+        "console_scripts": ["openeo-aggregator-prime-caches=openeo_aggregator.background.prime_caches:main"],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",

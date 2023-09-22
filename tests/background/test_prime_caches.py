@@ -1,4 +1,4 @@
-from openeo_aggregator.background import AttrStatsProxy
+from openeo_aggregator.background.prime_caches import AttrStatsProxy
 
 
 class TestAttrStatsProxy:
