@@ -45,6 +45,7 @@ class AggregatorConfig(dict):
 
     partitioned_job_tracking = dict_item(default=None)
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
+    kazoo_client_factory = dict_item(default=None)
 
     # See `memoizer_from_config` for details.
     memoizer = dict_item(default={"type": "dict"})

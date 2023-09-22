@@ -504,8 +504,10 @@ def memoizer_from_config(
         elif memoizer_type == "jsondict":
             return JsonDictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "zookeeper":
+            kazoo_client_factory = config.kazoo_client_factory or KazooClient
+            kazoo_client = kazoo_client_factory(hosts=memoizer_conf.get("zk_hosts", "localhost:2181"))
             return ZkMemoizer(
-                client=KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181")),
+                client=kazoo_client,
                 path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
                 namespace=namespace,
                 default_ttl=memoizer_conf.get("default_ttl"),
