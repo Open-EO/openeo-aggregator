@@ -4,7 +4,7 @@ from typing import Any, Optional, Sequence, Union
 
 from kazoo.client import KazooClient
 from openeo.util import TimingLogger
-from openeo_driver.util.logging import setup_logging
+from openeo_driver.util.logging import just_log_exceptions, setup_logging
 
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
@@ -54,21 +54,27 @@ def prime_caches(config: Union[str, Path, AggregatorConfig, None] = None):
         backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
 
         with TimingLogger(title="General capabilities", logger=_log):
-            backends.get_api_versions()
-            backend_implementation.file_formats()
-            backend_implementation.secondary_services.service_types()
+            with just_log_exceptions(log=_log):
+                backends.get_api_versions()
+            with just_log_exceptions(log=_log):
+                backend_implementation.file_formats()
+            with just_log_exceptions(log=_log):
+                backend_implementation.secondary_services.service_types()
 
-        with TimingLogger(title="Get full collection listing", logger=_log):
-            collections_metadata = backend_implementation.catalog.get_all_metadata()
+        with just_log_exceptions(log=_log):
+            with TimingLogger(title="Get full collection listing", logger=_log):
+                collections_metadata = backend_implementation.catalog.get_all_metadata()
 
-        with TimingLogger(title="Get per collection metadata", logger=_log):
-            collection_ids = [m["id"] for m in collections_metadata]
-            for c, collection_id in enumerate(collection_ids):
-                _log.info(f"get collection {c+1}/{len(collection_ids)} {collection_id}")
-                backend_implementation.catalog.get_collection_metadata(collection_id=collection_id)
+            with TimingLogger(title="Get per collection metadata", logger=_log):
+                collection_ids = [m["id"] for m in collections_metadata]
+                for c, collection_id in enumerate(collection_ids):
+                    _log.info(f"get collection {c+1}/{len(collection_ids)} {collection_id}")
+                    with just_log_exceptions(log=_log):
+                        backend_implementation.catalog.get_collection_metadata(collection_id=collection_id)
 
         with TimingLogger(title="Get merged processes", logger=_log):
-            backend_implementation.processing.get_merged_process_metadata()
+            with just_log_exceptions(log=_log):
+                backend_implementation.processing.get_merged_process_metadata()
 
     _log.info(f"Zookeeper stats: {kazoo_stats}")
 
