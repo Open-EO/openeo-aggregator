@@ -3,12 +3,14 @@ openeo-aggregator Flask app
 """
 import logging
 import os
-from typing import Any
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
 import flask
 import openeo_driver.views
 from openeo_driver.config.load import ConfigGetter
 from openeo_driver.util.logging import (
+    LOG_HANDLER_STDERR_JSON,
     LOGGING_CONTEXT_FLASK,
     get_logging_config,
     setup_logging,
@@ -74,10 +76,13 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
 
 
 def get_aggregator_logging_config(
+    *,
     context: str = LOGGING_CONTEXT_FLASK,
     handler_default_level: str = "DEBUG",
+    root_handlers: Optional[List[str]] = None,
+    log_file: Optional[Union[str, Path]] = None,
 ) -> dict:
-    root_handlers = ["stderr_json"]
+    root_handlers = root_handlers or [LOG_HANDLER_STDERR_JSON]
     if smart_bool(os.environ.get("OPENEO_AGGREGATOR_SIMPLE_LOGGING")):
         root_handlers = None
 
@@ -94,6 +99,7 @@ def get_aggregator_logging_config(
             "kazoo": {"level": "WARN"},
         },
         context=context,
+        log_file=log_file,
     )
 
 
