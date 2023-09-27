@@ -24,13 +24,9 @@ RUN echo "[global]" >> $PIP_CONF && \
     cat $PIP_CONF
 
 
-RUN useradd --create-home openeo
-
-# Directory for output logs
-RUN mkdir -p /var/log/openeo
-RUN chown openeo:openeo /var/log/openeo
-
 # Build and run as non-root (see https://pythonspeed.com/articles/root-capabilities-docker-security/)
+# Put user in necessary groups for desired runtime permissions (631600014=eodata, 631600010=vito)
+RUN useradd --create-home --gid 631600014 --groups 631600010 openeo
 WORKDIR /home/openeo
 USER openeo
 
