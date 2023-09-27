@@ -1,9 +1,11 @@
+import collections
+import dataclasses
 import datetime
 import itertools
 import json
 import pathlib
 import time
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from unittest import mock
 
 import kazoo
@@ -15,6 +17,11 @@ import openeo_aggregator.about
 from openeo_aggregator.utils import Clock
 
 
+@dataclasses.dataclass
+class DummyZnodeStat:
+    last_modified: float = dataclasses.field(default_factory=Clock.time)
+
+
 class DummyKazooClient:
     """
     Stand-in object for KazooClient for testing.
@@ -22,15 +29,19 @@ class DummyKazooClient:
 
     def __init__(self):
         self.state = "closed"
-        self.data = {}
+        self.data: Dict[str, Tuple[bytes, DummyZnodeStat]] = {}
 
-    def start(self):
+    def start(self, timeout: float = 15):
         assert self.state == "closed"
         self.state = "open"
 
     def stop(self):
         assert self.state == "open"
         self.state = "closed"
+
+    @property
+    def connected(self):
+        return self.state == "open"
 
     def _assert_open(self):
         if not self.state == "open":
@@ -46,7 +57,7 @@ class DummyKazooClient:
                 self.create(parent, b"", makepath=makepath)
             else:
                 raise kazoo.exceptions.NoNodeError
-        self.data[path] = value
+        self.data[path] = value, DummyZnodeStat()
 
     def exists(self, path):
         self._assert_open()
@@ -56,7 +67,7 @@ class DummyKazooClient:
         self._assert_open()
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()
-        return (self.data[path], None)
+        return self.data[path]
 
     def get_children(self, path):
         self._assert_open()
@@ -69,22 +80,19 @@ class DummyKazooClient:
         self._assert_open()
         if path not in self.data:
             raise kazoo.exceptions.NoNodeError()
-        self.data[path] = value
+        self.data[path] = (value, DummyZnodeStat())
 
     def get_data_deserialized(self, drop_empty=False) -> dict:
         """Dump whole db as a dict, but deserialize values"""
 
         def deserialize(b: bytes):
-            if b[:2] == b'{"' and b[-1:] == b"}":
+            # simple JSON format sniffing
+            if (b[:1], b[-1:]) in {(b"{", b"}"), (b"[", b"]")}:
                 return json.loads(b.decode("utf8"))
             else:
                 return b.decode("utf8")
 
-        return {
-            k: deserialize(v)
-            for (k, v) in self.data.items()
-            if v or not drop_empty
-        }
+        return {k: deserialize(v) for (k, (v, stats)) in self.data.items() if v or not drop_empty}
 
 
 def approx_now(abs=10):

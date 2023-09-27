@@ -14,6 +14,9 @@ from openeo_aggregator.backend import (
 from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import DummyKazooClient, MetadataBuilder
 
+pytest_plugins = "pytester"
+
+
 _DEFAULT_PROCESSES = [
     "load_collection",
     "load_result",

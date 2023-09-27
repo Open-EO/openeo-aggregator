@@ -22,7 +22,7 @@ from openeo_aggregator.caching import (
     memoizer_from_config,
 )
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import DummyZnodeStat, clock_mock
 from openeo_aggregator.utils import Clock
 
 
@@ -410,14 +410,13 @@ class TestChainedMemoizer(_TestMemoizer):
             assert dm2.get_or_call(key="count", callback=callback) == 1003
 
 
-DummyZnodeStat = collections.namedtuple("DummyZnodeStat", ["last_modified"])
-
 
 class TestZkMemoizer(_TestMemoizer):
 
     @pytest.fixture
     def zk_client(self) -> mock.Mock:
         """Simple ad-hoc ZooKeeper client fixture using a dictionary for storage."""
+        # TODO: unify with DummyKazooClient?
         zk_client = mock.Mock()
         db = {}
         zk_client.connected = False

@@ -3,11 +3,18 @@ import contextlib
 import functools
 import logging
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 from kazoo.client import KazooClient
 from openeo.util import TimingLogger
-from openeo_driver.util.logging import just_log_exceptions, setup_logging
+from openeo_driver.util.logging import (
+    LOG_HANDLER_FILE_JSON,
+    LOG_HANDLER_ROTATING_FILE_JSON,
+    LOG_HANDLER_STDERR_BASIC,
+    LOG_HANDLER_STDERR_JSON,
+    just_log_exceptions,
+    setup_logging,
+)
 
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
@@ -45,7 +52,7 @@ FAIL_MODE_FAILFAST = "failfast"
 FAIL_MODE_WARN = "warn"
 
 
-def main():
+def main(args: Optional[List[str]] = None):
     """CLI entrypoint"""
     cli = argparse.ArgumentParser()
     cli.add_argument(
@@ -64,10 +71,29 @@ def main():
         default=FAIL_MODE_FAILFAST,
         help="Fail mode: fail fast or warn (just log failures but keep going if possible).",
     )
+    cli.add_argument(
+        "--log-handler",
+        dest="log_handlers",
+        choices=[
+            LOG_HANDLER_STDERR_BASIC,
+            LOG_HANDLER_STDERR_JSON,
+            LOG_HANDLER_FILE_JSON,
+            LOG_HANDLER_ROTATING_FILE_JSON,
+        ],
+        action="append",
+        help="Log handlers.",
+    )
+    cli.add_argument(
+        "--log-file",
+        help="Log file to use for (rotating) file log handlers.",
+    )
 
-    arguments = cli.parse_args()
+    arguments = cli.parse_args(args=args)
 
-    setup_logging(config=get_aggregator_logging_config(context="background-task"))
+    logging_config = get_aggregator_logging_config(
+        context="background-task", root_handlers=arguments.log_handlers, log_file=arguments.log_file
+    )
+    setup_logging(config=logging_config)
     prime_caches(
         config=arguments.config,
         require_zookeeper_writes=arguments.require_zookeeper_writes,
@@ -130,9 +156,10 @@ def prime_caches(
 
 
 def _patch_config_for_kazoo_client_stats(config: AggregatorConfig, stats: dict):
+    orig_kazoo_client_factory = config.kazoo_client_factory or KazooClient
     def kazoo_client_factory(**kwargs):
         _log.info(f"AttrStatsProxy-wrapping KazooClient with {kwargs=}")
-        zk = KazooClient(**kwargs)
+        zk = orig_kazoo_client_factory(**kwargs)
         return AttrStatsProxy(
             target=zk,
             to_track=["start", "stop", "create", "get", "set"],
