@@ -41,7 +41,7 @@ class AggregatorConfig(dict):
 
     # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
-    auth_entitlement_check: Union[bool, dict] = dict_item()
+    auth_entitlement_check: Union[bool, dict] = dict_item(default=False)
 
     partitioned_job_tracking = dict_item(default=None)
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
