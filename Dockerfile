@@ -26,6 +26,8 @@ RUN echo "[global]" >> $PIP_CONF && \
 
 RUN useradd --create-home openeo
 
+# Directory for output logs
+RUN mkdir -p /var/log/openeo
 RUN chown openeo:openeo /var/log/openeo
 
 # Build and run as non-root (see https://pythonspeed.com/articles/root-capabilities-docker-security/)
