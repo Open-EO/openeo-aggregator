@@ -25,9 +25,8 @@ RUN echo "[global]" >> $PIP_CONF && \
 
 
 # Build and run as non-root (see https://pythonspeed.com/articles/root-capabilities-docker-security/)
-# Put user in necessary groups for desired permissions in runtime environment
-RUN groupadd --gid 631600010 vito
-RUN useradd --create-home --groups 631600010 openeo
+RUN groupadd --gid 1000 openeo && \
+    useradd --create-home --base-dir /home --uid 1000 --gid openeo openeo
 WORKDIR /home/openeo
 USER openeo
 
