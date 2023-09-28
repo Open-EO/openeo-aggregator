@@ -79,6 +79,10 @@ variant of this application config:
 Use the env var `OPENEO_AGGREGATOR_CONFIG` to point to the desired config path.
 By default, `conf/aggregator.dummy.py` is loaded.
 
+For example, when using the Docker image, add something like this
+
+    -e OPENEO_AGGREGATOR_CONFIG=/home/openeo/aggregator/conf/aggregator.dev.py
+
 Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
 at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
 and probably only a dummy default config will be preserved.

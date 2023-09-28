@@ -1,4 +1,4 @@
-FROM python:3.8-slim-buster
+FROM python:3.9-slim-bullseye
 
 
 # Workaround for IPv4/IPv6 networking performance issues.

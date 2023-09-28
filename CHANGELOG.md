@@ -4,11 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Current: 0.11.x]
+
+### Added
+
+### Changed
+
+- Dockerfile: switch to `python:3.9-slim-bullseye` base image
+
+### Fixed
+
+### Removed
 
 
-
-## [Current: 0.10.x]
-
+## [0.10.x]
 
 ### Added
 
@@ -16,13 +25,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
   ([#90](https://github.com/Open-EO/openeo-aggregator/issues/90))
 - Background task to prime caches ([#74](https://github.com/Open-EO/openeo-aggregator/issues/74))
 
-### Changed
-
-### Fixed
-
 ### Removed
 
 - Removed `ENV` based config loading for clarity, `OPENEO_AGGREGATOR_CONFIG` must be full explicit path to config ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
+
 
 ## [0.9.x]
 
