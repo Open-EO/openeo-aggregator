@@ -147,7 +147,7 @@ def prime_caches(
             with TimingLogger(title="Get per collection metadata", logger=_log):
                 collection_ids = [m["id"] for m in collections_metadata]
                 for c, collection_id in enumerate(collection_ids):
-                    _log.info(f"get collection {c+1}/{len(collection_ids)} {collection_id}")
+                    _log.debug(f"Get collection {c+1}/{len(collection_ids)} {collection_id}")
                     with fail_handler():
                         backend_implementation.catalog.get_collection_metadata(collection_id=collection_id)
 
