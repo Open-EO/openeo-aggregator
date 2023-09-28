@@ -12,6 +12,8 @@ from openeo_driver.util.logging import (
     LOG_HANDLER_ROTATING_FILE_JSON,
     LOG_HANDLER_STDERR_BASIC,
     LOG_HANDLER_STDERR_JSON,
+    LOG_HANDLER_STDOUT_BASIC,
+    LOG_HANDLER_STDOUT_JSON,
     just_log_exceptions,
     setup_logging,
 )
@@ -76,7 +78,9 @@ def main(args: Optional[List[str]] = None):
         dest="log_handlers",
         choices=[
             LOG_HANDLER_STDERR_BASIC,
+            LOG_HANDLER_STDOUT_BASIC,
             LOG_HANDLER_STDERR_JSON,
+            LOG_HANDLER_STDOUT_JSON,
             LOG_HANDLER_FILE_JSON,
             LOG_HANDLER_ROTATING_FILE_JSON,
         ],
