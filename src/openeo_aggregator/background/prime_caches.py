@@ -18,6 +18,7 @@ from openeo_driver.util.logging import (
     setup_logging,
 )
 
+import openeo_aggregator.about
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
 from openeo_aggregator.config import (
@@ -110,7 +111,7 @@ def prime_caches(
     require_zookeeper_writes: bool = False,
     fail_mode: str = FAIL_MODE_FAILFAST,
 ):
-    with TimingLogger(title="Prime caches", logger=_log):
+    with TimingLogger(title=f"Prime caches (version {openeo_aggregator.about.__version__})", logger=_log):
         config: AggregatorConfig = get_config(config)
         _log.info(f"Using config: {config.get('config_source')=}")
 
