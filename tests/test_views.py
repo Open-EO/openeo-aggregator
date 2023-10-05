@@ -1,12 +1,13 @@
 import logging
 import re
+import time
 from typing import List, Tuple
 
 import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo.rest.connection import url_join
-from openeo.util import rfc3339
+from openeo.util import ContextTimer, rfc3339
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
     JobNotFinishedException,
@@ -1155,7 +1156,7 @@ class TestBatchJobs:
     def test_list_jobs_no_auth(self, api100):
         api100.get("/jobs").assert_error(401, "AuthenticationRequired")
 
-    def test_list_jobs(self, api100, requests_mock, backend1, backend2):
+    def test_list_jobs_basic(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/jobs", json={"jobs": [
             {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
             {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
@@ -1163,6 +1164,37 @@ class TestBatchJobs:
         requests_mock.get(backend2 + "/jobs", json={"jobs": [
             {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
         ]})
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
+                {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+            ],
+            "links": [],
+        }
+
+    def test_list_jobs_auth(self, api100, requests_mock, backend1, backend2):
+        def b1_get_jobs(request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            return {
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
+                ]
+            }
+
+        def b2_get_jobs(request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            return {
+                "jobs": [
+                    {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+                ]
+            }
+
+        requests_mock.get(backend1 + "/jobs", json=b1_get_jobs)
+        requests_mock.get(backend2 + "/jobs", json=b2_get_jobs)
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
         assert res == {

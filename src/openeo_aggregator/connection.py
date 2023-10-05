@@ -1,6 +1,7 @@
 import collections
 import concurrent.futures
 import contextlib
+import dataclasses
 import logging
 import re
 from typing import (
@@ -193,6 +194,14 @@ class BackendConnection(Connection):
 _ConnectionsCache = collections.namedtuple("_ConnectionsCache", ["expiry", "connections"])
 
 
+@dataclasses.dataclass(frozen=True)
+class ParallelResponse:
+    """Set of responses and failures info for a parallelized request."""
+
+    successes: Dict[BackendId, dict]
+    failures: Dict[BackendId, Exception]
+
+
 class MultiBackendConnection:
     """
     Collection of multiple connections to different backends
@@ -352,7 +361,7 @@ class MultiBackendConnection:
         request_timeout: float = 5,
         overall_timeout: float = 8,
         max_workers=5,
-    ) -> List[Tuple[BackendId, bool, Any]]:
+    ) -> ParallelResponse:
         """
         Request a given (relative) url on each backend in parallel
         :param path: relative (openEO) path to request
@@ -411,15 +420,16 @@ class MultiBackendConnection:
             concurrent.futures.wait([f for (_, f) in futures], timeout=overall_timeout)
 
             # Collect results.
-            results: List[Tuple[BackendId, bool, Any]] = []
+            successes = {}
+            failures = {}
             for backend_id, future in futures:
                 try:
-                    result = future.result(timeout=0)
-                    results.append((backend_id, True, result))
+                    successes[backend_id] = future.result(timeout=0)
                 except Exception as e:
-                    results.append((backend_id, False, e))
+                    failures[backend_id] = e
 
-            return results
+            return ParallelResponse(successes=successes, failures=failures)
+
 
 
 def streaming_flask_response(

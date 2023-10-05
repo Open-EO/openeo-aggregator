@@ -597,42 +597,43 @@ class AggregatorBatchJobs(BatchJobs):
         self.partitioned_job_tracker = partitioned_job_tracker
 
     def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
-        jobs = []
+        all_jobs = []
         federation_missing = set()
 
         results = self.backends.request_parallel(
             path="/jobs", method="GET", expected_status=[200], authenticated_from_request=flask.request
         )
-        for backend_id, success, result in results:
-            if success:
-                try:
-                    for job in result["jobs"]:
-                        try:
-                            job["id"] = JobIdMapping.get_aggregator_job_id(
-                                backend_job_id=job["id"], backend_id=backend_id
-                            )
-                            jobs.append(BatchJobMetadata.from_api_dict(job))
-                        except Exception as e:
-                            _log.error(f"get_user_jobs: skipping job with parse issue: {e!r}", exc_info=True)
-                except Exception as e:
-                    _log.warning(f"Invalid job listing from backend {backend_id!r}: {e!r}")
-                    federation_missing.add(backend_id)
-            else:
-                # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
-                _log.warning(f"Failed to get job listing from backend {backend_id!r}: {result!r}")
+        for backend_id, result in results.successes.items():
+            try:
+                jobs = result["jobs"]
+                assert isinstance(jobs, list), "must be a list"
+            except Exception as e:
+                _log.warning(f"Invalid job listing from backend {backend_id!r}: {e!r}")
                 federation_missing.add(backend_id)
+            else:
+                for job in jobs:
+                    try:
+                        job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=backend_id)
+                        all_jobs.append(BatchJobMetadata.from_api_dict(job))
+                    except Exception as e:
+                        _log.error(f"get_user_jobs: skipping job with parse issue: {e!r}", exc_info=True)
+        for backend_id, exc in results.failures.items():
+            _log.warning(f"Failed to get job listing from backend {backend_id!r}: {exc!r}")
+            federation_missing.add(backend_id)
 
         if self.partitioned_job_tracker:
             for job in self.partitioned_job_tracker.list_user_jobs(user_id=user_id):
                 job["id"] = JobIdMapping.get_aggregator_job_id(backend_job_id=job["id"], backend_id=JobIdMapping.AGG)
-                jobs.append(BatchJobMetadata.from_api_dict(job))
+                all_jobs.append(BatchJobMetadata.from_api_dict(job))
 
         federation_missing.update(self.backends.get_disabled_connection_ids())
-        return dict_no_none({
-            "jobs": jobs,
-            # TODO: experimental "federation:missing" https://github.com/openEOPlatform/architecture-docs/issues/179
-            "federation:missing": list(federation_missing) or None
-        })
+        return dict_no_none(
+            {
+                "jobs": all_jobs,
+                # TODO: experimental "federation:missing" https://github.com/openEOPlatform/architecture-docs/issues/179
+                "federation:missing": list(federation_missing) or None,
+            }
+        )
 
     def create_job(
         self,
