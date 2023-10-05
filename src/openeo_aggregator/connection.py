@@ -1,14 +1,29 @@
 import collections
+import concurrent.futures
 import contextlib
+import dataclasses
 import logging
 import re
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 import flask
 import requests
 from openeo import Connection
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
+from openeo.rest.connection import RestApiConnection
+from openeo.util import TimingLogger
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import (
     AuthenticationRequiredException,
@@ -30,6 +45,10 @@ from openeo_aggregator.utils import _UNSET, Clock, EventHandler
 
 _log = logging.getLogger(__name__)
 
+
+# Type annotation aliases
+
+BackendId = str
 
 class LockedAuthException(InternalException):
     def __init__(self):
@@ -105,8 +124,11 @@ class BackendConnection(Connection):
     def get_oidc_provider_map(self) -> Dict[str, str]:
         return self._oidc_provider_map
 
-    def _get_bearer(self, request: flask.Request) -> str:
-        """Extract authorization header from request and (optionally) transform for given backend """
+    def extract_bearer(self, request: flask.Request) -> str:
+        """
+        Extract authorization header from flask request
+        and (optionally) transform for current backend.
+        """
         if "Authorization" not in request.headers:
             raise AuthenticationRequiredException
         auth = request.headers["Authorization"]
@@ -134,7 +156,7 @@ class BackendConnection(Connection):
         Context manager to temporarily authenticate upstream connection based on current incoming flask request.
         """
         self._auth_locked = False
-        self.auth = BearerAuth(bearer=self._get_bearer(request=request))
+        self.auth = BearerAuth(bearer=self.extract_bearer(request=request))
         # TODO store and use `user` object?
         try:
             yield self
@@ -170,6 +192,14 @@ class BackendConnection(Connection):
 
 
 _ConnectionsCache = collections.namedtuple("_ConnectionsCache", ["expiry", "connections"])
+
+
+@dataclasses.dataclass(frozen=True)
+class ParallelResponse:
+    """Set of responses and failures info for a parallelized request."""
+
+    successes: Dict[BackendId, dict]
+    failures: Dict[BackendId, Exception]
 
 
 class MultiBackendConnection:
@@ -319,6 +349,87 @@ class MultiBackendConnection:
             res = callback(con)
             # TODO: customizable exception handling: skip, warn, re-raise?
             yield con.id, res
+
+    def request_parallel(
+        self,
+        path: str,
+        *,
+        method: str = "GET",
+        parse_json: bool = True,
+        authenticated_from_request: Optional[flask.Request] = None,
+        expected_status: Union[int, Iterable[int], None] = None,
+        request_timeout: float = 5,
+        overall_timeout: float = 8,
+        max_workers=5,
+    ) -> ParallelResponse:
+        """
+        Request a given (relative) url on each backend in parallel
+        :param path: relative (openEO) path to request
+        :return:
+        """
+
+        def do_request(
+            root_url: str,
+            path: str,
+            *,
+            method: str = "GET",
+            headers: Optional[dict] = None,
+            auth: Optional[str] = None,
+        ) -> Union[dict, bytes]:
+            """Isolated request, to behanled by future."""
+            with TimingLogger(title=f"request_parallel {method} {path} on {root_url}", logger=_log):
+                con = RestApiConnection(root_url=root_url)
+                resp = con.request(
+                    method=method,
+                    path=path,
+                    headers=headers,
+                    auth=auth,
+                    timeout=request_timeout,
+                    expected_status=expected_status,
+                )
+            if parse_json:
+                return resp.json()
+            else:
+                return resp.content
+
+        connections: List[BackendConnection] = self.get_connections()
+        max_workers = min(max_workers, len(connections))
+
+        with TimingLogger(
+            title=f"request_parallel {method} {path} on {len(connections)} backends with thread pool {max_workers=}",
+            logger=_log,
+        ), concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all futures (one for each backend connection)
+            futures: List[Tuple[BackendId, concurrent.futures.Future]] = []
+            for con in connections:
+                if authenticated_from_request:
+                    auth = BearerAuth(bearer=con.extract_bearer(request=authenticated_from_request))
+                else:
+                    auth = None
+                future = executor.submit(
+                    do_request,
+                    root_url=con.root_url,
+                    path=path,
+                    method=method,
+                    headers=con.default_headers,
+                    auth=auth,
+                )
+                futures.append((con.id, future))
+
+            # Give futures some time to finish
+            concurrent.futures.wait([f for (_, f) in futures], timeout=overall_timeout)
+
+            # Collect results.
+            successes = {}
+            failures = {}
+            for backend_id, future in futures:
+                try:
+                    successes[backend_id] = future.result(timeout=0)
+                except Exception as e:
+                    failures[backend_id] = e
+
+            return ParallelResponse(successes=successes, failures=failures)
+
 
 
 def streaming_flask_response(

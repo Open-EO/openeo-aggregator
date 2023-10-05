@@ -11,6 +11,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ### Changed
 
 - Dockerfile: switch to `python:3.9-slim-bullseye` base image
+- Parallelize `/jobs` requests to upstream back-ends ([#28](https://github.com/Open-EO/openeo-aggregator/issues/28))
 
 ### Fixed
 
