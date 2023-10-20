@@ -23,7 +23,7 @@ setup(
     data_files=[
         ("openeo-aggregator", ["CHANGELOG.md"]),
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=[
         "requests",
         "attrs",
