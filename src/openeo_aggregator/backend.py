@@ -62,6 +62,7 @@ from openeo_driver.utils import EvalEnv
 import openeo_aggregator.egi
 from openeo_aggregator.caching import Memoizer, json_serde, memoizer_from_config
 from openeo_aggregator.config import (
+    CONNECTION_TIMEOUT_JOB_LOGS,
     CONNECTION_TIMEOUT_JOB_START,
     CONNECTION_TIMEOUT_RESULT,
     AggregatorConfig,
@@ -888,8 +889,11 @@ class AggregatorBatchJobs(BatchJobs):
         level: Optional[str] = None,
     ) -> Iterable[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        # Use parenthesized context managers, see #127
         with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
-                self._translate_job_errors(job_id=job_id):
+                self._translate_job_errors(job_id=job_id), \
+                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_LOGS), \
+                TimingLogger(title=f"Get log entries for {job_id}", logger=_log.debug):
             return con.job(backend_job_id).logs(offset=offset, level=level)
 
 

@@ -12,6 +12,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Dockerfile: switch to `python:3.9-slim-bullseye` base image
 - Parallelize `/jobs` requests to upstream back-ends ([#28](https://github.com/Open-EO/openeo-aggregator/issues/28))
+- Increase timeout on getting batch job logs to 120s ([#128](https://github.com/Open-EO/openeo-aggregator/issues/128))
 
 ### Fixed
 
