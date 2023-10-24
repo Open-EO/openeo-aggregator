@@ -144,6 +144,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         self.backends = backends
         self._memoizer = memoizer_from_config(config=config, namespace="CollectionCatalog")
         self.backends.on_connections_change.add(self._memoizer.invalidate)
+        self._collection_whitelist: Optional[List[str]] = config.collection_whitelist
 
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
@@ -172,7 +173,14 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     continue
                 for collection_metadata in backend_collections:
                     if "id" in collection_metadata:
-                        grouped[collection_metadata["id"]][con.id] = collection_metadata
+                        collection_id = collection_metadata["id"]
+                        if self._collection_whitelist:
+                            if collection_id not in self._collection_whitelist:
+                                _log.debug(f"Skipping non-whitelisted {collection_id=} from {con.id=}")
+                                continue
+                            else:
+                                _log.debug(f"Preserving whitelisted {collection_id=} from {con.id=}")
+                        grouped[collection_id][con.id] = collection_metadata
                         # TODO: support a trigger to create a collection alias under other name?
                     else:
                         # TODO: there must be something seriously wrong with this backend: skip all its results?

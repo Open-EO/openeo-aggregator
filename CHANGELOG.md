@@ -4,19 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Current: 0.11.x]
+## [Current: 0.12.x]
 
-### Added
+- Add (optional) config for collection id whitelisting.
+  Keep union of all "upstream" collections as default.
+  ([#129](https://github.com/Open-EO/openeo-aggregator/issues/129))
 
-### Changed
+
+## [0.11.x]
 
 - Dockerfile: switch to `python:3.9-slim-bullseye` base image
 - Parallelize `/jobs` requests to upstream back-ends ([#28](https://github.com/Open-EO/openeo-aggregator/issues/28))
 - Increase timeout on getting batch job logs to 120s ([#128](https://github.com/Open-EO/openeo-aggregator/issues/128))
-
-### Fixed
-
-### Removed
 
 
 ## [0.10.x]

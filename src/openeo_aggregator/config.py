@@ -54,6 +54,9 @@ class AggregatorConfig(dict):
     # TTL for connection caching.
     connections_cache_ttl = dict_item(default=5 * 60.0)
 
+    # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
+    collection_whitelist = dict_item(default=None)
+
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
         """Load config from Python file."""
