@@ -1,7 +1,7 @@
 import logging
 import sys
 
-__version__ = "0.12.0a1"
+__version__ = "0.12.1a1"
 
 
 def log_version_info():
