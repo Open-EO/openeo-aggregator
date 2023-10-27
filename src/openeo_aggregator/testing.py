@@ -207,6 +207,7 @@ class MetadataBuilder:
                 {"path": "/collections", "methods": ["GET"]},
                 {"path": "/collections/{collection_id}", "methods": ["GET"]},
                 {"path": "/processes", "methods": ["GET"]},
+                {"path": "/validation", "methods": ["POST"]},
             ],
             "links": [],
         }

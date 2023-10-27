@@ -81,7 +81,9 @@ class BackendConnection(Connection):
     ):
         # Temporarily unlock `_auth` for `super().__init__()`
         self._auth_locked = False
-        super(BackendConnection, self).__init__(url, default_timeout=init_timeout, slow_response_threshold=1)
+        super(BackendConnection, self).__init__(
+            url, default_timeout=init_timeout, slow_response_threshold=1, auto_validate=False
+        )
         self._auth = None
         self._auth_locked = True
 

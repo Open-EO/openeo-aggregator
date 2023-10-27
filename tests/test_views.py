@@ -1521,6 +1521,32 @@ class TestBatchJobs:
             "b2": (0, 1),
         }[expected]
 
+    def test_create_job_no_auto_validation(self, api100, requests_mock, backend1, caplog):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        jobs = []
+
+        def post_jobs(request: requests.Request, context):
+            nonlocal jobs
+            jobs.append(request.json())
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+        validation_mock = requests_mock.post(
+            backend1 + "/validation", status_code=500, json={"code": "Internal", "message": "Validation says no"}
+        )
+
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
+        assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
+        assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+        assert jobs == [{"process": {"process_graph": pg}}]
+        assert "Validation says no" not in caplog.text
+        assert validation_mock.call_count == 0
+
     def test_get_job_metadata(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/jobs/th3j0b", json={
             "id": "th3j0b",
