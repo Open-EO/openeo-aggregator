@@ -111,7 +111,7 @@ def prime_caches(
     require_zookeeper_writes: bool = False,
     fail_mode: str = FAIL_MODE_FAILFAST,
 ):
-    log_version_info()
+    log_version_info(logger=_log)
     with TimingLogger(title=f"Prime caches", logger=_log):
         config: AggregatorConfig = get_config(config)
         _log.info(f"Using config: {config.get('config_source')=}")

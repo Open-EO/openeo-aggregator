@@ -37,7 +37,7 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
     if auto_logging_setup:
         setup_logging(config=get_aggregator_logging_config(context=LOGGING_CONTEXT_FLASK))
 
-    log_version_info()
+    log_version_info(logger=_log)
 
     os.environ.setdefault(ConfigGetter.OPENEO_BACKEND_CONFIG, str(get_config_dir() / "backend_config.py"))
 

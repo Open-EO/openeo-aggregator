@@ -1,9 +1,10 @@
 import logging
 import sys
+from typing import Optional
 
 __version__ = "0.12.2a1"
 
 
-def log_version_info():
-    log = logging.getLogger(__name__)
-    log.info(f"openeo-aggregator {__version__} (Python {sys.version}")
+def log_version_info(logger: Optional[logging.Logger] = None):
+    logger = logger or logging.getLogger(__name__)
+    logger.info(f"openeo-aggregator {__version__} (Python {sys.version})")
