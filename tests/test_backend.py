@@ -2,7 +2,7 @@ import datetime as dt
 import logging
 
 import pytest
-from openeo.rest import OpenEoApiError, OpenEoRestError
+from openeo.rest import OpenEoApiError, OpenEoApiPlainError, OpenEoRestError
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
     CollectionNotFoundException,
@@ -815,7 +815,7 @@ class TestAggregatorSecondaryServices:
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            with pytest.raises(OpenEoApiError) as e:
+            with pytest.raises(OpenEoApiPlainError) as e:
                 implementation.remove_service(user_id=TEST_USER, service_id="b1-wmts-foo")
 
             # If the backend reports HTTP 400/500, we would expect the same status code from the aggregator.
@@ -895,7 +895,7 @@ class TestAggregatorSecondaryServices:
         new_process_graph = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            with pytest.raises(OpenEoApiError) as e:
+            with pytest.raises(OpenEoApiPlainError) as e:
                 implementation.update_service(user_id=TEST_USER, service_id="b1-wmts-foo", process_graph=new_process_graph)
 
             assert e.value.http_status_code == 500

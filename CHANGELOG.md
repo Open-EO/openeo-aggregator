@@ -10,6 +10,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
   Keep union of all "upstream" collections as default.
   ([#129](https://github.com/Open-EO/openeo-aggregator/issues/129))
 - Disable `auto_validation` feature of latest `openeo` python client library release ([#130](https://github.com/Open-EO/openeo-aggregator/issues/130))
+- Fix compatibility with `openeo>=0.25.0`
 
 
 ## [0.11.x]

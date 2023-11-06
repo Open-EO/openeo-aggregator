@@ -24,7 +24,12 @@ import flask
 import openeo
 import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
-from openeo.rest import OpenEoApiError, OpenEoClientException, OpenEoRestError
+from openeo.rest import (
+    OpenEoApiError,
+    OpenEoApiPlainError,
+    OpenEoClientException,
+    OpenEoRestError,
+)
 from openeo.util import TimingLogger, deep_get, dict_no_none
 from openeo_driver.backend import (
     AbstractCollectionCatalog,
@@ -1109,7 +1114,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         with con.authenticated_from_request(request=flask.request, user=User(user_id)):
             try:
                 service_json = con.get(f"/services/{backend_service_id}").json()
-            except (OpenEoApiError) as e:
+            except OpenEoApiPlainError as e:
                 if e.http_status_code == 404:
                     # Expected error
                     _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
@@ -1159,7 +1164,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         with con.authenticated_from_request(request=flask.request, user=User(user_id)):
             try:
                 con.delete(f"/services/{backend_service_id}", expected_status=204)
-            except (OpenEoApiError) as e:
+            except OpenEoApiPlainError as e:
                 if e.http_status_code == 404:
                     # Expected error
                     _log.debug(f"No service with ID={service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
@@ -1182,7 +1187,7 @@ class AggregatorSecondaryServices(SecondaryServices):
             try:
                 json = {"process": {"process_graph": process_graph}}
                 con.patch(f"/services/{backend_service_id}", json=json, expected_status=204)
-            except (OpenEoApiError) as e:
+            except OpenEoApiPlainError as e:
                 if e.http_status_code == 404:
                     # Expected error
                     _log.debug(f"No service with ID={backend_service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
