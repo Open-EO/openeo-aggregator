@@ -69,11 +69,9 @@ class TestGeneral:
 
     def test_billing_plans(self, api100):
         capabilities = api100.get("/").assert_status_code(200).json
-        billing = capabilities["billing"]
-        assert billing["currency"] == "credits"
-        plans = {p["name"]: p for p in billing["plans"]}
-        assert "early-adopter" in plans
-        assert plans["early-adopter"]["paid"] is True
+        assert capabilities["billing"] == {
+            "currency": "credits",
+        }
 
     def test_deploy_metadata(self, api100):
         capabilities = api100.get("/").assert_status_code(200).json
@@ -449,7 +447,7 @@ class TestAuthEntitlementCheck:
         assert re.search(warn_regex, warnings)
 
     @pytest.mark.parametrize(
-        ["eduperson_entitlement", "expected_roles", "expected_plan"],
+        ["eduperson_entitlement", "expected_roles"],
         [
             (
                 [
@@ -457,7 +455,6 @@ class TestAuthEntitlementCheck:
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=30day-trial#aai.egi.eu",
                 ],
                 ["30DayTrial"],
-                "30day-trial",
             ),
             (
                 [
@@ -465,7 +462,6 @@ class TestAuthEntitlementCheck:
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
                 ],
                 ["EarlyAdopter"],
-                "early-adopter",
             ),
             (
                 [
@@ -474,14 +470,10 @@ class TestAuthEntitlementCheck:
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=Platform-developer#aai.egi.eu",
                 ],
                 ["BasicUser", "EarlyAdopter", "PlatformDeveloper"],
-                "generic",
             ),
         ],
     )
-    def test_oidc_enrolled(
-            self, api100_with_entitlement_check, requests_mock,
-            eduperson_entitlement, expected_roles, expected_plan,
-    ):
+    def test_oidc_enrolled(self, api100_with_entitlement_check, requests_mock, eduperson_entitlement, expected_roles):
         requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
             "userinfo_endpoint": "https://egi.test/userinfo"
         })
@@ -495,7 +487,7 @@ class TestAuthEntitlementCheck:
         data = res.json
         assert data["user_id"] == "john"
         assert data["roles"] == expected_roles
-        assert data["default_plan"] == expected_plan
+        assert "default_plan" not in data
 
     @pytest.mark.parametrize(["whitelist", "main_test_oidc_issuer", "success"], [
         (["https://egi.test"], "https://egi.test", True),

@@ -11,35 +11,6 @@ from typing import List, Union
 BillingPlan = namedtuple("BillingPlan", ["name", "description", "url", "paid"])
 
 
-_BILLING_PLAN_30DAY_TRIAL = BillingPlan(
-    name="30day-trial",
-    description="openEO.cloud 30 day free trial plan (experimental)",
-    url="https://docs.openeo.cloud/join/free_trial.html",
-    paid=False,
-)
-
-_BILLING_PLAN_EARLY_ADOPTER = BillingPlan(
-    name="early-adopter",
-    description="openEO.cloud early adopter plan",
-    url="https://openeo.cloud/early-adopters/",
-    paid=True,
-)
-
-# TODO: avoid using generic billing plan
-_BILLING_PLAN_GENERIC = BillingPlan(
-    name="generic",
-    description="openEO.cloud generic plan",
-    url=None,
-    paid=True,
-)
-
-OPENEO_PLATFORM_BILLING_PLANS = [
-    _BILLING_PLAN_30DAY_TRIAL,
-    _BILLING_PLAN_EARLY_ADOPTER,
-    _BILLING_PLAN_GENERIC,
-]
-
-
 # Regex to parse eduperson_entitlement strings,
 # like for example "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu"
 _eduperson_entitlement_regex = re.compile(
@@ -80,27 +51,19 @@ class UserRole:
         "_id",
         # Normalized version of role name (for case/whitespace-insensitive comparison)
         "_normalized",
-        # Associated billing plan
-        "_billing_plan",
     ]
 
-    def __init__(self, title: str, billing_plan: BillingPlan = _BILLING_PLAN_GENERIC):
+    def __init__(self, title: str):
         self._title = title
         self._id = "".join(
             w.title() if w.islower() else w
             for w in self._title.replace("-", " ").replace("_", " ").split()
         )
         self._normalized = self.normalize_role(self._title)
-        self._billing_plan = billing_plan
-
 
     @property
     def id(self) -> str:
         return self._id
-
-    @property
-    def billing_plan(self) -> BillingPlan:
-        return self._billing_plan
 
     @staticmethod
     def normalize_role(role: Union[str, None]) -> Union[str, None]:
@@ -137,8 +100,8 @@ class OpeneoPlatformUserRoles:
 # Based on https://github.com/openEOPlatform/documentation/issues/48
 OPENEO_PLATFORM_USER_ROLES = OpeneoPlatformUserRoles(
     [
-        UserRole("30-Day-Trial", billing_plan=_BILLING_PLAN_30DAY_TRIAL),
-        UserRole("Early_Adopter", billing_plan=_BILLING_PLAN_EARLY_ADOPTER),
+        UserRole("30-Day-Trial"),
+        UserRole("Early_Adopter"),
         # TODO: define a dedicated billing plan for each user role?
         UserRole("Basic_User"),
         UserRole("Professional_User"),
