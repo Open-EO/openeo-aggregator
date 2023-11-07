@@ -53,7 +53,6 @@ class TestUserRole:
     def test_basic(self):
         role = UserRole("Foo")
         assert role.id == "Foo"
-        assert role.billing_plan.name == "generic"
         assert role.entitlement_match(
             "urn:mace:egi.eu:group:vo.openeo.cloud:role=Foo#aai.egi.eu"
         )

@@ -1345,8 +1345,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             )
             if roles:
                 user.add_roles(r.id for r in roles)
-                # TODO: better way of determining default_plan?
-                user.set_default_plan([r.billing_plan for r in roles][-1].name)
             else:
                 _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
                     "user_id": user.user_id,
@@ -1391,15 +1389,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         # TODO #96 check that all upstream back-ends use the same currency (credits)
         return {
             "currency": "credits",
-            "plans": [
-                {
-                    "name": p.name,
-                    "description": p.description,
-                    "url": p.url,
-                    "paid": p.paid,
-                }
-                for p in openeo_aggregator.egi.OPENEO_PLATFORM_BILLING_PLANS
-            ]
         }
 
     def postprocess_capabilities(self, capabilities: dict) -> dict:

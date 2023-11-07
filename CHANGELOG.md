@@ -4,8 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Current: 0.13.x]
--
+
+## [Current: 0.14.x]
+
+- Disassociate billing plans from user roles and don't list any for now ([openEOPlatform/architecture-docs#381](https://github.com/openEOPlatform/architecture-docs/issues/381))
+
+
+## [0.13.x]
+
 - Fix compatibility with `openeo_driver>=0.75.0` (new `enable_basic_auth` config, which is going to be disabled by default)
 
 
