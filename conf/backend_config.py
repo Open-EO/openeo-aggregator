@@ -14,4 +14,5 @@ config = OpenEoBackendConfig(
     capabilities_description="openEO Platform, provided through openEO Aggregator Driver",
     capabilities_backend_version=openeo_aggregator.about.__version__,
     capabilities_deploy_metadata=deploy_metadata,
+    enable_basic_auth=False,
 )

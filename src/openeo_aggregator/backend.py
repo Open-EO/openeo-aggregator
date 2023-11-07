@@ -1237,8 +1237,6 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
-    # No basic auth: OIDC auth is required (to get EGI Check-in eduperson_entitlement data)
-    enable_basic_auth = False
 
     # Simplify mocking time for unit tests.
     _clock = time.time  # TODO: centralized helper for this test pattern
