@@ -4,13 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Current: 0.12.x]
+## [Current: 0.13.x]
+-
+- Fix compatibility with `openeo_driver>=0.75.0` (new `enable_basic_auth` config, which is going to be disabled by default)
+
+
+## [0.12.x]
 
 - Add (optional) config for collection id whitelisting.
   Keep union of all "upstream" collections as default.
   ([#129](https://github.com/Open-EO/openeo-aggregator/issues/129))
 - Disable `auto_validation` feature of latest `openeo` python client library release ([#130](https://github.com/Open-EO/openeo-aggregator/issues/130))
-- Fix compatibility with `openeo>=0.25.0`
+- Fix compatibility with `openeo>=0.25.0` (introduction of `OpenEoApiPlainError`)
 
 
 ## [0.11.x]

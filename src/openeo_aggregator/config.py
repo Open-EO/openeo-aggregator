@@ -1,11 +1,15 @@
 import logging
 import os
-import re
 from pathlib import Path
-from typing import Any, List, Union
+from typing import List, Union
 
+import attrs
+from openeo_driver.config import OpenEoBackendConfig
+from openeo_driver.server import build_backend_deploy_metadata
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
+
+import openeo_aggregator.about
 
 _log = logging.getLogger(__name__)
 
@@ -27,11 +31,13 @@ class ConfigException(ValueError):
     pass
 
 
-# TODO #112 subclass from OpenEoBackendConfig (attrs based instead of dictionary based)
 class AggregatorConfig(dict):
     """
     Simple dictionary based configuration for aggregator backend
     """
+
+    # TODO #112 migrate everything to AggregatorBackendConfig (attrs based instead of dictionary based)
+
     config_source = dict_item()
 
     # Dictionary mapping backend id to backend url
@@ -114,3 +120,13 @@ def get_config(x: Union[str, Path, AggregatorConfig, None] = None) -> Aggregator
         return AggregatorConfig.from_py_file(x)
 
     raise ValueError(repr(x))
+
+
+@attrs.frozen(kw_only=True)
+class AggregatorBackendConfig(OpenEoBackendConfig):
+    # TODO #112 migrate everything from AggregatorConfig to this class
+
+    capabilities_backend_version = openeo_aggregator.about.__version__
+    capabilities_deploy_metadata = build_backend_deploy_metadata(
+        packages=["openeo", "openeo_driver", "openeo_aggregator"],
+    )

@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import List
 
 import flask
@@ -15,6 +17,15 @@ from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import DummyKazooClient, MetadataBuilder
 
 pytest_plugins = "pytester"
+
+
+def pytest_configure(config):
+    """Pytest configuration hook"""
+
+    # Load test specific config
+    os.environ["OPENEO_BACKEND_CONFIG"] = str(Path(__file__).parent / "backend_config.py")
+
+
 
 
 _DEFAULT_PROCESSES = [

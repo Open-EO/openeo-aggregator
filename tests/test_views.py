@@ -3,6 +3,7 @@ import re
 import time
 from typing import List, Tuple
 
+import openeo_driver.config.load
 import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
@@ -25,7 +26,7 @@ from openeo_driver.testing import (
     RegexMatcher,
 )
 
-from openeo_aggregator.config import AggregatorConfig
+from openeo_aggregator.config import AggregatorConfig, get_config_dir
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_FEDERATION_BACKENDS,
@@ -53,8 +54,8 @@ class TestGeneral:
     def test_title_and_description(self, api100):
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json
-        assert capabilities["title"] == "openEO Platform"
-        assert capabilities["description"] == "openEO Platform, provided through openEO Aggregator Driver"
+        assert capabilities["title"] == "openEO Aggregator Test Dummy"
+        assert capabilities["description"] == "openEO Aggregator Test Dummy"
 
     def test_capabilities_validation(self, api100):
         """https://github.com/Open-EO/openeo-aggregator/issues/42"""
@@ -76,7 +77,7 @@ class TestGeneral:
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json
         endpoints = {e["path"] for e in capabilities["endpoints"]}
-        assert {e for e in endpoints if e.startswith("/credentials")} == {"/credentials/oidc"}
+        assert {e for e in endpoints if e.startswith("/credentials")} == {"/credentials/basic", "/credentials/oidc"}
 
     def test_info(self, flask_app):
         api100 = ApiTester(api_version="1.0.0", client=flask_app.test_client(), url_root="/")
@@ -126,6 +127,32 @@ class TestGeneral:
             },
             "status_code": 500,
         }
+
+
+class TestGeneralRealConfig:
+    """Some temporary test against real config (that is going to be moved out of this repo at some point)"""
+
+    @pytest.fixture(autouse=True)
+    def real_config(self, monkeypatch):
+        openeo_driver.config.load._backend_config_getter.flush()
+        monkeypatch.setenv(
+            openeo_driver.config.load.ConfigGetter.OPENEO_BACKEND_CONFIG,
+            str(get_config_dir() / "backend_config.py"),
+        )
+        yield
+        openeo_driver.config.load._backend_config_getter.flush()
+
+    def test_title_and_description(self, api100):
+        res = api100.get("/").assert_status_code(200)
+        capabilities = res.json
+        assert capabilities["title"] == "openEO Platform"
+        assert capabilities["description"] == "openEO Platform, provided through openEO Aggregator Driver"
+
+    def test_only_oidc_auth(self, api100):
+        res = api100.get("/").assert_status_code(200)
+        capabilities = res.json
+        endpoints = {e["path"] for e in capabilities["endpoints"]}
+        assert {e for e in endpoints if e.startswith("/credentials")} == {"/credentials/oidc"}
 
 
 class TestCatalog:
