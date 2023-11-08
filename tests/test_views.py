@@ -26,6 +26,7 @@ from openeo_driver.testing import (
     RegexMatcher,
 )
 
+import openeo_aggregator.about
 from openeo_aggregator.config import AggregatorConfig, get_config_dir
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.metadata import (
@@ -42,6 +43,7 @@ class TestGeneral:
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json
         assert capabilities["api_version"] == "1.0.0"
+        assert capabilities["backend_version"] == openeo_aggregator.about.__version__
         endpoints = capabilities["endpoints"]
         assert {"methods": ["GET"], "path": "/collections"} in endpoints
         assert {"methods": ["GET"], "path": "/collections/{collection_id}"} in endpoints
@@ -72,6 +74,11 @@ class TestGeneral:
         plans = {p["name"]: p for p in billing["plans"]}
         assert "early-adopter" in plans
         assert plans["early-adopter"]["paid"] is True
+
+    def test_deploy_metadata(self, api100):
+        capabilities = api100.get("/").assert_status_code(200).json
+        assert "openeo_aggregator" in capabilities["processing:software"]
+
 
     def test_only_oidc_auth(self, api100):
         res = api100.get("/").assert_status_code(200)

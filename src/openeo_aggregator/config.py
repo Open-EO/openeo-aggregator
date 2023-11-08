@@ -126,7 +126,7 @@ def get_config(x: Union[str, Path, AggregatorConfig, None] = None) -> Aggregator
 class AggregatorBackendConfig(OpenEoBackendConfig):
     # TODO #112 migrate everything from AggregatorConfig to this class
 
-    capabilities_backend_version = openeo_aggregator.about.__version__
-    capabilities_deploy_metadata = build_backend_deploy_metadata(
+    capabilities_backend_version: str = openeo_aggregator.about.__version__
+    capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
