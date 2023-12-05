@@ -65,7 +65,7 @@ class TestGeneral:
         capabilities = res.json
         endpoints = capabilities["endpoints"]
         paths = set(e["path"] for e in endpoints)
-        assert "/validation" not in paths
+        assert "/validation" in paths
 
     def test_billing_plans(self, api100):
         capabilities = api100.get("/").assert_status_code(200).json
@@ -1213,6 +1213,81 @@ class TestProcessing:
         assert res.json == 123
         assert (b1_mock.call_count, b2_mock.call_count) == call_counts
         assert caplog.messages == expected_warnings
+
+    def test_validation_basic(self, api100, requests_mock, backend1):
+        def post_validation(request: requests.Request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            assert request.json() == {
+                "process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+            }
+            context.headers["Content-Type"] = "application/json"
+            return {"errors": [{"code": "NoMath", "message": "No math support"}]}
+
+        validation_mock = requests_mock.post(backend1 + "/validation", json=post_validation)
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        post_data = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
+        res = api100.post("/validation", json=post_data).assert_status_code(200)
+        assert res.json == {"errors": [{"code": "NoMath", "message": "No math support"}]}
+        assert validation_mock.call_count == 1
+
+    @pytest.mark.parametrize(
+        ["collection_id", "expected_error", "expected_call_counts"],
+        [
+            ("S1", {"code": "NoData", "message": "No data for S1"}, (1, 0)),
+            ("S2", {"code": "NoData", "message": "No data for S2"}, (0, 1)),
+            (
+                "MEH",
+                {
+                    "code": "InternalValidationFailure",
+                    "message": RegexMatcher(
+                        r"^Validation failed: CollectionNotFoundException\(status_code=404, code='CollectionNotFound', message=\"Collection 'MEH' does not exist."
+                    ),
+                },
+                (0, 0),
+            ),
+        ],
+    )
+    def test_validation_collection_support(
+        self, api100, requests_mock, backend1, backend2, collection_id, expected_error, expected_call_counts
+    ):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_validation(request: requests.Request, context):
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
+            collection_id = request.json()["process_graph"]["lc"]["arguments"]["id"]
+            context.headers["Content-Type"] = "application/json"
+            return {"errors": [{"code": "NoData", "message": f"No data for {collection_id}"}]}
+
+        b1_validation_mock = requests_mock.post(backend1 + "/validation", json=post_validation)
+        b2_validation_mock = requests_mock.post(backend2 + "/validation", json=post_validation)
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        post_data = {
+            "process_graph": {
+                "lc": {"process_id": "load_collection", "arguments": {"id": collection_id}, "result": True}
+            }
+        }
+        res = api100.post("/validation", json=post_data).assert_status_code(200)
+        assert res.json == {"errors": [expected_error]}
+        assert (b1_validation_mock.call_count, b2_validation_mock.call_count) == expected_call_counts
+
+    def test_validation_upstream_failure(self, api100, requests_mock, backend1, backend2):
+        validation_mock = requests_mock.post(backend1 + "/validation", content=b"this is not JSON")
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        post_data = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
+        res = api100.post("/validation", json=post_data).assert_status_code(200)
+        assert res.json == {
+            "errors": [
+                {
+                    "code": "UpstreamValidationFailure",
+                    "message": "Validation failed on backend b1: JSONDecodeError('Expecting value: line 1 column 1 (char 0)')",
+                }
+            ]
+        }
+        assert validation_mock.call_count == 1
 
 
 class TestBatchJobs:

@@ -4,8 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.x]
 
-## [Current: 0.14.x]
+- Basic support for `POST /validation`: pass through validation of best upstream backend for given process graph ([#42](https://github.com/Open-EO/openeo-aggregator/issues/42))
+
+
+## [0.14.x]
 
 - Disassociate billing plans from user roles and don't list any for now ([openEOPlatform/architecture-docs#381](https://github.com/openEOPlatform/architecture-docs/issues/381))
 

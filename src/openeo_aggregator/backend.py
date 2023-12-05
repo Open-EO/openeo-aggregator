@@ -355,9 +355,6 @@ class AggregatorProcessing(Processing):
         self._catalog = catalog
         self._stream_chunk_size = config.streaming_chunk_size
 
-        # TODO #42 /validation support
-        self.validate = None
-
     def get_process_registry(
         self, api_version: Union[str, ComparableVersion]
     ) -> ProcessRegistry:
@@ -592,6 +589,44 @@ class AggregatorProcessing(Processing):
                 raise BackendLookupFailureException(f"{job_backend_id} != {expected_backend}")
             return job_backend_id, job_id
         return None, model_id
+
+    def validate(self, process_graph: dict, env: EvalEnv = None) -> List[dict]:
+        """Validate given process graph."""
+        # TODO: validate against each backend and aggregate/combine results?
+        # TODO: do some additional aggregator-level validation?
+        # TODO: support validation of cross-backend process graphs?
+        try:
+            backend_id = self.get_backend_for_process_graph(process_graph, api_version=env.get("version"))
+
+            # Preprocess process graph (e.g. translate job ids and other references)
+            process_graph = self.preprocess_process_graph(process_graph, backend_id=backend_id)
+
+            # Send process graph to backend
+            con = self.backends.get_connection(backend_id=backend_id)
+            post_data = {"process_graph": process_graph}
+            timing_logger = TimingLogger(title=f"Process graph validation on backend {backend_id}", logger=_log.info)
+            with con.authenticated_from_request(flask.request), timing_logger:
+                try:
+                    backend_response = con.post(path="/validation", json=post_data, expected_status=200)
+                    errors = backend_response.json()["errors"]
+                except Exception as e:
+                    _log.error(f"Validation failed on backend {con.id}: {e!r}", exc_info=True)
+                    errors = [
+                        {
+                            "code": "UpstreamValidationFailure",
+                            "message": f"Validation failed on backend {con.id}: {e!r}",
+                        }
+                    ]
+        except Exception as e:
+            _log.error(f"Validation failed: {e!r}", exc_info=True)
+            errors = [
+                {
+                    "code": "InternalValidationFailure",
+                    "message": f"Validation failed: {e!r}",
+                }
+            ]
+        return errors
+
 
 
 class AggregatorBatchJobs(BatchJobs):
