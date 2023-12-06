@@ -1230,7 +1230,7 @@ class TestProcessing:
         res = api100.post("/validation", json=post_data).assert_status_code(200)
         assert res.json == {
             "errors": [
-                {"code": "UpstreamValidationInfo", "message": "Backend b1 reported validation errors"},
+                {"code": "UpstreamValidationInfo", "message": "Backend 'b1' reported validation errors"},
                 {"code": "NoMath", "message": "No math support"},
             ]
         }
@@ -1242,7 +1242,7 @@ class TestProcessing:
             (
                 "S1",
                 [
-                    {"code": "UpstreamValidationInfo", "message": "Backend b1 reported validation errors"},
+                    {"code": "UpstreamValidationInfo", "message": "Backend 'b1' reported validation errors"},
                     {"code": "NoData", "message": "No data for S1"},
                 ],
                 (1, 0),
@@ -1250,7 +1250,7 @@ class TestProcessing:
             (
                 "S2",
                 [
-                    {"code": "UpstreamValidationInfo", "message": "Backend b2 reported validation errors"},
+                    {"code": "UpstreamValidationInfo", "message": "Backend 'b2' reported validation errors"},
                     {"code": "NoData", "message": "No data for S2"},
                 ],
                 (0, 1),

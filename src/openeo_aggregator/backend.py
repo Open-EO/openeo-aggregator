@@ -614,7 +614,7 @@ class AggregatorProcessing(Processing):
                         errors = [
                             {
                                 "code": "UpstreamValidationInfo",
-                                "message": f"Backend {con.id} reported validation errors",
+                                "message": f"Backend {con.id!r} reported validation errors",
                             }
                         ] + errors
 
