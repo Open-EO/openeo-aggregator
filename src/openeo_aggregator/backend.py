@@ -609,6 +609,15 @@ class AggregatorProcessing(Processing):
                 try:
                     backend_response = con.post(path="/validation", json=post_data, expected_status=200)
                     errors = backend_response.json()["errors"]
+                    if errors:
+                        # prepend backend info to error messages
+                        errors = [
+                            {
+                                "code": "UpstreamValidationInfo",
+                                "message": f"Backend {con.id} reported validation errors",
+                            }
+                        ] + errors
+
                 except Exception as e:
                     _log.error(f"Validation failed on backend {con.id}: {e!r}", exc_info=True)
                     errors = [

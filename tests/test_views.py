@@ -1228,28 +1228,49 @@ class TestProcessing:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         post_data = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
         res = api100.post("/validation", json=post_data).assert_status_code(200)
-        assert res.json == {"errors": [{"code": "NoMath", "message": "No math support"}]}
+        assert res.json == {
+            "errors": [
+                {"code": "UpstreamValidationInfo", "message": "Backend b1 reported validation errors"},
+                {"code": "NoMath", "message": "No math support"},
+            ]
+        }
         assert validation_mock.call_count == 1
 
     @pytest.mark.parametrize(
-        ["collection_id", "expected_error", "expected_call_counts"],
+        ["collection_id", "expected_errors", "expected_call_counts"],
         [
-            ("S1", {"code": "NoData", "message": "No data for S1"}, (1, 0)),
-            ("S2", {"code": "NoData", "message": "No data for S2"}, (0, 1)),
+            (
+                "S1",
+                [
+                    {"code": "UpstreamValidationInfo", "message": "Backend b1 reported validation errors"},
+                    {"code": "NoData", "message": "No data for S1"},
+                ],
+                (1, 0),
+            ),
+            (
+                "S2",
+                [
+                    {"code": "UpstreamValidationInfo", "message": "Backend b2 reported validation errors"},
+                    {"code": "NoData", "message": "No data for S2"},
+                ],
+                (0, 1),
+            ),
             (
                 "MEH",
-                {
-                    "code": "InternalValidationFailure",
-                    "message": RegexMatcher(
-                        r"^Validation failed: CollectionNotFoundException\(status_code=404, code='CollectionNotFound', message=\"Collection 'MEH' does not exist."
-                    ),
-                },
+                [
+                    {
+                        "code": "InternalValidationFailure",
+                        "message": RegexMatcher(
+                            r"^Validation failed: CollectionNotFoundException\(status_code=404, code='CollectionNotFound', message=\"Collection 'MEH' does not exist."
+                        ),
+                    }
+                ],
                 (0, 0),
             ),
         ],
     )
     def test_validation_collection_support(
-        self, api100, requests_mock, backend1, backend2, collection_id, expected_error, expected_call_counts
+        self, api100, requests_mock, backend1, backend2, collection_id, expected_errors, expected_call_counts
     ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -1270,7 +1291,7 @@ class TestProcessing:
             }
         }
         res = api100.post("/validation", json=post_data).assert_status_code(200)
-        assert res.json == {"errors": [expected_error]}
+        assert res.json == {"errors": expected_errors}
         assert (b1_validation_mock.call_count, b2_validation_mock.call_count) == expected_call_counts
 
     def test_validation_upstream_failure(self, api100, requests_mock, backend1, backend2):
