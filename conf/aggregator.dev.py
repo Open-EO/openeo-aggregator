@@ -51,9 +51,7 @@ config = AggregatorConfig(
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
-    auth_entitlement_check={"oidc_issuer_whitelist": {
-        "https://aai.egi.eu/auth/realms/egi/",
-    }},
+    auth_entitlement_check=False,
     configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={
         "zk_hosts": ZK_HOSTS,

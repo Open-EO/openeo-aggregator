@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.16.x]
+
+- Disable `auth_entitlement_check` (check on EGI VO entitlements) in all configs ([#133](https://github.com/Open-EO/openeo-aggregator/issues/133))
+
 ## [0.15.x]
 
 - Basic support for `POST /validation`: pass through validation of best upstream backend for given process graph ([#42](https://github.com/Open-EO/openeo-aggregator/issues/42))
