@@ -2467,10 +2467,14 @@ class TestSecondaryServices:
         assert resp.status_code == 400
 
     # OpenEoApiError, OpenEoRestError: more general errors we can expect to lead to a HTTP 500 server error.
-    @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
-    def test_create_wmts_reports_500_server_error(
-        self, api100, requests_mock, backend1, exception_class, mbldr
-    ):
+    @pytest.mark.parametrize(
+        "exception_factory",
+        [
+            lambda m: OpenEoApiError(http_status_code=500, code="Internal", message=m),
+            OpenEoRestError,
+        ],
+    )
+    def test_create_wmts_reports_500_server_error(self, api100, requests_mock, backend1, exception_factory, mbldr):
         """When the backend raises exceptions that are typically a server error / HTTP 500, then
         we expect the aggregator to return a HTTP 500 status code."""
 
@@ -2490,10 +2494,7 @@ class TestSecondaryServices:
             "title": "My Service",
             "description": "Service description"
         }
-        requests_mock.post(
-            backend1 + "/services",
-            exc=exception_class("Testing exception handling")
-        )
+        requests_mock.post(backend1 + "/services", exc=exception_factory("Testing exception handling"))
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
         resp = api100.post('/services', json=post_data)

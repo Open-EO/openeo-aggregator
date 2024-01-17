@@ -662,7 +662,13 @@ class TestAggregatorSecondaryServices:
             assert mock_get_capabilities.called
             assert mock_service_types.called
 
-    @pytest.mark.parametrize("exception_class", [OpenEoApiError, OpenEoRestError])
+    @pytest.mark.parametrize(
+        "exception_factory",
+        [
+            lambda m: OpenEoApiError(http_status_code=500, code="Internal", message=m),
+            OpenEoRestError,
+        ],
+    )
     def test_create_service_backend_raises_openeoapiexception(
         self,
         flask_app,
@@ -671,7 +677,7 @@ class TestAggregatorSecondaryServices:
         catalog,
         backend1,
         requests_mock,
-        exception_class,
+        exception_factory,
         mbldr,
     ):
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
@@ -686,7 +692,7 @@ class TestAggregatorSecondaryServices:
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         mock_post = requests_mock.post(
             backend1 + "/services",
-            exc=exception_class("Some server error"),
+            exc=exception_factory("Some server error"),
         )
         mock_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 

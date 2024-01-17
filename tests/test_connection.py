@@ -58,13 +58,20 @@ class TestBackendConnection:
         with pytest.raises(OpenEoApiError, match=r"\[401\] AuthenticationRequired: Unauthorized"):
             con.get("/me")
 
-    @pytest.mark.parametrize("exception", [Exception, ValueError, OpenEoApiError])
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            Exception,
+            ValueError,
+            OpenEoApiError(http_status_code=500, code="Internal", message="Nope"),
+        ],
+    )
     def test_basic_auth_from_request_failure(self, requests_mock, exception):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=[])
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer basic//l3tm31n"})
         assert con.auth is None
-        with pytest.raises(exception):
+        with pytest.raises(exception.__class__ if isinstance(exception, Exception) else exception):
             with con.authenticated_from_request(request=request):
                 assert isinstance(con.auth, BearerAuth)
                 raise exception
@@ -112,7 +119,14 @@ class TestBackendConnection:
         with pytest.raises(OpenEoApiError, match=r"\[401\] AuthenticationRequired: Unauthorized"):
             con.get("/me")
 
-    @pytest.mark.parametrize("exception", [Exception, ValueError, OpenEoApiError])
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            Exception,
+            ValueError,
+            OpenEoApiError(http_status_code=500, code="Internal", message="Nope"),
+        ],
+    )
     def test_oidc_auth_from_request_failure(self, requests_mock, configured_oidc_providers, exception):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
@@ -122,7 +136,7 @@ class TestBackendConnection:
         con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=configured_oidc_providers)
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/egi/l3tm31n"})
         assert con.auth is None
-        with pytest.raises(exception):
+        with pytest.raises(exception.__class__ if isinstance(exception, Exception) else exception):
             with con.authenticated_from_request(request=request):
                 assert isinstance(con.auth, BearerAuth)
                 raise exception

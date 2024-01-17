@@ -91,12 +91,12 @@ class TestPartitionedJobTracker:
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0000") == {
             "status": "error",
-            "message": approx_str_prefix("Create failed: [500] unknown: nope"),
+            "message": approx_str_prefix('Create failed: [500] {"message": "nope"}'),
             "timestamp": approx_now(),
         }
         assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0001") == {
             "status": "error",
-            "message": approx_str_prefix("Create failed: [500] unknown: meh"),
+            "message": approx_str_prefix('Create failed: [500] {"message": "meh"}'),
             "timestamp": approx_now(),
         }
 
