@@ -42,7 +42,7 @@ configured_oidc_providers = [
 
 ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181"
 
-config = AggregatorConfig(
+aggregator_config = config = AggregatorConfig(
     config_source=__file__,
     aggregator_backends={
         "vito": "https://openeo-dev.vito.be/openeo/1.1/",

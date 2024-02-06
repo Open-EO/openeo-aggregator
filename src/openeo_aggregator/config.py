@@ -73,9 +73,11 @@ class AggregatorConfig(dict):
             code = compile(f.read(), path, "exec")
         globals = {"__file__": str(path)}
         exec(code, globals)
-        try:
-            config = globals["config"]
-        except KeyError:
+        for var_name in ["aggregator_config", "config"]:
+            if var_name in globals:
+                config = globals[var_name]
+                break
+        else:
             raise ConfigException(f"No 'config' variable defined in config file {path}")
         if not isinstance(config, AggregatorConfig):
             raise ConfigException(f"Variable 'config' from {path} is not AggregatorConfig but {type(config)}")

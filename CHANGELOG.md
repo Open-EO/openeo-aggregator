@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.0]
+
+- Support `aggregator_config` as `AggregatorConfig` variable name to simplify config system migration
+  (define `AggregatorConfig` and `AggregatorBackendConfig` in same config file)
+  ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
+
 ## [0.16.x]
 
 - Disable `auth_entitlement_check` (check on EGI VO entitlements) in all configs ([#133](https://github.com/Open-EO/openeo-aggregator/issues/133))
