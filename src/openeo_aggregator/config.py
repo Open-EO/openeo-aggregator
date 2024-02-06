@@ -67,7 +67,7 @@ class AggregatorConfig(dict):
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
         """Load config from Python file."""
         path = Path(path)
-        _log.info(f"Loading config from Python file {path}")
+        _log.debug(f"Loading config from Python file {path}")
         # Based on flask's Config.from_pyfile
         with path.open(mode="rb") as f:
             code = compile(f.read(), path, "exec")
@@ -76,6 +76,7 @@ class AggregatorConfig(dict):
         for var_name in ["aggregator_config", "config"]:
             if var_name in globals:
                 config = globals[var_name]
+                _log.info(f"Loaded config from {path=} {var_name=}")
                 break
         else:
             raise ConfigException(f"No 'config' variable defined in config file {path}")
