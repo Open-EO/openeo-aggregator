@@ -44,7 +44,6 @@ class AggregatorConfig(dict):
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
 
-    flask_error_handling = dict_item(default=True)
     streaming_chunk_size = dict_item(default=STREAM_CHUNK_SIZE_DEFAULT)
 
     # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?

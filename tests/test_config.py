@@ -31,7 +31,6 @@ def test_config_defaults():
     config = AggregatorConfig()
     with pytest.raises(KeyError):
         _ = config.aggregator_backends
-    assert config.flask_error_handling is True
     assert config.streaming_chunk_size == STREAM_CHUNK_SIZE_DEFAULT
 
 

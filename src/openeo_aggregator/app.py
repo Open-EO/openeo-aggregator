@@ -27,7 +27,7 @@ from openeo_aggregator.config import AggregatorConfig, get_config, get_config_di
 _log = logging.getLogger(__name__)
 
 
-def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Flask:
+def create_app(config: Any = None, auto_logging_setup: bool = True, flask_error_handling: bool = True) -> flask.Flask:
     """
     Flask application factory function.
     """
@@ -54,7 +54,7 @@ def create_app(config: Any = None, auto_logging_setup: bool = True) -> flask.Fla
     _log.info(f"Building Flask app with {backend_implementation=!r}")
     app = openeo_driver.views.build_app(
         backend_implementation=backend_implementation,
-        error_handling=config.flask_error_handling,
+        error_handling=flask_error_handling,
     )
 
     app.config.from_mapping(
