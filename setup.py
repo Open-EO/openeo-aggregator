@@ -21,7 +21,14 @@ setup(
     package_dir={"": "src"},
     include_package_data=True,
     data_files=[
-        ("openeo-aggregator", ["CHANGELOG.md"]),
+        (
+            "openeo-aggregator-data",
+            [
+                "CHANGELOG.md",
+                "conf/gunicorn.dev.py",
+                "conf/gunicorn.prod.py",
+            ],
+        ),
     ],
     python_requires=">=3.8",
     install_requires=[
