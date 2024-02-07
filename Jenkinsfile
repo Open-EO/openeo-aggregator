@@ -7,6 +7,7 @@ pythonPipeline {
   wipeout_workspace = true
   python_version = ["3.8"]
   extras_require = 'dev'
+  wheel_repo = 'python-openeo'
   upload_dev_wheels = false
   build_container_image = true
   docker_deploy = true
