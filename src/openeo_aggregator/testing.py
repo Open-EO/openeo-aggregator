@@ -1,19 +1,19 @@
-import collections
 import dataclasses
 import datetime
 import itertools
 import json
 import pathlib
-import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 from unittest import mock
 
 import kazoo
 import kazoo.exceptions
+import openeo_driver.testing
 import pytest
 from openeo.util import rfc3339
 
 import openeo_aggregator.about
+import openeo_aggregator.config
 from openeo_aggregator.utils import Clock
 
 
@@ -290,3 +290,32 @@ class MetadataBuilder:
             processes.append(process)
 
         return {"processes": processes, "links": []}
+
+
+def config_overrides(**kwargs):
+    """
+    *Only to be used in unit tests*
+
+    `mock.patch` based mocker to override the config returned by `get_backend_config()` at run time
+
+    Can be used as context manager
+
+        >>> with config_overrides(id="foobar"):
+        ...     ...
+
+    in a fixture (as context manager):
+
+        >>> @pytest.fixture
+        ... def custom_setup()
+        ...     with config_overrides(id="foobar"):
+        ...         yield
+
+    or as test function decorator
+
+        >>> @config_overrides(id="foobar")
+        ... def test_stuff():
+    """
+    return openeo_driver.testing.config_overrides(
+        config_getter=openeo_aggregator.config._config_getter,
+        **kwargs,
+    )

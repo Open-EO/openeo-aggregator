@@ -33,7 +33,7 @@ from openeo_aggregator.metadata import (
     STAC_PROPERTY_FEDERATION_BACKENDS,
     STAC_PROPERTY_PROVIDER_BACKEND,
 )
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import clock_mock, config_overrides
 
 from .conftest import assert_dict_subset, get_api100, get_flask_app
 
@@ -800,7 +800,6 @@ class TestProcessing:
 
     @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
     def test_result_large_response_streaming(self, config, chunk_size, requests_mock, backend1, backend2):
-        config.streaming_chunk_size = chunk_size
         api100 = get_api100(get_flask_app(config))
 
         def post_result(request: requests.Request, context):
@@ -813,7 +812,9 @@ class TestProcessing:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         pg = {"large": {"process_id": "large", "arguments": {}, "result": True}}
         request = {"process": {"process_graph": pg}}
-        res = api100.post("/result", json=request).assert_status_code(200)
+
+        with config_overrides(streaming_chunk_size=chunk_size):
+            res = api100.post("/result", json=request).assert_status_code(200)
 
         assert res.response.is_streamed
         chunks = res.response.iter_encoded()
