@@ -1,10 +1,11 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Union
+from typing import Callable, List, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
+from openeo_driver.config.load import ConfigGetter
 from openeo_driver.server import build_backend_deploy_metadata
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
@@ -133,3 +134,8 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
+
+
+_config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)
+
+get_backend_config: Callable[..., AggregatorBackendConfig] = _config_getter.get
