@@ -1,10 +1,11 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Union
+from typing import Callable, List, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
+from openeo_driver.config.load import ConfigGetter
 from openeo_driver.server import build_backend_deploy_metadata
 from openeo_driver.users.oidc import OidcProvider
 from openeo_driver.utils import dict_item
@@ -43,9 +44,6 @@ class AggregatorConfig(dict):
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
 
-    flask_error_handling = dict_item(default=True)
-    streaming_chunk_size = dict_item(default=STREAM_CHUNK_SIZE_DEFAULT)
-
     # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
     auth_entitlement_check: Union[bool, dict] = dict_item(default=False)
@@ -62,6 +60,9 @@ class AggregatorConfig(dict):
 
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist = dict_item(default=None)
+
+    # Just a config field for test purposes (while were stripping down this config class)
+    test_dummy = dict_item(default="alice")
 
     @staticmethod
     def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
@@ -133,3 +134,11 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
+
+    streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
+
+
+
+_config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)
+
+get_backend_config: Callable[..., AggregatorBackendConfig] = _config_getter.get

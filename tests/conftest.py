@@ -177,9 +177,13 @@ def multi_backend_connection(config) -> MultiBackendConnection:
 
 
 def get_flask_app(config: AggregatorConfig) -> flask.Flask:
-    app = create_app(config=config, auto_logging_setup=False)
-    app.config['TESTING'] = True
-    app.config['SERVER_NAME'] = 'oeoa.test'
+    app = create_app(
+        config=config,
+        auto_logging_setup=False,
+        # flask_error_handling=False,  # Failing test debug tip: set to False for deeper stack trace insights
+    )
+    app.config["TESTING"] = True
+    app.config["SERVER_NAME"] = "oeoa.test"
     return app
 
 

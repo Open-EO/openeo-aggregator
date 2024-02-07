@@ -71,6 +71,7 @@ from openeo_aggregator.config import (
     CONNECTION_TIMEOUT_JOB_START,
     CONNECTION_TIMEOUT_RESULT,
     AggregatorConfig,
+    get_backend_config,
 )
 from openeo_aggregator.connection import (
     BackendConnection,
@@ -353,7 +354,6 @@ class AggregatorProcessing(Processing):
         self._memoizer = memoizer_from_config(config=config, namespace="Processing")
         self.backends.on_connections_change.add(self._memoizer.invalidate)
         self._catalog = catalog
-        self._stream_chunk_size = config.streaming_chunk_size
 
     def get_process_registry(
         self, api_version: Union[str, ComparableVersion]
@@ -537,7 +537,7 @@ class AggregatorProcessing(Processing):
                 _log.error(f"Failed to process synchronously on backend {con.id}: {e!r}", exc_info=True)
                 raise OpenEOApiException(message=f"Failed to process synchronously on backend {con.id}: {e!r}")
 
-        return streaming_flask_response(backend_response, chunk_size=self._stream_chunk_size)
+        return streaming_flask_response(backend_response, chunk_size=get_backend_config().streaming_chunk_size)
 
     def preprocess_process_graph(self, process_graph: FlatPG, backend_id: str) -> dict:
         def preprocess(node: Any) -> Any:
