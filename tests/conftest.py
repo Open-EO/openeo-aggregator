@@ -109,16 +109,9 @@ def connections_cache_ttl() -> float:
     return 1.0
 
 
-@pytest.fixture
-def config_override() -> dict:
-    """Parameterizable fixture to allow per-test config overrides."""
-    return {}
-
 
 @pytest.fixture
-def base_config(
-    configured_oidc_providers, zk_client, memoizer_config, connections_cache_ttl, config_override: dict
-) -> AggregatorConfig:
+def base_config(configured_oidc_providers, zk_client, memoizer_config, connections_cache_ttl) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     conf.config_source = "test fixture base_config"
@@ -134,7 +127,6 @@ def base_config(
         "zk_client": zk_client,
     }
 
-    conf.update(config_override)
 
     return conf
 
