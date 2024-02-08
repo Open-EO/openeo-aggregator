@@ -26,7 +26,7 @@ from openeo_aggregator.backend import (
     _InternalCollectionMetadata,
 )
 from openeo_aggregator.caching import DictMemoizer
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import clock_mock, config_overrides
 
 from .conftest import DEFAULT_MEMOIZER_CONFIG
 
@@ -42,7 +42,7 @@ TEST_USER_AUTH_HEADER = {
 
 class TestAggregatorBackendImplementation:
 
-    def test_oidc_providers(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    def test_oidc_providers(self, multi_backend_connection, config, backend1, backend2):
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
         providers = implementation.oidc_providers()
         assert providers == [
@@ -50,6 +50,28 @@ class TestAggregatorBackendImplementation:
             OidcProvider(id='x-agg', issuer='https://x.test', title='X (agg)'),
             OidcProvider(id='y-agg', issuer='https://y.test', title='Y (agg)'),
             OidcProvider(id='z-agg', issuer='https://z.test', title='Z (agg)'),
+        ]
+
+    def test_oidc_providers_legacy_config_support(self, multi_backend_connection, config, backend1, backend2):
+        """Test for legacy AggregatorConfig.configured_oidc_providers support."""
+        # TODO #112 test to remove in the future
+        with config_overrides(oidc_providers=[]):
+            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        providers = implementation.oidc_providers()
+        assert providers == [
+            OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
+            OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
+            OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
+            OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
+        ]
+
+    def test_oidc_providers_new_config_support(self, multi_backend_connection, config, backend1, backend2):
+        """Test for new AggregatorBackendConfig.oidc_providers support."""
+        with config_overrides(oidc_providers=[OidcProvider(id="aagg", issuer="https://aagg.test", title="Aagg)")]):
+            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        providers = implementation.oidc_providers()
+        assert providers == [
+            OidcProvider(id="aagg", issuer="https://aagg.test", title="Aagg)"),
         ]
 
     def test_file_formats_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):

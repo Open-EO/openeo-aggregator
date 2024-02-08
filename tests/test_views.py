@@ -25,6 +25,7 @@ from openeo_driver.testing import (
     DictSubSet,
     RegexMatcher,
 )
+from openeo_driver.users.oidc import OidcProvider
 
 import openeo_aggregator.about
 from openeo_aggregator.config import AggregatorConfig, get_config_dir
@@ -489,29 +490,49 @@ class TestAuthEntitlementCheck:
         assert data["roles"] == expected_roles
         assert "default_plan" not in data
 
-    @pytest.mark.parametrize(["whitelist", "main_test_oidc_issuer", "success"], [
-        (["https://egi.test"], "https://egi.test", True),
-        (["https://egi.test"], "https://egi.test/", True),
-        (["https://egi.test/"], "https://egi.test", True),
-        (["https://egi.test/"], "https://egi.test/", True),
-        (["https://egi.test/oidc"], "https://egi.test/oidc/", True),
-        (["https://egi.test/oidc/"], "https://egi.test/oidc", True),
-        (["https://egi.test/foo"], "https://egi.test/bar", False),
-    ])
+    @pytest.fixture
+    def override_oidc_providers(self, oidc_issuer: str):
+        with config_overrides(
+            oidc_providers=[
+                OidcProvider(id="egi", issuer=oidc_issuer, title="EGI"),
+            ]
+        ):
+            yield
+
+    @pytest.mark.parametrize(
+        ["whitelist", "oidc_issuer", "success"],
+        [
+            (["https://egi.test"], "https://egi.test", True),
+            (["https://egi.test"], "https://egi.test/", True),
+            (["https://egi.test/"], "https://egi.test", True),
+            (["https://egi.test/"], "https://egi.test/", True),
+            (["https://egi.test/oidc"], "https://egi.test/oidc/", True),
+            (["https://egi.test/oidc/"], "https://egi.test/oidc", True),
+            (["https://egi.test/foo"], "https://egi.test/bar", False),
+        ],
+    )
     def test_issuer_url_normalization(
-            self, config, requests_mock, backend1, backend2, whitelist,
-            main_test_oidc_issuer, success, caplog,
+        self,
+        config,
+        requests_mock,
+        backend1,
+        backend2,
+        whitelist,
+        override_oidc_providers,
+        oidc_issuer,
+        success,
+        caplog,
     ):
         config.auth_entitlement_check = {"oidc_issuer_whitelist": whitelist}
 
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "egi", "issuer": main_test_oidc_issuer, "title": "EGI"}
-        ]})
-        oidc_url_ui = url_join(main_test_oidc_issuer, "/userinfo")
-        oidc_url_conf = url_join(main_test_oidc_issuer, "/.well-known/openid-configuration")
+        requests_mock.get(
+            backend1 + "/credentials/oidc", json={"providers": [{"id": "egi", "issuer": oidc_issuer, "title": "EGI"}]}
+        )
+        requests_mock.get(
+            backend2 + "/credentials/oidc", json={"providers": [{"id": "egi", "issuer": oidc_issuer, "title": "EGI"}]}
+        )
+        oidc_url_ui = url_join(oidc_issuer, "/userinfo")
+        oidc_url_conf = url_join(oidc_issuer, "/.well-known/openid-configuration")
         requests_mock.get(oidc_url_conf, json={"userinfo_endpoint": oidc_url_ui})
         requests_mock.get(
             oidc_url_ui,

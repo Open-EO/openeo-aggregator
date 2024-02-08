@@ -44,8 +44,9 @@ class AggregatorConfig(dict):
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
 
-    # TODO: add validation/normalization to make sure we have a real list of OidcProvider objects?
+    # TODO #112 `configured_oidc_providers` is deprecated, use `OpenEoBackendConfig.oidc_providers` instead
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
+
     auth_entitlement_check: Union[bool, dict] = dict_item(default=False)
 
     partitioned_job_tracking = dict_item(default=None)

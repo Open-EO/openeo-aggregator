@@ -40,6 +40,7 @@ from openeo_aggregator.config import (
     CONNECTION_TIMEOUT_INIT,
     STREAM_CHUNK_SIZE_DEFAULT,
     AggregatorConfig,
+    get_backend_config,
 )
 from openeo_aggregator.utils import _UNSET, Clock, EventHandler
 
@@ -245,7 +246,7 @@ class MultiBackendConnection:
     def from_config(config: AggregatorConfig) -> 'MultiBackendConnection':
         return MultiBackendConnection(
             backends=config.aggregator_backends,
-            configured_oidc_providers=config.configured_oidc_providers,
+            configured_oidc_providers=get_backend_config().oidc_providers or config.configured_oidc_providers,
             memoizer=memoizer_from_config(config, namespace="mbcon"),
             connections_cache_ttl=config.connections_cache_ttl,
         )

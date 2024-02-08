@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.2]
+
+- Add support for standard `OpenEoBackendConfig.oidc_providers` and deprecate `AggregatorConfig.configured_oidc_providers` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.18.1]
 
 - Include gunicorn configs in wheel (related to [#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
