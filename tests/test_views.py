@@ -490,15 +490,6 @@ class TestAuthEntitlementCheck:
         assert data["roles"] == expected_roles
         assert "default_plan" not in data
 
-    @pytest.fixture
-    def override_oidc_providers(self, oidc_issuer: str):
-        with config_overrides(
-            oidc_providers=[
-                OidcProvider(id="egi", issuer=oidc_issuer, title="EGI"),
-            ]
-        ):
-            yield
-
     @pytest.mark.parametrize(
         ["whitelist", "oidc_issuer", "success"],
         [
@@ -512,18 +503,8 @@ class TestAuthEntitlementCheck:
         ],
     )
     def test_issuer_url_normalization(
-        self,
-        config,
-        requests_mock,
-        backend1,
-        backend2,
-        whitelist,
-        override_oidc_providers,
-        oidc_issuer,
-        success,
-        caplog,
+        self, config, requests_mock, backend1, backend2, whitelist, oidc_issuer, success, caplog
     ):
-        config.auth_entitlement_check = {"oidc_issuer_whitelist": whitelist}
 
         requests_mock.get(
             backend1 + "/credentials/oidc", json={"providers": [{"id": "egi", "issuer": oidc_issuer, "title": "EGI"}]}
@@ -540,7 +521,12 @@ class TestAuthEntitlementCheck:
                 "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
             ])
         )
-        api100 = get_api100(get_flask_app(config))
+        with config_overrides(
+            oidc_providers=[OidcProvider(id="egi", issuer=oidc_issuer, title="EGI")],
+            auth_entitlement_check={"oidc_issuer_whitelist": whitelist},
+        ):
+            api100 = get_api100(get_flask_app(config))
+
         api100.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         if success:

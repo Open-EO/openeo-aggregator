@@ -47,8 +47,6 @@ class AggregatorConfig(dict):
     # TODO #112 `configured_oidc_providers` is deprecated, use `OpenEoBackendConfig.oidc_providers` instead
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
 
-    auth_entitlement_check: Union[bool, dict] = dict_item(default=False)
-
     partitioned_job_tracking = dict_item(default=None)
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
     kazoo_client_factory = dict_item(default=None)
@@ -138,6 +136,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
 
     streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 
+    auth_entitlement_check: Union[bool, dict] = False
 
 # Internal singleton
 _config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)

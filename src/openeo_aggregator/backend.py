@@ -1319,7 +1319,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._configured_oidc_providers: List[OidcProvider] = (
             get_backend_config().oidc_providers or config.configured_oidc_providers
         )
-        self._auth_entitlement_check: Union[bool, dict] = config.auth_entitlement_check
+        self._auth_entitlement_check: Union[bool, dict] = get_backend_config().auth_entitlement_check
 
         self._memoizer: Memoizer = memoizer_from_config(config=config, namespace="general")
         self._backends.on_connections_change.add(self._memoizer.invalidate)

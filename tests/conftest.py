@@ -14,7 +14,11 @@ from openeo_aggregator.backend import (
     MultiBackendConnection,
 )
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyKazooClient, MetadataBuilder
+from openeo_aggregator.testing import (
+    DummyKazooClient,
+    MetadataBuilder,
+    config_overrides,
+)
 
 pytest_plugins = "pytester"
 
@@ -121,8 +125,6 @@ def base_config(
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
     conf.configured_oidc_providers = configured_oidc_providers
-    # Disable OIDC/EGI entitlement check by default.
-    conf.auth_entitlement_check = False
 
     conf.memoizer = memoizer_config
     conf.connections_cache_ttl = connections_cache_ttl
@@ -202,8 +204,10 @@ def api100(flask_app: flask.Flask) -> ApiTester:
 
 @pytest.fixture
 def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
-    config.auth_entitlement_check = {"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
-    return get_api100(get_flask_app(config))
+    with config_overrides(
+        auth_entitlement_check={"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
+    ):
+        yield get_api100(get_flask_app(config))
 
 
 def assert_dict_subset(d1: dict, d2: dict):
