@@ -110,6 +110,7 @@ from openeo_aggregator.utils import (
     FlatPG,
     PGWithMetadata,
     dict_merge,
+    is_whitelisted,
     normalize_issuer_url,
     subdict,
 )
@@ -167,7 +168,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         """
         # Group collection metadata by hierarchically: collection id -> backend id -> metadata
         grouped = defaultdict(dict)
-        collection_whitelist = get_backend_config().collection_whitelist
+        collection_whitelist: Optional[List[Union[str, re.Pattern]]] = get_backend_config().collection_whitelist
+
         with TimingLogger(title="Collect collection metadata from all backends", logger=_log):
             for con in self.backends:
                 try:
@@ -181,11 +183,11 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                     if "id" in collection_metadata:
                         collection_id = collection_metadata["id"]
                         if collection_whitelist:
-                            if collection_id not in collection_whitelist:
+                            if is_whitelisted(collection_id, whitelist=collection_whitelist, on_empty=True):
+                                _log.debug(f"Preserving whitelisted {collection_id=} from {con.id=}")
+                            else:
                                 _log.debug(f"Skipping non-whitelisted {collection_id=} from {con.id=}")
                                 continue
-                            else:
-                                _log.debug(f"Preserving whitelisted {collection_id=} from {con.id=}")
                         grouped[collection_id][con.id] = collection_metadata
                         # TODO: support a trigger to create a collection alias under other name?
                     else:

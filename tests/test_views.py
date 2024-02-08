@@ -313,6 +313,11 @@ class TestCatalog:
             (["S2", "S3"], {"S2", "S3"}),
             (["S2", "S999"], {"S2"}),
             (["S999"], set()),
+            ([re.compile(r"S[23]")], {"S2", "S3"}),
+            ([re.compile(r"S")], set()),
+            ([re.compile(r"S.*")], {"S1", "S2", "S3", "S4"}),
+            ([re.compile(r"S2.*")], {"S2"}),
+            ([re.compile(r".*2")], {"S2"}),
         ],
     )
     def test_collections_whitelist(self, api100, requests_mock, backend1, backend2, collection_whitelist, expected):

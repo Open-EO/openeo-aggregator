@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import shapely.geometry
 
@@ -8,6 +10,7 @@ from openeo_aggregator.utils import (
     common_prefix,
     dict_merge,
     drop_dict_keys,
+    is_whitelisted,
     normalize_issuer_url,
     strip_join,
     subdict,
@@ -296,3 +299,24 @@ def test_drop_dict_keys_copy():
     res = drop_dict_keys(d, keys=["foo"])
     assert d == {"foo": 1, "bar": 2}
     assert res == {"bar": 2}
+
+
+def test_is_whitelisted_basic():
+    assert is_whitelisted("foo", ["foo", "bar"])
+    assert not is_whitelisted("baz", ["foo", "bar"])
+
+
+def test_is_whitelisted_on_empty():
+    assert not is_whitelisted("foo", None)
+    assert is_whitelisted("foo", None, on_empty=True)
+    assert not is_whitelisted("foo", [])
+    assert is_whitelisted("foo", [], on_empty=True)
+
+
+def test_is_whitelisted_regex():
+    assert is_whitelisted("foo", [re.compile("fo*"), "bar"])
+    assert not is_whitelisted("foobar", [re.compile("fo*"), "bar"])
+    assert is_whitelisted("foobar", [re.compile("f.*"), "bar"])
+    assert is_whitelisted("foobar", [re.compile(r"\w+bar"), "bar"])
+    assert not is_whitelisted("barfoo", [re.compile("f.*"), "bar"])
+    assert is_whitelisted("barfoo", [re.compile(".*f.*"), "bar"])

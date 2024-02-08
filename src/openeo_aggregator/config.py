@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
@@ -136,7 +137,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     auth_entitlement_check: Union[bool, dict] = False
 
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
-    collection_whitelist: Optional[List[str]] = None
+    collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
 
 
 # Internal singleton

@@ -2,8 +2,19 @@ import datetime
 import functools
 import itertools
 import logging
+import re
 import time
-from typing import Any, Callable, Iterable, Iterator, List, NamedTuple, Set
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    NamedTuple,
+    Optional,
+    Set,
+    Union,
+)
 
 import shapely.geometry
 from openeo.util import rfc3339
@@ -272,3 +283,26 @@ class SkipIntermittentFailures:
         else:
             # Reset counter of successive failures
             self._successive_failures = 0
+
+
+def is_whitelisted(
+    needle: str,
+    whitelist: Optional[List[Union[str, re.Pattern]]],
+    *,
+    on_empty: bool = False,
+) -> bool:
+    """
+    check if given needle is whitelisted in a list of strings or regular expressions
+    :param needle: string to check
+    :param whitelist: list of strings (must fully match), or regular expressions (matched with `re.fullmatch`)
+    :param on_empty: what to return if whitelist is empty
+    :return:
+    """
+    if not whitelist:
+        return on_empty
+    for pattern in whitelist:
+        if isinstance(pattern, str) and needle == pattern:
+            return True
+        elif isinstance(pattern, re.Pattern) and pattern.fullmatch(needle):
+            return True
+    return False
