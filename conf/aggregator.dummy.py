@@ -18,6 +18,5 @@ aggregator_config = config = AggregatorConfig(
             scopes=["openid"],
         ),
     ],
-    auth_entitlement_check=False,
     zookeeper_prefix="/openeo/aggregator/dummy/",
 )
