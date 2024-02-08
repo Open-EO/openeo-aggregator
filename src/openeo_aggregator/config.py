@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
@@ -56,9 +56,6 @@ class AggregatorConfig(dict):
 
     # TTL for connection caching.
     connections_cache_ttl = dict_item(default=5 * 60.0)
-
-    # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
-    collection_whitelist = dict_item(default=None)
 
     # Just a config field for test purposes (while were stripping down this config class)
     test_dummy = dict_item(default="alice")
@@ -137,6 +134,10 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 
     auth_entitlement_check: Union[bool, dict] = False
+
+    # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
+    collection_whitelist: Optional[List[str]] = None
+
 
 # Internal singleton
 _config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)

@@ -150,7 +150,6 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         self.backends = backends
         self._memoizer = memoizer_from_config(config=config, namespace="CollectionCatalog")
         self.backends.on_connections_change.add(self._memoizer.invalidate)
-        self._collection_whitelist: Optional[List[str]] = config.collection_whitelist
 
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
@@ -168,6 +167,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         """
         # Group collection metadata by hierarchically: collection id -> backend id -> metadata
         grouped = defaultdict(dict)
+        collection_whitelist = get_backend_config().collection_whitelist
         with TimingLogger(title="Collect collection metadata from all backends", logger=_log):
             for con in self.backends:
                 try:
@@ -180,8 +180,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 for collection_metadata in backend_collections:
                     if "id" in collection_metadata:
                         collection_id = collection_metadata["id"]
-                        if self._collection_whitelist:
-                            if collection_id not in self._collection_whitelist:
+                        if collection_whitelist:
+                            if collection_id not in collection_whitelist:
                                 _log.debug(f"Skipping non-whitelisted {collection_id=} from {con.id=}")
                                 continue
                             else:

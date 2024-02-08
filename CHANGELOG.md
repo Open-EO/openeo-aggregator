@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.4]
+
+- Move `collection_whitelist` config to `AggregatorBackendConfig`  ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.18.3]
 
 - Move `auth_entitlement_check` config to `AggregatorBackendConfig`  ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
