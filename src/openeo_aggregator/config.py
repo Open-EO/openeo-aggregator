@@ -139,7 +139,10 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 
 
-
+# Internal singleton
 _config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)
 
-get_backend_config: Callable[..., AggregatorBackendConfig] = _config_getter.get
+
+def get_backend_config() -> AggregatorBackendConfig:
+    """Public config getter"""
+    return _config_getter.get()
