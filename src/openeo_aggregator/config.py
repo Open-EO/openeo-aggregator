@@ -55,9 +55,6 @@ class AggregatorConfig(dict):
     # See `memoizer_from_config` for details.
     memoizer = dict_item(default={"type": "dict"})
 
-    # TTL for connection caching.
-    connections_cache_ttl = dict_item(default=5 * 60.0)
-
     # Just a config field for test purposes (while were stripping down this config class)
     test_dummy = dict_item(default="alice")
 
@@ -135,6 +132,9 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 
     auth_entitlement_check: Union[bool, dict] = False
+
+    # TTL for connection caching.
+    connections_cache_ttl: float = 5 * 60.0
 
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None

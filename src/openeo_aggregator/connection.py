@@ -248,7 +248,7 @@ class MultiBackendConnection:
             backends=config.aggregator_backends,
             configured_oidc_providers=get_backend_config().oidc_providers or config.configured_oidc_providers,
             memoizer=memoizer_from_config(config, namespace="mbcon"),
-            connections_cache_ttl=config.connections_cache_ttl,
+            connections_cache_ttl=get_backend_config().connections_cache_ttl,
         )
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
