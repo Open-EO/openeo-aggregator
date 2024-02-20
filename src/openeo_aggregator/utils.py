@@ -12,6 +12,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Sequence,
     Set,
     Union,
 )
@@ -306,3 +307,22 @@ def is_whitelisted(
         elif isinstance(pattern, re.Pattern) and pattern.fullmatch(needle):
             return True
     return False
+
+
+class AttrStatsProxy:
+    """
+    Proxy object to wrap a given object and keep stats of attribute/method usage.
+    """
+
+    # TODO: avoid all these public attributes that could collide with existing attributes of the proxied object
+    __slots__ = ["target", "to_track", "stats"]
+
+    def __init__(self, target: Any, to_track: Sequence[str], stats: Optional[dict] = None):
+        self.target = target
+        self.to_track = set(to_track)
+        self.stats = stats if stats is not None else {}
+
+    def __getattr__(self, name):
+        if name in self.to_track:
+            self.stats[name] = self.stats.get(name, 0) + 1
+        return getattr(self.target, name)

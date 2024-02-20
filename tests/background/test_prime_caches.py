@@ -1,14 +1,18 @@
 import json
+import logging
+import re
 import textwrap
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 import pytest
 from openeo_driver.testing import DictSubSet
 
-from openeo_aggregator.background.prime_caches import AttrStatsProxy, main, prime_caches
+import openeo_aggregator.caching
+from openeo_aggregator.background.prime_caches import main, prime_caches
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyKazooClient
+from openeo_aggregator.testing import config_overrides
 
 FILE_FORMATS_JUST_GEOTIFF = {
     "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
@@ -23,38 +27,26 @@ def config(backend1, backend2, backend1_id, backend2_id, zk_client) -> Aggregato
         backend1_id: backend1,
         backend2_id: backend2,
     }
-    conf.kazoo_client_factory = lambda **kwargs: zk_client
     conf.zookeeper_prefix = "/oa/"
     conf.memoizer = {
         "type": "zookeeper",
         "config": {
-            "zk_hosts": "localhost:2181",
+            "zk_hosts": "zk.test:2181",
             "default_ttl": 24 * 60 * 60,
         },
     }
     return conf
 
 
-class TestAttrStatsProxy:
-    def test_basic(self):
-        class Foo:
-            def bar(self, x):
-                return x + 1
-
-            def meh(self, x):
-                return x * 2
-
-        foo = AttrStatsProxy(target=Foo(), to_track=["bar"])
-
-        assert foo.bar(3) == 4
-        assert foo.meh(6) == 12
-
-        assert foo.stats == {"bar": 1}
+@pytest.fixture(autouse=True)
+def _mock_kazoo_client(zk_client):
+    with mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client):
+        yield
 
 
-def test_prime_caches_basic(config, backend1, backend2, requests_mock, mbldr, caplog, zk_client):
-    """Just check that bare basics of `prime_caches` work."""
-    mocks = [
+@pytest.fixture
+def upstream_request_mocks(requests_mock, backend1, backend2, mbldr) -> list:
+    return [
         requests_mock.get(backend1 + "/file_formats", json=FILE_FORMATS_JUST_GEOTIFF),
         requests_mock.get(backend2 + "/file_formats", json=FILE_FORMATS_JUST_GEOTIFF),
         requests_mock.get(backend1 + "/collections", json=mbldr.collections("S2")),
@@ -63,9 +55,13 @@ def test_prime_caches_basic(config, backend1, backend2, requests_mock, mbldr, ca
         requests_mock.get(backend2 + "/collections/S2", json=mbldr.collection("S2")),
     ]
 
+
+def test_prime_caches_basic(config, upstream_request_mocks, zk_client):
+    """Just check that bare basics of `prime_caches` work."""
+
     prime_caches(config=config)
 
-    assert all([m.call_count == 1 for m in mocks])
+    assert all([m.call_count == 1 for m in upstream_request_mocks])
 
     assert zk_client.get_data_deserialized() == DictSubSet(
         {
@@ -83,6 +79,22 @@ def test_prime_caches_basic(config, backend1, backend2, requests_mock, mbldr, ca
             },
         }
     )
+
+
+@pytest.mark.parametrize("zk_memoizer_tracking", [False, True])
+def test_prime_caches_stats(config, upstream_request_mocks, caplog, zk_client, zk_memoizer_tracking):
+    """Check logging of Zookeeper operation stats."""
+    caplog.set_level(logging.INFO)
+    with config_overrides(zk_memoizer_tracking=zk_memoizer_tracking):
+        prime_caches(config=config)
+
+    assert all([m.call_count == 1 for m in upstream_request_mocks])
+
+    (zk_stats,) = [r.message for r in caplog.records if r.message.startswith("ZooKeeper stats:")]
+    if zk_memoizer_tracking:
+        assert re.search(r"kazoo_stats=\{.*start.*create.*\} zk_writes=[1-9]\d*", zk_stats)
+    else:
+        assert zk_stats == "ZooKeeper stats: not configured"
 
 
 def _is_primitive_construct(data: Any) -> bool:
@@ -111,16 +123,8 @@ def _build_config_file(config: AggregatorConfig, path: Path):
     )
 
 
-def test_prime_caches_main_basic(backend1, backend2, requests_mock, mbldr, caplog, tmp_path, backend1_id, backend2_id):
+def test_prime_caches_main_basic(backend1, backend2, upstream_request_mocks, tmp_path, backend1_id, backend2_id):
     """Just check that bare basics of `prime_caches` main work."""
-    mocks = [
-        requests_mock.get(backend1 + "/file_formats", json=FILE_FORMATS_JUST_GEOTIFF),
-        requests_mock.get(backend2 + "/file_formats", json=FILE_FORMATS_JUST_GEOTIFF),
-        requests_mock.get(backend1 + "/collections", json=mbldr.collections("S2")),
-        requests_mock.get(backend1 + "/collections/S2", json=mbldr.collection("S2")),
-        requests_mock.get(backend2 + "/collections", json=mbldr.collections("S2")),
-        requests_mock.get(backend2 + "/collections/S2", json=mbldr.collection("S2")),
-    ]
 
     # Construct config file
     config = AggregatorConfig()
@@ -133,10 +137,10 @@ def test_prime_caches_main_basic(backend1, backend2, requests_mock, mbldr, caplo
 
     main(args=["--config", str(config_file)])
 
-    assert all([m.call_count == 1 for m in mocks])
+    assert all([m.call_count == 1 for m in upstream_request_mocks])
 
 
-def test_prime_caches_main_logging(backend1, backend2, mbldr, caplog, tmp_path, backend1_id, backend2_id, pytester):
+def test_prime_caches_main_logging(backend1, backend2, tmp_path, backend1_id, backend2_id, pytester):
     """Run main in subprocess (so no request mocks, and probably a lot of failures) to see if logging setup works."""
 
     config = AggregatorConfig()

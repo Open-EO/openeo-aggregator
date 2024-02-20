@@ -12,8 +12,8 @@ import kazoo.protocol.paths
 from kazoo.client import KazooClient
 from openeo.util import TimingLogger
 
-from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.utils import Clock, strip_join
+from openeo_aggregator.config import AggregatorConfig, get_backend_config
+from openeo_aggregator.utils import AttrStatsProxy, Clock, strip_join
 
 DEFAULT_NAMESPACE = "_default"
 
@@ -490,6 +490,8 @@ class ZkMemoizer(Memoizer):
                     _log.error(f"{self!r} failed to stop connection: {e!r}")
 
 
+zk_memoizer_stats = {}
+
 def memoizer_from_config(
         config: AggregatorConfig,
         namespace: str,
@@ -504,8 +506,14 @@ def memoizer_from_config(
         elif memoizer_type == "jsondict":
             return JsonDictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "zookeeper":
-            kazoo_client_factory = config.kazoo_client_factory or KazooClient
-            kazoo_client = kazoo_client_factory(hosts=memoizer_conf.get("zk_hosts", "localhost:2181"))
+            kazoo_client = KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181"))
+            if get_backend_config().zk_memoizer_tracking:
+                kazoo_client = AttrStatsProxy(
+                    target=kazoo_client,
+                    to_track=["start", "stop", "create", "get", "set"],
+                    # TODO: better solution than using a module level global here?
+                    stats=zk_memoizer_stats,
+                )
             return ZkMemoizer(
                 client=kazoo_client,
                 path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",

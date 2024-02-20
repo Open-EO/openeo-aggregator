@@ -6,7 +6,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Ongoing
 
-- move `connections_cache_ttl` to AggregatorBackendConfig ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- move `connections_cache_ttl` config to AggregatorBackendConfig ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- replace `kazoo_client_factory` config with `zk_memoizer_tracking` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
 
 ## [0.19.0]
 
