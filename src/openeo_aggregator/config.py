@@ -49,6 +49,7 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
 
     partitioned_job_tracking = dict_item(default=None)
+    # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
     # See `memoizer_from_config` for details.
@@ -137,6 +138,10 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
 
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
+
+    # TODO #112: empty default is to allow config migration from AggregatorConfig to AggregatorBackendConfig.
+    #       To be replaced eventually with  "/openeo-aggregator/"
+    zookeeper_prefix: str = ""
 
     zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
 

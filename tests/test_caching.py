@@ -22,7 +22,7 @@ from openeo_aggregator.caching import (
     memoizer_from_config,
 )
 from openeo_aggregator.config import AggregatorConfig
-from openeo_aggregator.testing import DummyZnodeStat, clock_mock
+from openeo_aggregator.testing import DummyZnodeStat, clock_mock, config_overrides
 from openeo_aggregator.utils import Clock
 
 
@@ -723,8 +723,8 @@ class TestMemoizerFromConfig:
             "type": "zookeeper",
             "config": {"zk_hosts": "zk.test:2181", "default_ttl": 99, "zk_timeout": 88}
         }
-        config.zookeeper_prefix = "/oea/test"
-        memoizer = memoizer_from_config(config, namespace="test-ns")
+        with config_overrides(zookeeper_prefix="/oea/test"):
+            memoizer = memoizer_from_config(config, namespace="test-ns")
         assert isinstance(memoizer, ZkMemoizer)
         assert memoizer._default_ttl == 99
         assert memoizer._prefix == "/oea/test/cache/test-ns"
@@ -739,7 +739,6 @@ class TestMemoizerFromConfig:
                 {"type": "dict", "config": {"default_ttl": 333}},
             ]}
         }
-        config.zookeeper_prefix = "/oea/test"
         memoizer = memoizer_from_config(config, namespace="test-ns")
         assert isinstance(memoizer, ChainedMemoizer)
         assert len(memoizer._memoizers) == 2

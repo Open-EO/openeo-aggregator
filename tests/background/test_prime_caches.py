@@ -27,7 +27,6 @@ def config(backend1, backend2, backend1_id, backend2_id, zk_client) -> Aggregato
         backend1_id: backend1,
         backend2_id: backend2,
     }
-    conf.zookeeper_prefix = "/oa/"
     conf.memoizer = {
         "type": "zookeeper",
         "config": {
@@ -65,15 +64,15 @@ def test_prime_caches_basic(config, upstream_request_mocks, zk_client):
 
     assert zk_client.get_data_deserialized() == DictSubSet(
         {
-            "/oa/cache/CollectionCatalog/all": [
+            "/o-a/cache/CollectionCatalog/all": [
                 [DictSubSet({"id": "S2"})],
                 DictSubSet({"_jsonserde": DictSubSet()}),
             ],
-            "/oa/cache/CollectionCatalog/collection/S2": DictSubSet({"id": "S2"}),
-            "/oa/cache/Processing/all/1.1.0": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
-            "/oa/cache/general/file_formats": FILE_FORMATS_JUST_GEOTIFF,
-            "/oa/cache/mbcon/api_versions": ["1.1.0"],
-            "/oa/cache/SecondaryServices/service_types": {
+            "/o-a/cache/CollectionCatalog/collection/S2": DictSubSet({"id": "S2"}),
+            "/o-a/cache/Processing/all/1.1.0": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
+            "/o-a/cache/general/file_formats": FILE_FORMATS_JUST_GEOTIFF,
+            "/o-a/cache/mbcon/api_versions": ["1.1.0"],
+            "/o-a/cache/SecondaryServices/service_types": {
                 "service_types": {},
                 "supporting_backend_ids": [],
             },

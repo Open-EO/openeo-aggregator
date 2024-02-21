@@ -14,4 +14,5 @@ config = AggregatorBackendConfig(
         OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
     ],
     connections_cache_ttl=1.0,
+    zookeeper_prefix="/o-a/",
 )

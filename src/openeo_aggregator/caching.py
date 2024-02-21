@@ -514,9 +514,10 @@ def memoizer_from_config(
                     # TODO: better solution than using a module level global here?
                     stats=zk_memoizer_stats,
                 )
+            zookeeper_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
             return ZkMemoizer(
                 client=kazoo_client,
-                path_prefix=f"{config.zookeeper_prefix}/cache/{namespace}",
+                path_prefix=f"{zookeeper_prefix}/cache/{namespace}",
                 namespace=namespace,
                 default_ttl=memoizer_conf.get("default_ttl"),
                 zk_timeout=memoizer_conf.get("zk_timeout"),

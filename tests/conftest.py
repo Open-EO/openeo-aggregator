@@ -114,7 +114,6 @@ def base_config(configured_oidc_providers, zk_client, memoizer_config) -> Aggreg
 
     conf.memoizer = memoizer_config
 
-    conf.zookeeper_prefix = "/o-a/"
     conf.partitioned_job_tracking = {
         "zk_client": zk_client,
     }

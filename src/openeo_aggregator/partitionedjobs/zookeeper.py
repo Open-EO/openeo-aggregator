@@ -7,7 +7,11 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError, NoNodeError
 from openeo_driver.errors import JobNotFoundException
 
-from openeo_aggregator.config import AggregatorConfig, ConfigException
+from openeo_aggregator.config import (
+    AggregatorConfig,
+    ConfigException,
+    get_backend_config,
+)
 from openeo_aggregator.partitionedjobs import (
     STATUS_INSERTED,
     PartitionedJob,
@@ -46,7 +50,7 @@ class ZooKeeperPartitionedJobDB:
         else:
             raise ConfigException("Failed to construct zk_client")
         # Determine ZooKeeper prefix
-        base_prefix = config.zookeeper_prefix
+        base_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
         assert len(base_prefix.replace("/", "")) >= 3
         partitioned_jobs_prefix = config.partitioned_job_tracking.get("zookeeper_prefix", cls.NAMESPACE)
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
