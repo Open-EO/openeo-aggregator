@@ -890,7 +890,6 @@ class TestCrossBackendSplitting:
                 "id": expected_job_id,
                 "assets": {
                     "main-1-jb-1-result.tif": {
-                        "file:nodata": [None],
                         "href": "https://b1.test/v1/jobs/1-jb-1/results/1-jb-1-result.tif",
                         "roles": ["data"],
                         "title": "main-1-jb-1-result.tif",

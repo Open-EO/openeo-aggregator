@@ -1822,7 +1822,6 @@ class TestBatchJobs:
                 "href": "https//res.b1.test/123/r1.tiff",
                 "title": "Result 1",
                 "roles": ["data", "testing"],
-                "file:nodata": [None],
                 "type": "image/tiff; application=geotiff",
             }
         }
