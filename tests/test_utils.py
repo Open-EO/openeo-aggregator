@@ -4,6 +4,7 @@ import pytest
 import shapely.geometry
 
 from openeo_aggregator.utils import (
+    AttrStatsProxy,
     BoundingBox,
     EventHandler,
     MultiDictGetter,
@@ -320,3 +321,20 @@ def test_is_whitelisted_regex():
     assert is_whitelisted("foobar", [re.compile(r"\w+bar"), "bar"])
     assert not is_whitelisted("barfoo", [re.compile("f.*"), "bar"])
     assert is_whitelisted("barfoo", [re.compile(".*f.*"), "bar"])
+
+
+class TestAttrStatsProxy:
+    def test_basic(self):
+        class Foo:
+            def bar(self, x):
+                return x + 1
+
+            def meh(self, x):
+                return x * 2
+
+        foo = AttrStatsProxy(target=Foo(), to_track=["bar"])
+
+        assert foo.bar(3) == 4
+        assert foo.meh(6) == 12
+
+        assert foo.stats == {"bar": 1}

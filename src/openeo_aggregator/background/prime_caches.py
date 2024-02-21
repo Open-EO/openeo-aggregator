@@ -3,9 +3,8 @@ import contextlib
 import functools
 import logging
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Union
+from typing import List, Optional, Union
 
-from kazoo.client import KazooClient
 from openeo.util import TimingLogger
 from openeo_driver.util.logging import (
     LOG_HANDLER_FILE_JSON,
@@ -18,37 +17,19 @@ from openeo_driver.util.logging import (
     setup_logging,
 )
 
+import openeo_aggregator.caching
 from openeo_aggregator.about import log_version_info
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
 from openeo_aggregator.config import (
     OPENEO_AGGREGATOR_CONFIG,
     AggregatorConfig,
+    get_backend_config,
     get_config,
 )
 from openeo_aggregator.connection import MultiBackendConnection
 
 _log = logging.getLogger(__name__)
-
-
-class AttrStatsProxy:
-    """
-    Proxy object to wrap a given object and keep stats of attribute/method usage.
-    """
-
-    # TODO: move this to a utilities module
-    # TODO: avoid all these public attributes that could collide with existing attributes of the proxied object
-    __slots__ = ["target", "to_track", "stats"]
-
-    def __init__(self, target: Any, to_track: Sequence[str], stats: Optional[dict] = None):
-        self.target = target
-        self.to_track = set(to_track)
-        self.stats = stats if stats is not None else {}
-
-    def __getattr__(self, name):
-        if name in self.to_track:
-            self.stats[name] = self.stats.get(name, 0) + 1
-        return getattr(self.target, name)
 
 
 FAIL_MODE_FAILFAST = "failfast"
@@ -116,10 +97,6 @@ def prime_caches(
         config: AggregatorConfig = get_config(config)
         _log.info(f"Using config: {config.get('config_source')=}")
 
-        # Inject Zookeeper operation statistics
-        kazoo_stats = {}
-        _patch_config_for_kazoo_client_stats(config, kazoo_stats)
-
         _log.info(f"Creating AggregatorBackendImplementation with {config.aggregator_backends}")
         backends = MultiBackendConnection.from_config(config)
         backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
@@ -155,26 +132,14 @@ def prime_caches(
             with fail_handler():
                 backend_implementation.processing.get_merged_process_metadata()
 
-    zk_writes = sum(kazoo_stats.get(k, 0) for k in ["create", "set"])
-    _log.info(f"ZooKeeper stats: {kazoo_stats=} {zk_writes=}")
-    if require_zookeeper_writes and zk_writes == 0:
-        raise RuntimeError("No Zookeeper writes.")
-
-
-def _patch_config_for_kazoo_client_stats(config: AggregatorConfig, stats: dict):
-    orig_kazoo_client_factory = config.kazoo_client_factory or KazooClient
-    def kazoo_client_factory(**kwargs):
-        _log.info(f"AttrStatsProxy-wrapping KazooClient with {kwargs=}")
-        zk = orig_kazoo_client_factory(**kwargs)
-        return AttrStatsProxy(
-            target=zk,
-            to_track=["start", "stop", "create", "get", "set"],
-            stats=stats,
-        )
-
-    _log.info(f"Patching config with {kazoo_client_factory=}")
-    # TODO: create a new config instead of updating an existing one?
-    config.kazoo_client_factory = kazoo_client_factory
+    if get_backend_config().zk_memoizer_tracking:
+        kazoo_stats = openeo_aggregator.caching.zk_memoizer_stats
+        zk_writes = sum(kazoo_stats.get(k, 0) for k in ["create", "set"])
+        _log.info(f"ZooKeeper stats: {kazoo_stats=} {zk_writes=}")
+        if require_zookeeper_writes and zk_writes == 0:
+            raise RuntimeError("No ZooKeeper writes.")
+    else:
+        _log.warning(f"ZooKeeper stats: not configured")
 
 
 if __name__ == "__main__":

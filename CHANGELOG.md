@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Ongoing
+
+- move `connections_cache_ttl` config to AggregatorBackendConfig ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- replace `kazoo_client_factory` config with `zk_memoizer_tracking` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- Add `AggregatorBackendConfig.zookeeper_prefix` and deprecate `AggregatorConfig.zookeeper_prefix` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.19.0]
 
 - Support regexes in `collection_whitelist` config (eu-cdse/openeo-cdse-infra#54)

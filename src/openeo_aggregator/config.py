@@ -9,7 +9,7 @@ from openeo_driver.config import OpenEoBackendConfig
 from openeo_driver.config.load import ConfigGetter
 from openeo_driver.server import build_backend_deploy_metadata
 from openeo_driver.users.oidc import OidcProvider
-from openeo_driver.utils import dict_item
+from openeo_driver.utils import dict_item, smart_bool
 
 import openeo_aggregator.about
 
@@ -49,14 +49,11 @@ class AggregatorConfig(dict):
     configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
 
     partitioned_job_tracking = dict_item(default=None)
+    # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
-    kazoo_client_factory = dict_item(default=None)
 
     # See `memoizer_from_config` for details.
     memoizer = dict_item(default={"type": "dict"})
-
-    # TTL for connection caching.
-    connections_cache_ttl = dict_item(default=5 * 60.0)
 
     # Just a config field for test purposes (while were stripping down this config class)
     test_dummy = dict_item(default="alice")
@@ -136,8 +133,17 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
 
     auth_entitlement_check: Union[bool, dict] = False
 
+    # TTL for connection caching.
+    connections_cache_ttl: float = 5 * 60.0
+
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
+
+    # TODO #112: empty default is to allow config migration from AggregatorConfig to AggregatorBackendConfig.
+    #       To be replaced eventually with  "/openeo-aggregator/"
+    zookeeper_prefix: str = ""
+
+    zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
 
 
 # Internal singleton

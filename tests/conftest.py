@@ -104,14 +104,7 @@ def memoizer_config() -> dict:
 
 
 @pytest.fixture
-def connections_cache_ttl() -> float:
-    """MultiBackendConnection.connections_cache_ttl fixture to allow parameterization"""
-    return 1.0
-
-
-
-@pytest.fixture
-def base_config(configured_oidc_providers, zk_client, memoizer_config, connections_cache_ttl) -> AggregatorConfig:
+def base_config(configured_oidc_providers, zk_client, memoizer_config) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     conf.config_source = "test fixture base_config"
@@ -120,9 +113,7 @@ def base_config(configured_oidc_providers, zk_client, memoizer_config, connectio
     conf.configured_oidc_providers = configured_oidc_providers
 
     conf.memoizer = memoizer_config
-    conf.connections_cache_ttl = connections_cache_ttl
 
-    conf.zookeeper_prefix = "/o-a/"
     conf.partitioned_job_tracking = {
         "zk_client": zk_client,
     }
