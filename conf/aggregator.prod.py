@@ -23,7 +23,7 @@ _DEFAULT_EGI_SCOPES = [
     "eduperson_scoped_affiliation",
 ]
 
-configured_oidc_providers = [
+oidc_providers = [
     OidcProvider(
         id="egi",
         title="EGI Check-in",
@@ -43,7 +43,6 @@ aggregator_config = AggregatorConfig(
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
-    configured_oidc_providers=configured_oidc_providers,
     partitioned_job_tracking={
         "zk_hosts": ZK_HOSTS,
     },
@@ -75,4 +74,5 @@ config = AggregatorBackendConfig(
     id="openeo-platform-aggregator-prod",
     capabilities_title="openEO Platform",
     capabilities_description="openEO Platform, provided through openEO Aggregator Driver.",
+    oidc_providers=oidc_providers,
 )
