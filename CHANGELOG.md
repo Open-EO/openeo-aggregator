@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.21.0]
+
+- Add `AggregatorBackendConfig` to `conf/aggregator.*.py` files  ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.20.0]
 
 - move `connections_cache_ttl` config to AggregatorBackendConfig ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))

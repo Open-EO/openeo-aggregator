@@ -1,6 +1,6 @@
 from openeo_driver.users.oidc import OidcProvider
 
-from openeo_aggregator.config import AggregatorConfig
+from openeo_aggregator.config import AggregatorBackendConfig, AggregatorConfig
 
 _DEFAULT_OIDC_CLIENT_EGI = {
     "id": "openeo-platform-default-client",
@@ -42,7 +42,7 @@ configured_oidc_providers = [
 
 ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181"
 
-aggregator_config = config = AggregatorConfig(
+aggregator_config = AggregatorConfig(
     config_source=__file__,
     aggregator_backends={
         "vito": "https://openeo-dev.vito.be/openeo/1.1/",
@@ -75,4 +75,11 @@ aggregator_config = config = AggregatorConfig(
             ]
         }
     },
+)
+
+
+config = AggregatorBackendConfig(
+    id="openeo-platform-aggregator-dev",
+    capabilities_title="openEO Platform (dev)",
+    capabilities_description="openEO Platform, provided through openEO Aggregator Driver (development instance).",
 )
