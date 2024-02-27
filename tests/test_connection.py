@@ -78,7 +78,7 @@ class TestBackendConnection:
         # auth should be reset even with exception in `authenticated_from_request` body
         assert con.auth is None
 
-    def test_plain_oidc_auth_fails(self, requests_mock, configured_oidc_providers):
+    def test_plain_oidc_auth_fails(self, requests_mock):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
             {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
@@ -88,12 +88,12 @@ class TestBackendConnection:
             "userinfo_endpoint": "https://egi.test/userinfo",
         })
         requests_mock.post("https://egi.test/token", json={"access_token": "3nt3r"})
-        con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=configured_oidc_providers)
+        con = BackendConnection(id="foo", url="https://foo.test")
         with pytest.raises(LockedAuthException):
             con.authenticate_oidc_refresh_token(client_id="cl13nt", refresh_token="r3fr35")
 
     @pytest.mark.parametrize("backend_pid", ["egi", "aho"])
-    def test_oidc_auth_from_request(self, requests_mock, configured_oidc_providers, backend_pid):
+    def test_oidc_auth_from_request(self, requests_mock, backend_pid):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
             {"id": backend_pid, "issuer": "https://egi.test", "title": "EGI"},
@@ -108,7 +108,7 @@ class TestBackendConnection:
 
         requests_mock.get("https://foo.test/me", json=get_me)
 
-        con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=configured_oidc_providers)
+        con = BackendConnection(id="foo", url="https://foo.test")
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/egi/l3tm31n"})
         assert con.auth is None
         with con.authenticated_from_request(request=request):
@@ -127,13 +127,13 @@ class TestBackendConnection:
             OpenEoApiError(http_status_code=500, code="Internal", message="Nope"),
         ],
     )
-    def test_oidc_auth_from_request_failure(self, requests_mock, configured_oidc_providers, exception):
+    def test_oidc_auth_from_request_failure(self, requests_mock, exception):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
         requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
             {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
         ]})
 
-        con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=configured_oidc_providers)
+        con = BackendConnection(id="foo", url="https://foo.test")
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/egi/l3tm31n"})
         assert con.auth is None
         with pytest.raises(exception.__class__ if isinstance(exception, Exception) else exception):

@@ -45,9 +45,6 @@ class AggregatorConfig(dict):
     # Dictionary mapping backend id to backend url
     aggregator_backends = dict_item()
 
-    # TODO #112 `configured_oidc_providers` is deprecated, use `OpenEoBackendConfig.oidc_providers` instead
-    configured_oidc_providers: List[OidcProvider] = dict_item(default=[])
-
     partitioned_job_tracking = dict_item(default=None)
     # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")

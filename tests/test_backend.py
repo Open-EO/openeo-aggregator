@@ -52,19 +52,6 @@ class TestAggregatorBackendImplementation:
             OidcProvider(id='z-agg', issuer='https://z.test', title='Z (agg)'),
         ]
 
-    def test_oidc_providers_legacy_config_support(self, multi_backend_connection, config, backend1, backend2):
-        """Test for legacy AggregatorConfig.configured_oidc_providers support."""
-        # TODO #112 test to remove in the future
-        with config_overrides(oidc_providers=[]):
-            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
-        providers = implementation.oidc_providers()
-        assert providers == [
-            OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
-            OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
-            OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
-            OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
-        ]
-
     def test_oidc_providers_new_config_support(self, multi_backend_connection, config, backend1, backend2):
         """Test for new AggregatorBackendConfig.oidc_providers support."""
         with config_overrides(oidc_providers=[OidcProvider(id="aagg", issuer="https://aagg.test", title="Aagg)")]):

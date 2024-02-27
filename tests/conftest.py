@@ -74,16 +74,6 @@ def backend2(requests_mock, mbldr) -> str:
 
 
 @pytest.fixture
-def configured_oidc_providers() -> List[OidcProvider]:
-    return [
-        OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
-        OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
-        OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
-        OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
-    ]
-
-
-@pytest.fixture
 def zk_client() -> DummyKazooClient:
     return DummyKazooClient()
 
@@ -104,13 +94,11 @@ def memoizer_config() -> dict:
 
 
 @pytest.fixture
-def base_config(configured_oidc_providers, zk_client, memoizer_config) -> AggregatorConfig:
+def base_config(zk_client, memoizer_config) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     conf.config_source = "test fixture base_config"
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
-
-    conf.configured_oidc_providers = configured_oidc_providers
 
     conf.memoizer = memoizer_config
 

@@ -1318,9 +1318,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             user_defined_processes=user_defined_processes,
         )
         # TODO #112 once `AggregatorConfig.configured_oidc_providers` is eliminated, this `_configured_oidc_providers` is not necessary anymore.
-        self._configured_oidc_providers: List[OidcProvider] = (
-            get_backend_config().oidc_providers or config.configured_oidc_providers
-        )
+        self._configured_oidc_providers: List[OidcProvider] = get_backend_config().oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = get_backend_config().auth_entitlement_check
 
         self._memoizer: Memoizer = memoizer_from_config(config=config, namespace="general")

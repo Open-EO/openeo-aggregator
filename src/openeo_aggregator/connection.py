@@ -73,12 +73,13 @@ class BackendConnection(Connection):
     #       designed for single-user use case (e.g. caching, working local config files, ...)
 
     def __init__(
-            self,
-            id: str,
-            url: str,
-            configured_oidc_providers: List[OidcProvider],
-            default_timeout: int = CONNECTION_TIMEOUT_DEFAULT,
-            init_timeout: int = CONNECTION_TIMEOUT_INIT,
+        self,
+        id: str,
+        url: str,
+        *,
+        configured_oidc_providers: Optional[List[OidcProvider]] = None,
+        default_timeout: int = CONNECTION_TIMEOUT_DEFAULT,
+        init_timeout: int = CONNECTION_TIMEOUT_INIT,
     ):
         # Temporarily unlock `_auth` for `super().__init__()`
         self._auth_locked = False
@@ -93,6 +94,8 @@ class BackendConnection(Connection):
             v=openeo_aggregator.about.__version__,
         )
         # Mapping of aggregator provider id to backend's provider id
+        if configured_oidc_providers is None:
+            configured_oidc_providers = get_backend_config().oidc_providers
         self._oidc_provider_map: Dict[str, str] = self._build_oidc_provider_map(configured_oidc_providers)
 
         self.default_timeout = default_timeout
@@ -246,7 +249,7 @@ class MultiBackendConnection:
     def from_config(config: AggregatorConfig) -> 'MultiBackendConnection':
         return MultiBackendConnection(
             backends=config.aggregator_backends,
-            configured_oidc_providers=get_backend_config().oidc_providers or config.configured_oidc_providers,
+            configured_oidc_providers=get_backend_config().oidc_providers,
             memoizer=memoizer_from_config(config, namespace="mbcon"),
             connections_cache_ttl=get_backend_config().connections_cache_ttl,
         )
