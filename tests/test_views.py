@@ -2769,24 +2769,19 @@ class TestUserDefinedProcesses:
 class TestResilience:
 
     @pytest.fixture
-    def broken_backend2(
-            self, backend1, requests_mock, base_config
-    ) -> Tuple[str, AggregatorConfig, 'requests_mock.adapter._Matcher']:
+    def broken_backend2(self, requests_mock) -> Tuple[str, "requests_mock.adapter._Matcher"]:
         """Fixture to quickly set up a config with broken backend2"""
         backend2 = "https://b2.test/v1"
         # TODO: return 500 on all requests?
         root_mock = requests_mock.get(backend2 + "/", status_code=500)
+        return backend2, root_mock
 
-        config = base_config.copy()
-        config.aggregator_backends = {"b1": backend1, "b2": backend2}
-        return backend2, config, root_mock
-
-    def test_startup_during_backend_downtime(self, backend1, broken_backend2, requests_mock, caplog):
+    def test_startup_during_backend_downtime(self, config, backend1, broken_backend2, requests_mock, caplog):
         caplog.set_level(logging.WARNING)
 
         # Initial backend setup with broken backend2
         requests_mock.get(backend1 + "/health", text="OK")
-        backend2, config, b2_root = broken_backend2
+        backend2, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
 
         api100.get("/").assert_status_code(200)
@@ -2799,10 +2794,10 @@ class TestResilience:
             "status_code": 200,
         }
 
-    def test_startup_during_backend_downtime_and_recover(self, backend1, broken_backend2, requests_mock):
+    def test_startup_during_backend_downtime_and_recover(self, config, backend1, broken_backend2, requests_mock):
         # Initial backend setup with broken backend2
         requests_mock.get(backend1 + "/health", text="OK")
-        backend2, config, b2_root = broken_backend2
+        backend2, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
 
         assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
@@ -2827,9 +2822,9 @@ class TestResilience:
             }
 
     @pytest.mark.parametrize("b2_oidc_provider_id", ["egi", "aho"])
-    def test_oidc_mapping_after_recover(self, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
+    def test_oidc_mapping_after_recover(self, config, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
         # Initial backend setup with broken backend2
-        backend2, config, b2_root = broken_backend2
+        backend2, b2_root = broken_backend2
         api100 = get_api100(get_flask_app(config))
 
         # OIDC setup

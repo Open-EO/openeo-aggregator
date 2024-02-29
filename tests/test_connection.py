@@ -11,14 +11,18 @@ from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
 from openeo_driver.testing import DictSubSet
 
-from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT
+from openeo_aggregator.config import (
+    CONNECTION_TIMEOUT_DEFAULT,
+    AggregatorConfig,
+    get_backend_config,
+)
 from openeo_aggregator.connection import (
     BackendConnection,
     InvalidatedConnection,
     LockedAuthException,
     MultiBackendConnection,
 )
-from openeo_aggregator.testing import clock_mock
+from openeo_aggregator.testing import clock_mock, config_overrides
 
 from .conftest import DEFAULT_MEMOIZER_CONFIG
 
@@ -225,6 +229,43 @@ class TestMultiBackendConnection:
 
     # TODO test version discovery in constructor
 
+    def test_from_config(self, backend1, backend2):
+        config = AggregatorConfig()
+        backends = MultiBackendConnection.from_config(config)
+        assert set(c.id for c in backends.get_connections()) == {"b1", "b2"}
+
+    def test_from_config_legacy(self, requests_mock, mbldr):
+        """Test `MultiBackendConnection.from_config` with legacy AggregatorConfig"""
+        # TODO #112 remove this test once AggregatorConfig is gone
+        requests_mock.get("https://b7.test/", json=mbldr.capabilities())
+        requests_mock.get("https://b7.test/credentials/oidc", json=mbldr.credentials_oidc())
+        requests_mock.get("https://b8.test/", json=mbldr.capabilities())
+        requests_mock.get("https://b8.test/credentials/oidc", json=mbldr.credentials_oidc())
+
+        config = AggregatorConfig(
+            aggregator_backends={"b7": "https://b7.test", "b8": "https://b8.test"},
+        )
+        with config_overrides(aggregator_backends={}):
+            backends = MultiBackendConnection.from_config(config)
+
+        assert set(c.id for c in backends.get_connections()) == {"b7", "b8"}
+
+    def test_from_config_new_and_legacy(self, requests_mock, mbldr):
+        """Test `MultiBackendConnection.from_config` with legacy AggregatorConfig and new AggregatorBackendConfig"""
+        # TODO #112 remove this test once AggregatorConfig is gone
+        requests_mock.get("https://b7.test/", json=mbldr.capabilities())
+        requests_mock.get("https://b7.test/credentials/oidc", json=mbldr.credentials_oidc())
+        requests_mock.get("https://b8.test/", json=mbldr.capabilities())
+        requests_mock.get("https://b8.test/credentials/oidc", json=mbldr.credentials_oidc())
+
+        config = AggregatorConfig(
+            aggregator_backends={"b7": "https://b7.test"},
+        )
+        with config_overrides(aggregator_backends={"b8": "https://b8.test"}):
+            backends = MultiBackendConnection.from_config(config)
+
+        assert set(c.id for c in backends.get_connections()) == {"b8"}
+
     @pytest.mark.parametrize(["bid1", "bid2"], [
         ("b1", "b1-dev"), ("b1", "b1.dev"), ("b1", "b1:dev"),
         ("AA", "BB")
@@ -335,7 +376,7 @@ class TestMultiBackendConnection:
     ])
     def test_build_oidc_handling_basic(self, config, pid, issuer, title):
         multi_backend_connection = MultiBackendConnection(
-            backends=config.aggregator_backends,
+            backends=get_backend_config().aggregator_backends,
             configured_oidc_providers=[
                 OidcProvider(id=pid, issuer=issuer, title=title),
                 OidcProvider(id="egi-dev", issuer="https://egi-dev.test", title="EGI dev"),
@@ -362,7 +403,7 @@ class TestMultiBackendConnection:
         ]})
 
         multi_backend_connection = MultiBackendConnection(
-            backends=config.aggregator_backends,
+            backends=get_backend_config().aggregator_backends,
             configured_oidc_providers=[
                 OidcProvider("xa", "https://x.test", "A-X"),
                 OidcProvider("ya", "https://y.test", "A-Y"),
@@ -385,7 +426,7 @@ class TestMultiBackendConnection:
         ]})
 
         multi_backend_connection = MultiBackendConnection(
-            backends=config.aggregator_backends,
+            backends=get_backend_config().aggregator_backends,
             configured_oidc_providers=[
                 OidcProvider("ya", "https://y.test", "A-Y"),
                 OidcProvider("za", "https://z.test", "A-Z"),
@@ -413,7 +454,7 @@ class TestMultiBackendConnection:
         ]})
 
         multi_backend_connection = MultiBackendConnection(
-            backends=config.aggregator_backends,
+            backends=get_backend_config().aggregator_backends,
             configured_oidc_providers=[
                 OidcProvider("a-b", "https://b.test", "A-B"),
                 OidcProvider("a-e", "https://e.test/", "A-E"),

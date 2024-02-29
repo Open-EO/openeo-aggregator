@@ -8,6 +8,7 @@ import pytest
 from openeo_aggregator.config import (
     OPENEO_AGGREGATOR_CONFIG,
     STREAM_CHUNK_SIZE_DEFAULT,
+    AggregatorBackendConfig,
     AggregatorConfig,
     ConfigException,
     get_config,
@@ -20,24 +21,22 @@ def _get_config_content(config_var_name: str = "config"):
         from openeo_aggregator.config import AggregatorConfig
         {config_var_name} = AggregatorConfig(
             config_source=__file__,
-            aggregator_backends={{"b1": "https://b1.test"}},
             test_dummy="bob",
         )
         """
     )
 
 
+@pytest.mark.xfail(
+    reason="TODO #112: `aggregator_backends` should be mandatory, but to allow migration, it can currently be omitted."
+)
 def test_config_defaults():
-    config = AggregatorConfig()
-    with pytest.raises(KeyError):
-        _ = config.aggregator_backends
-    assert config.test_dummy == "alice"
+    with pytest.raises(TypeError, match="missing.*required.*aggregator_backends"):
+        _ = AggregatorBackendConfig()
 
 
 def test_config_aggregator_backends():
-    config = AggregatorConfig(
-        aggregator_backends={"b1": "https://b1.test"}
-    )
+    config = AggregatorBackendConfig(aggregator_backends={"b1": "https://b1.test"})
     assert config.aggregator_backends == {"b1": "https://b1.test"}
 
 
@@ -47,7 +46,6 @@ def test_config_from_py_file(tmp_path, config_var_name):
     path.write_text(_get_config_content(config_var_name=config_var_name))
     config = AggregatorConfig.from_py_file(path)
     assert config.config_source == str(path)
-    assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.test_dummy == "bob"
 
 
@@ -70,7 +68,6 @@ def test_get_config_py_file_path(tmp_path, convertor):
     config_path.write_text(_get_config_content())
     config = get_config(convertor(config_path))
     assert config.config_source == str(config_path)
-    assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.test_dummy == "bob"
 
 
@@ -81,5 +78,4 @@ def test_get_config_env_py_file(tmp_path):
     with mock.patch.dict(os.environ, {OPENEO_AGGREGATOR_CONFIG: str(path)}):
         config = get_config()
     assert config.config_source == str(path)
-    assert config.aggregator_backends == {"b1": "https://b1.test"}
     assert config.test_dummy == "bob"

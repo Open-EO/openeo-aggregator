@@ -23,10 +23,6 @@ FILE_FORMATS_JUST_GEOTIFF = {
 @pytest.fixture
 def config(backend1, backend2, backend1_id, backend2_id, zk_client) -> AggregatorConfig:
     conf = AggregatorConfig()
-    conf.aggregator_backends = {
-        backend1_id: backend1,
-        backend2_id: backend2,
-    }
     conf.memoizer = {
         "type": "zookeeper",
         "config": {
@@ -127,10 +123,6 @@ def test_prime_caches_main_basic(backend1, backend2, upstream_request_mocks, tmp
 
     # Construct config file
     config = AggregatorConfig()
-    config.aggregator_backends = {
-        backend1_id: backend1,
-        backend2_id: backend2,
-    }
     config_file = tmp_path / "conf.py"
     _build_config_file(config, config_file)
 
@@ -143,10 +135,6 @@ def test_prime_caches_main_logging(backend1, backend2, tmp_path, backend1_id, ba
     """Run main in subprocess (so no request mocks, and probably a lot of failures) to see if logging setup works."""
 
     config = AggregatorConfig()
-    config.aggregator_backends = {
-        backend1_id: backend1,
-        backend2_id: backend2,
-    }
     config_file = tmp_path / "conf.py"
     _build_config_file(config, config_file)
 

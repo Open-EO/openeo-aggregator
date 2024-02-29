@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import requests
 
-from openeo_aggregator.config import AggregatorConfig, get_config
+from openeo_aggregator.config import AggregatorConfig, get_backend_config, get_config
 from openeo_aggregator.metadata.merging import (
     ProcessMetadataMerger,
     merge_collection_metadata,
@@ -46,16 +46,16 @@ def main():
     _log.info(f"{args=}")
 
     # Load config
+    # TODO: load from file iso "environment"?
     config: AggregatorConfig = get_config(args.environment)
 
     # Determine backend ids/urls
-    backend_ids = args.backends or list(config.aggregator_backends.keys())
+    aggregator_backends = get_backend_config().aggregator_backends or config.aggregator_backends
+    backend_ids = args.backends or list(aggregator_backends.keys())
     try:
-        backend_urls = [config.aggregator_backends[b] for b in backend_ids]
+        backend_urls = [aggregator_backends[b] for b in backend_ids]
     except KeyError:
-        raise ValueError(
-            f"Invalid backend ids {backend_ids}, should be subset of {list(config.aggregator_backends.keys())}."
-        )
+        raise ValueError(f"Invalid backend ids {backend_ids}, should be subset of {list(aggregator_backends.keys())}.")
     print("\nRunning metadata merging checks against backend urls:")
     print("\n".join(f"- {bid}: {url}" for bid, url in zip(backend_ids, backend_urls)))
     print("\n")

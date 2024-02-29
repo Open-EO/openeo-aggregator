@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
@@ -43,7 +43,7 @@ class AggregatorConfig(dict):
     config_source = dict_item()
 
     # Dictionary mapping backend id to backend url
-    aggregator_backends = dict_item()
+    aggregator_backends = dict_item()  # TODO #112 deprecated
 
     partitioned_job_tracking = dict_item(default=None)
     # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
@@ -125,6 +125,9 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
+
+    # TODO #112 temporary default to allow migration, but make this field mandatory (and require non-empty)
+    aggregator_backends: Dict[str, str] = attrs.Factory(dict)
 
     streaming_chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 

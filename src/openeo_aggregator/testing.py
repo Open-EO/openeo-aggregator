@@ -228,6 +228,12 @@ class MetadataBuilder:
 
         return capabilities
 
+    def credentials_oidc(self, id="egi", issuer="https://egi.test", title="EGI", extra: Optional[List[dict]] = None):
+        providers = [{"id": id, "issuer": issuer, "title": title}]
+        if extra:
+            providers += extra
+        return {"providers": providers}
+
     def collection(self, id="S2", *, license="proprietary") -> dict:
         """Build collection metadata"""
         return {

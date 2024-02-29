@@ -45,7 +45,6 @@ def create_app(config: Any = None, auto_logging_setup: bool = True, flask_error_
     config: AggregatorConfig = get_config(config)
     _log.info(f"Using config: {config.config_source=!r}")
 
-    _log.info(f"Creating MultiBackendConnection with {config.aggregator_backends=!r}")
     backends = MultiBackendConnection.from_config(config)
 
     _log.info("Creating AggregatorBackendImplementation")

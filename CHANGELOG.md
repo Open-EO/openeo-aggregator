@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.23.0]
+
+- Add `AggregatorBackendConfig.aggregator_backends` and deprecate `AggregatorConfig.aggregator_backends` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.22.0]
 
 - Eliminate unused `AggregatorConfig.configured_oidc_providers` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))

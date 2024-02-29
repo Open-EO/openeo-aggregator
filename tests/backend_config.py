@@ -13,6 +13,10 @@ config = AggregatorBackendConfig(
         OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
         OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
     ],
+    aggregator_backends={
+        "b1": "https://b1.test/v1",
+        "b2": "https://b2.test/v1",
+    },
     connections_cache_ttl=1.0,
     zookeeper_prefix="/o-a/",
 )

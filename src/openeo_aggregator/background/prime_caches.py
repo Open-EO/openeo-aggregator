@@ -97,7 +97,6 @@ def prime_caches(
         config: AggregatorConfig = get_config(config)
         _log.info(f"Using config: {config.get('config_source')=}")
 
-        _log.info(f"Creating AggregatorBackendImplementation with {config.aggregator_backends}")
         backends = MultiBackendConnection.from_config(config)
         backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
 

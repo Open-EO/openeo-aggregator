@@ -8,4 +8,5 @@ config = AggregatorBackendConfig(
     capabilities_title="openEO Platform",
     capabilities_description="openEO Platform, provided through openEO Aggregator Driver",
     enable_basic_auth=False,
+    aggregator_backends={},
 )
