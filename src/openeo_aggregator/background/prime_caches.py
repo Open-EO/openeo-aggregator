@@ -2,8 +2,7 @@ import argparse
 import contextlib
 import functools
 import logging
-from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from openeo.util import TimingLogger
 from openeo_driver.util.logging import (
@@ -21,12 +20,7 @@ import openeo_aggregator.caching
 from openeo_aggregator.about import log_version_info
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
-from openeo_aggregator.config import (
-    OPENEO_AGGREGATOR_CONFIG,
-    AggregatorConfig,
-    get_backend_config,
-    get_config,
-)
+from openeo_aggregator.config import OPENEO_AGGREGATOR_CONFIG, get_backend_config
 from openeo_aggregator.connection import MultiBackendConnection
 
 _log = logging.getLogger(__name__)
@@ -39,11 +33,6 @@ FAIL_MODE_WARN = "warn"
 def main(args: Optional[List[str]] = None):
     """CLI entrypoint"""
     cli = argparse.ArgumentParser()
-    cli.add_argument(
-        "--config",
-        default=None,
-        help=f"Optional: aggregator config to load (instead of env var {OPENEO_AGGREGATOR_CONFIG} based resolution).",
-    )
     cli.add_argument(
         "--require-zookeeper-writes",
         action="store_true",
@@ -81,21 +70,17 @@ def main(args: Optional[List[str]] = None):
     )
     setup_logging(config=logging_config)
     prime_caches(
-        config=arguments.config,
         require_zookeeper_writes=arguments.require_zookeeper_writes,
         fail_mode=arguments.fail_mode,
     )
 
 
 def prime_caches(
-    config: Union[str, Path, AggregatorConfig, None] = None,
     require_zookeeper_writes: bool = False,
     fail_mode: str = FAIL_MODE_FAILFAST,
 ):
     log_version_info(logger=_log)
     with TimingLogger(title=f"Prime caches", logger=_log):
-        config: AggregatorConfig = get_config(config)
-        _log.info(f"Using config: {config.get('config_source')=}")
 
         backends = MultiBackendConnection.from_config()
         backend_implementation = AggregatorBackendImplementation(backends=backends)
