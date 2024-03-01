@@ -233,37 +233,6 @@ class TestMultiBackendConnection:
         backends = MultiBackendConnection.from_config(config)
         assert set(c.id for c in backends.get_connections()) == {"b1", "b2"}
 
-    def test_from_config_legacy(self, requests_mock, mbldr):
-        """Test `MultiBackendConnection.from_config` with legacy AggregatorConfig"""
-        # TODO #112 remove this test once AggregatorConfig is gone
-        requests_mock.get("https://b7.test/", json=mbldr.capabilities())
-        requests_mock.get("https://b7.test/credentials/oidc", json=mbldr.credentials_oidc())
-        requests_mock.get("https://b8.test/", json=mbldr.capabilities())
-        requests_mock.get("https://b8.test/credentials/oidc", json=mbldr.credentials_oidc())
-
-        config = AggregatorConfig(
-            aggregator_backends={"b7": "https://b7.test", "b8": "https://b8.test"},
-        )
-        with config_overrides(aggregator_backends={}):
-            backends = MultiBackendConnection.from_config(config)
-
-        assert set(c.id for c in backends.get_connections()) == {"b7", "b8"}
-
-    def test_from_config_new_and_legacy(self, requests_mock, mbldr):
-        """Test `MultiBackendConnection.from_config` with legacy AggregatorConfig and new AggregatorBackendConfig"""
-        # TODO #112 remove this test once AggregatorConfig is gone
-        requests_mock.get("https://b7.test/", json=mbldr.capabilities())
-        requests_mock.get("https://b7.test/credentials/oidc", json=mbldr.credentials_oidc())
-        requests_mock.get("https://b8.test/", json=mbldr.capabilities())
-        requests_mock.get("https://b8.test/credentials/oidc", json=mbldr.credentials_oidc())
-
-        config = AggregatorConfig(
-            aggregator_backends={"b7": "https://b7.test"},
-        )
-        with config_overrides(aggregator_backends={"b8": "https://b8.test"}):
-            backends = MultiBackendConnection.from_config(config)
-
-        assert set(c.id for c in backends.get_connections()) == {"b8"}
 
     @pytest.mark.parametrize(["bid1", "bid2"], [
         ("b1", "b1-dev"), ("b1", "b1.dev"), ("b1", "b1:dev"),

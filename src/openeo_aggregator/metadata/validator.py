@@ -50,7 +50,7 @@ def main():
     config: AggregatorConfig = get_config(args.environment)
 
     # Determine backend ids/urls
-    aggregator_backends = get_backend_config().aggregator_backends or config.aggregator_backends
+    aggregator_backends = get_backend_config().aggregator_backends
     backend_ids = args.backends or list(aggregator_backends.keys())
     try:
         backend_urls = [aggregator_backends[b] for b in backend_ids]

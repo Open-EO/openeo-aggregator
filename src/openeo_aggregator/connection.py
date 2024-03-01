@@ -250,7 +250,7 @@ class MultiBackendConnection:
     def from_config(config: AggregatorConfig) -> 'MultiBackendConnection':
         backend_config = get_backend_config()
         return MultiBackendConnection(
-            backends=backend_config.aggregator_backends or config.aggregator_backends,
+            backends=backend_config.aggregator_backends,
             configured_oidc_providers=backend_config.oidc_providers,
             memoizer=memoizer_from_config(config, namespace="mbcon"),
             connections_cache_ttl=backend_config.connections_cache_ttl,

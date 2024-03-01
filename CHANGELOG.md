@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+- Remove deprecated `AggregatorConfig` field `aggregator_backends` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.26.0]
 
 - Remove now unused `conf/backend_config.py` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112), [#117](https://github.com/Open-EO/openeo-aggregator/issues/117))

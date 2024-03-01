@@ -42,10 +42,6 @@ class AggregatorConfig(dict):
 
     config_source = dict_item()
 
-    # Dictionary mapping backend id to backend url
-    # TODO #112 deprecated, instead use by AggregatorBackendConfig.aggregator_backends
-    aggregator_backends = dict_item()
-
     # TODO #112 deprecated, instead use AggregatorBackendConfig.partitioned_job_tracking
     partitioned_job_tracking = dict_item(default=None)
 
@@ -129,8 +125,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
 
-    # TODO #112 temporary default to allow migration, but make this field mandatory (and require non-empty)
-    aggregator_backends: Dict[str, str] = attrs.Factory(dict)
+    aggregator_backends: Dict[str, str] = attrs.field(validator=attrs.validators.min_len(1))
 
     # See `ZooKeeperPartitionedJobDB.from_config` for supported fields.
     partitioned_job_tracking: Optional[dict] = None

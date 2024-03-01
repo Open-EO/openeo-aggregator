@@ -27,12 +27,14 @@ def _get_config_content(config_var_name: str = "config"):
     )
 
 
-@pytest.mark.xfail(
-    reason="TODO #112: `aggregator_backends` should be mandatory, but to allow migration, it can currently be omitted."
-)
 def test_config_defaults():
     with pytest.raises(TypeError, match="missing.*required.*aggregator_backends"):
         _ = AggregatorBackendConfig()
+
+
+def test_config_aggregator_backends_empty():
+    with pytest.raises(ValueError, match="Length of 'aggregator_backends' must be >= 1"):
+        _ = AggregatorBackendConfig(aggregator_backends={})
 
 
 def test_config_aggregator_backends():
