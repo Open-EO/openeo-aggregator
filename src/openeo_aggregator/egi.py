@@ -23,12 +23,10 @@ _eduperson_entitlement_regex = re.compile(
         \#(?P<authority>[a-z0-9._-]+)
         $
     """,
-    flags=re.VERBOSE | re.IGNORECASE
+    flags=re.VERBOSE | re.IGNORECASE,
 )
 
-Entitlement = namedtuple(
-    "Entitlement", ["namespace", "vo", "group", "role", "authority"]
-)
+Entitlement = namedtuple("Entitlement", ["namespace", "vo", "group", "role", "authority"])
 
 
 @functools.lru_cache(maxsize=100)
@@ -56,8 +54,7 @@ class UserRole:
     def __init__(self, title: str):
         self._title = title
         self._id = "".join(
-            w.title() if w.islower() else w
-            for w in self._title.replace("-", " ").replace("_", " ").split()
+            w.title() if w.islower() else w for w in self._title.replace("-", " ").replace("_", " ").split()
         )
         self._normalized = self.normalize_role(self._title)
 
@@ -81,19 +78,13 @@ class UserRole:
         )
 
 
-
-
 class OpeneoPlatformUserRoles:
     def __init__(self, roles: List[UserRole]):
         self.roles = roles
 
     def extract_roles(self, entitlements: List[str]) -> List[UserRole]:
         """Extract user roles based on list of eduperson_entitlement values"""
-        return [
-            role
-            for role in self.roles
-            if any(role.entitlement_match(e) for e in entitlements)
-        ]
+        return [role for role in self.roles if any(role.entitlement_match(e) for e in entitlements)]
 
 
 # Standardized roles in openEO Platform EGI Virtual Organisation

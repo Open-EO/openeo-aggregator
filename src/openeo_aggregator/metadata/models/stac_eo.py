@@ -92,19 +92,11 @@ class EoBand:
     @staticmethod
     def from_dict(obj: Any) -> "EoBand":
         assert isinstance(obj, dict)
-        center_wavelength = from_union(
-            [from_float, from_none], obj.get("center_wavelength")
-        )
-        common_name = from_union(
-            [CommonNameOfTheBand, from_none], obj.get("common_name")
-        )
-        full_width_half_max = from_union(
-            [from_float, from_none], obj.get("full_width_half_max")
-        )
+        center_wavelength = from_union([from_float, from_none], obj.get("center_wavelength"))
+        common_name = from_union([CommonNameOfTheBand, from_none], obj.get("common_name"))
+        full_width_half_max = from_union([from_float, from_none], obj.get("full_width_half_max"))
         name = from_union([from_str, from_none], obj.get("name"))
-        solar_illumination = from_union(
-            [from_float, from_none], obj.get("solar_illumination")
-        )
+        solar_illumination = from_union([from_float, from_none], obj.get("solar_illumination"))
         return EoBand(
             center_wavelength,
             common_name,
@@ -116,19 +108,13 @@ class EoBand:
     def to_dict(self) -> dict:
         return dict_no_none(
             {
-                "center_wavelength": from_union(
-                    [to_float, from_none], self.center_wavelength
-                ),
+                "center_wavelength": from_union([to_float, from_none], self.center_wavelength),
                 "common_name": from_union(
                     [lambda x: to_enum(CommonNameOfTheBand, x), from_none],
                     self.common_name,
                 ),
-                "full_width_half_max": from_union(
-                    [to_float, from_none], self.full_width_half_max
-                ),
+                "full_width_half_max": from_union([to_float, from_none], self.full_width_half_max),
                 "name": from_union([from_str, from_none], self.name),
-                "solar_illumination": from_union(
-                    [to_float, from_none], self.solar_illumination
-                ),
+                "solar_illumination": from_union([to_float, from_none], self.solar_illumination),
             }
         )

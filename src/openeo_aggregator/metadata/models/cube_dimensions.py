@@ -49,8 +49,7 @@ class CubeDimensions:
             try:
                 additional_property = CubeDimension.from_dict(prop_dict)
             except Exception as e:
-                raise TypeError("Error parsing '%s' of CubeDimensions: %s" %
-                                (prop_name, e))
+                raise TypeError("Error parsing '%s' of CubeDimensions: %s" % (prop_name, e))
             additional_properties[prop_name] = additional_property
 
         collection_stac_collection_cube_dimensions.dimensions = additional_properties

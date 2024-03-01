@@ -81,13 +81,11 @@ class StacSummaries:
                 except:  # noqa: E722
                     pass
                 if not isinstance(data, dict):
-                    raise TypeError("Expected dict for '%s' of StacSummaries, actual %s" %
-                                    (prop_name, type(data)))
+                    raise TypeError("Expected dict for '%s' of StacSummaries, actual %s" % (prop_name, type(data)))
                 try:
                     componentsschemas_stac_summaries_collection_properties_type_1 = Statistics.from_dict(data)
                 except ValueError as e:
-                    raise TypeError("Error parsing '%s' of StacSummaries: %s" %
-                                    (prop_name, e))
+                    raise TypeError("Error parsing '%s' of StacSummaries: %s" % (prop_name, e))
                 return componentsschemas_stac_summaries_collection_properties_type_1
 
             additional_property = _parse_additional_property(prop_dict)
@@ -127,9 +125,7 @@ class StacSummaries:
 
         :return: Merged summaries
         """
-        by_backend = {
-            k: v.additional_properties for k, v in summaries_by_backend.items()
-        }
+        by_backend = {k: v.additional_properties for k, v in summaries_by_backend.items()}
         # Calculate the unique summary names.
         unique_summary_names: Set[str] = functools.reduce(
             lambda a, b: a.union(b), (d.keys() for d in by_backend.values()), set()
@@ -155,12 +151,7 @@ class StacSummaries:
                 for collection_summaries in by_backend.values():
                     try:
                         if summary_name in collection_summaries:
-                            eo_bands_lists.append(
-                                [
-                                    EoBand.from_dict(b)
-                                    for b in collection_summaries.get(summary_name)
-                                ]
-                            )
+                            eo_bands_lists.append([EoBand.from_dict(b) for b in collection_summaries.get(summary_name)])
                     except Exception as e:
                         report(
                             f"Failed to parse summary {summary_name!r}: {e!r}",
@@ -174,11 +165,7 @@ class StacSummaries:
                         f"Empty prefix for {summary_name!r}, falling back to first back-end's {summary_name!r}",
                         collection_id=collection_id,
                     )
-                    eo_bands = next(
-                        d.get(summary_name)
-                        for d in by_backend.values()
-                        if summary_name in d
-                    )
+                    eo_bands = next(d.get(summary_name) for d in by_backend.values() if summary_name in d)
                 merged_addition_properties[summary_name] = eo_bands
             else:
                 report(f"Unhandled merging of summary {summary_name!r}", collection_id=collection_id)

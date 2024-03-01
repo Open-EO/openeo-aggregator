@@ -67,9 +67,7 @@ class CrossBackendSplitter(AbstractJobSplitter):
 
     """
 
-    def __init__(
-        self, backend_for_collection: Callable[[str], str], always_split: bool = False
-    ):
+    def __init__(self, backend_for_collection: Callable[[str], str], always_split: bool = False):
         """
         :param backend_for_collection: callable that determines backend id for given collection id
         :param always_split: split all load_collections, also when on same backend
@@ -183,14 +181,10 @@ def _resolve_dependencies(process_graph: FlatPG, batch_jobs: Dict[str, BatchJob]
     """
     result = dict()
     for node_id, node in process_graph.items():
-        if node["process_id"] == "load_result" and node["arguments"]["id"].startswith(
-            _LOAD_RESULT_PLACEHOLDER
-        ):
+        if node["process_id"] == "load_result" and node["arguments"]["id"].startswith(_LOAD_RESULT_PLACEHOLDER):
             dep_id = node["arguments"]["id"].partition(_LOAD_RESULT_PLACEHOLDER)[-1]
             batch_job = batch_jobs[dep_id]
-            _log.info(
-                f"resolve_dependencies: replace placeholder {dep_id!r} with concrete {batch_job.job_id!r}"
-            )
+            _log.info(f"resolve_dependencies: replace placeholder {dep_id!r} with concrete {batch_job.job_id!r}")
             try:
                 # Try to get "canonical" result URL (signed URL)
                 links = batch_job.get_results().get_metadata()["links"]
@@ -236,9 +230,7 @@ def _loop():
         yield i
 
 
-def run_partitioned_job(
-    pjob: PartitionedJob, connection: openeo.Connection, fail_fast: bool = True
-) -> dict:
+def run_partitioned_job(pjob: PartitionedJob, connection: openeo.Connection, fail_fast: bool = True) -> dict:
     """
     Run partitioned job (probably with dependencies between subjobs)
     with an active polling loop for tracking and scheduling the subjobs
@@ -275,16 +267,11 @@ def run_partitioned_job(
             if states[subjob_id] == SUBJOB_STATES.WAITING:
                 dep_states = set(states[dep] for dep in dependencies.get(subjob_id, []))
                 _log.info(f"Dependency states for {subjob_id=!r}: {dep_states}")
-                if (
-                    SUBJOB_STATES.ERROR in dep_states
-                    or SUBJOB_STATES.CANCELED in dep_states
-                ):
+                if SUBJOB_STATES.ERROR in dep_states or SUBJOB_STATES.CANCELED in dep_states:
                     _log.info(f"Dependency failure: canceling {subjob_id=!r}")
                     states[subjob_id] = SUBJOB_STATES.CANCELED
                 elif all(s == SUBJOB_STATES.FINISHED for s in dep_states):
-                    _log.info(
-                        f"No unfulfilled dependencies: ready to start {subjob_id=!r}"
-                    )
+                    _log.info(f"No unfulfilled dependencies: ready to start {subjob_id=!r}")
                     states[subjob_id] = SUBJOB_STATES.READY
 
             # Handle job (start, poll status, ...)
@@ -292,9 +279,7 @@ def run_partitioned_job(
                 try:
                     process_graph = _resolve_dependencies(subjob.process_graph, batch_jobs=batch_jobs)
 
-                    _log.info(
-                        f"Starting new batch job for subjob {subjob_id!r} on backend {subjob.backend_id!r}"
-                    )
+                    _log.info(f"Starting new batch job for subjob {subjob_id!r} on backend {subjob.backend_id!r}")
                     # Create
                     batch_job = connection.create_job(
                         process_graph=process_graph,
@@ -307,9 +292,7 @@ def run_partitioned_job(
                     # Start
                     batch_job.start_job()
                     states[subjob_id] = SUBJOB_STATES.RUNNING
-                    _log.info(
-                        f"Started batch job {batch_job.job_id!r} for subjob {subjob_id!r}"
-                    )
+                    _log.info(f"Started batch job {batch_job.job_id!r} for subjob {subjob_id!r}")
                 except Exception as e:
                     if fail_fast:
                         raise

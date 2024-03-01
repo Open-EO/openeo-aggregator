@@ -104,10 +104,10 @@ class ApproxStr:
     """Pytest helper in style of `pytest.approx`, but for string checking, based on prefix, body and or suffix"""
 
     def __init__(
-            self,
-            prefix: Optional[str] = None,
-            body: Optional[str] = None,
-            suffix: Optional[str] = None,
+        self,
+        prefix: Optional[str] = None,
+        body: Optional[str] = None,
+        suffix: Optional[str] = None,
     ):
         # TODO: option to do case-insensitive comparison?
         self.prefix = prefix
@@ -115,10 +115,12 @@ class ApproxStr:
         self.suffix = suffix
 
     def __eq__(self, other):
-        return isinstance(other, str) and \
-               (self.prefix is None or other.startswith(self.prefix)) and \
-               (self.body is None or self.body in other) and \
-               (self.suffix is None or other.endswith(self.suffix))
+        return (
+            isinstance(other, str)
+            and (self.prefix is None or other.startswith(self.prefix))
+            and (self.body is None or self.body in other)
+            and (self.suffix is None or other.endswith(self.suffix))
+        )
 
     def __repr__(self):
         return "...".join([self.prefix or ""] + ([self.body] if self.body else []) + [self.suffix or ""])
@@ -153,9 +155,9 @@ same_repr = SameRepr
 
 
 def clock_mock(
-        start: Union[None, int, float, str, datetime.datetime] = None,
-        step: float = 0,
-        offset: Optional[float] = None,
+    start: Union[None, int, float, str, datetime.datetime] = None,
+    step: float = 0,
+    offset: Optional[float] = None,
 ):
     """
     Mock the `time()` calls in `Clock` with a given start date/time and increment.
@@ -178,8 +180,6 @@ def clock_mock(
     assert isinstance(start, (int, float))
 
     return mock.patch.object(Clock, "_time", new=itertools.count(start, step=step).__next__)
-
-
 
 
 class MetadataBuilder:
@@ -279,8 +279,7 @@ class MetadataBuilder:
             "id": id,
             "description": id,
             "parameters": parameters or [],
-            "returns": returns
-            or {"schema": {"type": "object", "subtype": "raster-cube"}},
+            "returns": returns or {"schema": {"type": "object", "subtype": "raster-cube"}},
         }
 
     def processes(self, *args) -> dict:

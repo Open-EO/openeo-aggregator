@@ -190,8 +190,7 @@ class ZooKeeperPartitionedJobDB:
         """
         with self._connect():
             self._client.create(
-                path=self._path(user_id, pjob_id, "sjobs", sjob_id, "job_id"),
-                value=self.serialize(job_id=job_id)
+                path=self._path(user_id, pjob_id, "sjobs", sjob_id, "job_id"), value=self.serialize(job_id=job_id)
             )
 
     def get_backend_job_id(self, user_id: str, pjob_id: str, sjob_id: str) -> str:
@@ -223,7 +222,7 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             kwargs = dict(
                 path=self._path(user_id, pjob_id, "status"),
-                value=self.serialize(status=status, message=message, timestamp=Clock.time(), progress=progress)
+                value=self.serialize(status=status, message=message, timestamp=Clock.time(), progress=progress),
             )
             if create:
                 self._client.create(**kwargs)

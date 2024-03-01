@@ -50,6 +50,7 @@ _log = logging.getLogger(__name__)
 
 BackendId = str
 
+
 class LockedAuthException(InternalException):
     def __init__(self):
         super().__init__(message="Setting auth while locked.")
@@ -211,10 +212,10 @@ class MultiBackendConnection:
     """
     Collection of multiple connections to different backends
     """
+
     # TODO: API version management: just do single/fixed-version federation, or also handle version discovery?
     # TODO: keep track of (recent) backend failures, e.g. to automatically blacklist a backend
     # TODO: synchronized backend connection caching/flushing across gunicorn workers, for better consistency?
-
 
     _TIMEOUT = 5
 
@@ -277,8 +278,7 @@ class MultiBackendConnection:
             for con in self._connections_cache.connections:
                 con.invalidate()
             self._connections_cache = _ConnectionsCache(
-                expiry=now + self._connections_cache_ttl,
-                connections=list(self._get_connections(skip_failures=True))
+                expiry=now + self._connections_cache_ttl, connections=list(self._get_connections(skip_failures=True))
             )
             new_bids = [c.id for c in self._connections_cache.connections]
             _log.debug(
@@ -328,9 +328,7 @@ class MultiBackendConnection:
 
     def get_api_versions(self) -> Set[ComparableVersion]:
         """Get set of API versions reported by backends"""
-        versions = self._memoizer.get_or_call(
-            key="api_versions", callback=self._get_api_versions
-        )
+        versions = self._memoizer.get_or_call(key="api_versions", callback=self._get_api_versions)
         versions = set(ComparableVersion(v) for v in versions)
         return versions
 
@@ -344,9 +342,7 @@ class MultiBackendConnection:
         """Get the highest API version of all back-ends"""
         return max(self.get_api_versions())
 
-    def map(
-        self, callback: Callable[[BackendConnection], Any]
-    ) -> Iterator[Tuple[str, Any]]:
+    def map(self, callback: Callable[[BackendConnection], Any]) -> Iterator[Tuple[str, Any]]:
         """
         Query each backend connection with given callable and return results as iterator
 
@@ -438,10 +434,8 @@ class MultiBackendConnection:
             return ParallelResponse(successes=successes, failures=failures)
 
 
-
 def streaming_flask_response(
-        backend_response: requests.Response,
-        chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
+    backend_response: requests.Response, chunk_size: int = STREAM_CHUNK_SIZE_DEFAULT
 ) -> flask.Response:
     """
     Convert a `requests.Response` coming from a backend
@@ -450,10 +444,7 @@ def streaming_flask_response(
     :param backend_response: `requests.Response` object (possibly created with "stream" option enabled)
     :param chunk_size: chunk size to use for streaming
     """
-    headers = [
-        (k, v) for (k, v) in backend_response.headers.items()
-        if k.lower() in ["content-type"]
-    ]
+    headers = [(k, v) for (k, v) in backend_response.headers.items() if k.lower() in ["content-type"]]
     return flask.Response(
         # Streaming response through `iter_content` generator (https://flask.palletsprojects.com/en/2.0.x/patterns/streaming/)
         response=backend_response.iter_content(chunk_size=chunk_size),

@@ -63,8 +63,16 @@ def merge_collection_metadata(
 
     if full_metadata:
         for backend_id, collection in by_backend.items():
-            for required_field in ["stac_version", "id", "description", "license", "extent", "links", "cube:dimensions",
-                                   "summaries"]:
+            for required_field in [
+                "stac_version",
+                "id",
+                "description",
+                "license",
+                "extent",
+                "links",
+                "cube:dimensions",
+                "summaries",
+            ]:
                 if required_field not in collection:
                     report(
                         f"Missing {required_field} in collection metadata.",
@@ -93,7 +101,7 @@ def merge_collection_metadata(
     # - `crs` is required by OGC API: https://docs.opengeospatial.org/is/18-058/18-058.html#_crs_identifier_list
     # - `sci:doi` and related are defined at https://github.com/stac-extensions/scientific
     for field in getter.available_keys(["stac_extensions", "keywords", "providers", "sci:publications"]):
-        result[field] = getter.concat(field, skip_duplicates = True)
+        result[field] = getter.concat(field, skip_duplicates=True)
     for field in getter.available_keys(["deprecated"]):
         result[field] = all(getter.get(field))
     for field in getter.available_keys(["crs", "sci:citation", "sci:doi"]):
@@ -104,9 +112,7 @@ def merge_collection_metadata(
     for backend_id, collection in by_backend.items():
         try:
             if "summaries" in collection:
-                summaries_by_backend[backend_id] = StacSummaries.from_dict(
-                    collection.get("summaries")
-                )
+                summaries_by_backend[backend_id] = StacSummaries.from_dict(collection.get("summaries"))
         except Exception as e:
             report("Failed to parse summaries", collection_id=cid, backend_id=backend_id, exception=e)
     result["summaries"] = StacSummaries.merge_all(
@@ -168,11 +174,12 @@ def merge_collection_metadata(
             t_extent = list(cube_dim_getter.select(t_dim).get("extent"))
             try:
                 # TODO: Is multidict getter with id required?
-                t_starts = [e[0] for e in t_extent if e[0] and e[0] != 'None']
-                t_ends = [e[1] for e in t_extent if e[1] and e[1] != 'None']
+                t_starts = [e[0] for e in t_extent if e[0] and e[0] != "None"]
+                t_ends = [e[1] for e in t_extent if e[1] and e[1] != "None"]
                 result["cube:dimensions"][t_dim]["extent"] = [
                     min(rfc3339.normalize(t) for t in t_starts) if t_starts else None,
-                    max(rfc3339.normalize(t) for t in t_ends) if t_ends else None]
+                    max(rfc3339.normalize(t) for t in t_ends) if t_ends else None,
+                ]
             except Exception as e:
                 report(
                     f"Failed to merge cube:dimensions.{t_dim}.extent: {e!r}, actual: {t_extent}",
@@ -218,9 +225,7 @@ def merge_collection_metadata(
 
 def single_backend_collection_post_processing(metadata: dict, *, backend_id: str):
     """In-place post-processing of a single backend collection"""
-    if not deep_get(
-        metadata, "summaries", STAC_PROPERTY_FEDERATION_BACKENDS, default=None
-    ):
+    if not deep_get(metadata, "summaries", STAC_PROPERTY_FEDERATION_BACKENDS, default=None):
         metadata.setdefault("summaries", {})
         metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS] = [backend_id]
     else:
@@ -235,9 +240,7 @@ def set_if_non_empty(d: dict, key: str, value: Any):
         d[key] = value
 
 
-def json_diff(
-    a: Any, b: Any, a_name: str = "", b_name: str = "", context: int = 3
-) -> List[str]:
+def json_diff(a: Any, b: Any, a_name: str = "", b_name: str = "", context: int = 3) -> List[str]:
     """
     Generate unified diff of JSON serialization of given objects
     :return: List of diff lines
@@ -273,9 +276,7 @@ class ProcessMetadataMerger:
     def __init__(self, report: Callable = DEFAULT_REPORTER.report):
         self.report = report
 
-    def merge_processes_metadata(
-        self, processes_per_backend: Dict[str, Dict[str, dict]]
-    ) -> Dict[str, dict]:
+    def merge_processes_metadata(self, processes_per_backend: Dict[str, Dict[str, dict]]) -> Dict[str, dict]:
         """
         Merge process metadata listings from multiple back-ends into a single process listing.
 
@@ -294,9 +295,7 @@ class ProcessMetadataMerger:
             try:
                 merged[process_id] = self.merge_process_metadata(by_backend)
             except Exception as e:
-                self.report(
-                    f"Failed to merge process metadata: {e!r}", process_id=process_id
-                )
+                self.report(f"Failed to merge process metadata: {e!r}", process_id=process_id)
         return merged
 
     def merge_process_metadata(self, by_backend: Dict[str, dict]) -> dict:
@@ -322,21 +321,13 @@ class ProcessMetadataMerger:
         }
         set_if_non_empty(merged, "summary", getter.first("summary", default=None))
 
-        merged["parameters"] = self._merge_process_parameters(
-            by_backend=by_backend, process_id=process_id
-        )
+        merged["parameters"] = self._merge_process_parameters(by_backend=by_backend, process_id=process_id)
 
         # Return schema
-        merged["returns"] = self._merge_process_returns(
-            by_backend=by_backend, process_id=process_id
-        )
+        merged["returns"] = self._merge_process_returns(by_backend=by_backend, process_id=process_id)
 
-        set_if_non_empty(
-            merged, "exceptions", self._merge_process_exceptions(by_backend=by_backend)
-        )
-        set_if_non_empty(
-            merged, "categories", self._merge_process_categories(by_backend=by_backend)
-        )
+        set_if_non_empty(merged, "exceptions", self._merge_process_exceptions(by_backend=by_backend))
+        set_if_non_empty(merged, "categories", self._merge_process_categories(by_backend=by_backend))
 
         merged["deprecated"] = any(getter.get("deprecated"))
         merged["experimental"] = any(getter.get("experimental"))
@@ -345,9 +336,7 @@ class ProcessMetadataMerger:
 
         return merged
 
-    def _get_parameters_by_name(
-        self, parameters: List[dict], backend_id: str, process_id: str
-    ) -> Dict[str, dict]:
+    def _get_parameters_by_name(self, parameters: List[dict], backend_id: str, process_id: str) -> Dict[str, dict]:
         """Build dictionary of parameter metadata, keyed on name."""
         names = {}
         try:
@@ -373,9 +362,7 @@ class ProcessMetadataMerger:
 
         return names
 
-    def _merge_process_parameters(
-        self, by_backend: Dict[str, dict], process_id: str
-    ) -> List[dict]:
+    def _merge_process_parameters(self, by_backend: Dict[str, dict], process_id: str) -> List[dict]:
         # Pick first non-empty parameter listing as merge result
         # TODO: real merge instead of taking first?
         merged = []
@@ -421,13 +408,9 @@ class ProcessMetadataMerger:
                 normalizer = ProcessParameterNormalizer(
                     strip_description=True,
                     add_optionals=True,
-                    report=functools.partial(
-                        self.report, backend_id=backend_id, process_id=process_id
-                    ),
+                    report=functools.partial(self.report, backend_id=backend_id, process_id=process_id),
                 )
-                merged_param = normalizer.normalize_parameter(
-                    merged_params_by_name[name]
-                )
+                merged_param = normalizer.normalize_parameter(merged_params_by_name[name])
                 other_param = normalizer.normalize_parameter(params_by_name[name])
                 for field in merged_param.keys():
                     merged_value = merged_param[field]
@@ -449,9 +432,7 @@ class ProcessMetadataMerger:
 
         return merged
 
-    def _merge_process_returns(
-        self, by_backend: Dict[str, dict], process_id: str
-    ) -> dict:
+    def _merge_process_returns(self, by_backend: Dict[str, dict], process_id: str) -> dict:
         """
         Merge `returns` metadata
         :param by_backend: {backend_id: process_metadata}
@@ -471,9 +452,7 @@ class ProcessMetadataMerger:
                     process_id=process_id,
                     merged=merged,
                     value=other_returns,
-                    diff=json_diff(
-                        merged, other_returns, a_name="merged", b_name=backend_id
-                    ),
+                    diff=json_diff(merged, other_returns, a_name="merged", b_name=backend_id),
                 )
         return merged
 
@@ -534,9 +513,7 @@ class ProcessParameterNormalizer:
         """Normalize a parameter metadata dict"""
         for required in ["name", "schema", "description"]:
             if required not in param:
-                self.report(
-                    f"Missing required field {required!r} in parameter metadata {param!r}"
-                )
+                self.report(f"Missing required field {required!r} in parameter metadata {param!r}")
         normalized = {
             "name": param.get("name", "n/a"),
             "schema": param.get("schema", {}),
@@ -578,12 +555,7 @@ class ProcessParameterNormalizer:
                 and x.get("subtype") == "process-graph"
                 and isinstance(x.get("parameters"), list)
             ):
-                return {
-                    k: self.normalize_parameters(parameters=v)
-                    if k == "parameters"
-                    else v
-                    for k, v in x.items()
-                }
+                return {k: self.normalize_parameters(parameters=v) if k == "parameters" else v for k, v in x.items()}
             else:
                 return {k: self.normalize_recursively(v) for k, v in x.items()}
         elif isinstance(x, list):

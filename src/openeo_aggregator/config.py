@@ -37,8 +37,6 @@ class AggregatorConfig(dict):
     config_source = dict_item()
 
 
-
-
 @attrs.frozen(kw_only=True)
 class AggregatorBackendConfig(OpenEoBackendConfig):
 

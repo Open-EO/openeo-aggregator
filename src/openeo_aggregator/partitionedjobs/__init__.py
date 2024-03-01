@@ -11,6 +11,7 @@ class PartitionedJobFailure(OpenEOApiException):
 
 class SubJob(NamedTuple):
     """A part of a partitioned job, target at a particular, single back-end."""
+
     # Process graph of the subjob (derived in some way from original parent process graph)
     process_graph: FlatPG
     # Id of target backend (or None if there is no dedicated backend)
@@ -19,6 +20,7 @@ class SubJob(NamedTuple):
 
 class PartitionedJob(NamedTuple):
     """A large or multi-back-end job that is split in several sub jobs"""
+
     # Original process graph
     process: PGWithMetadata
     metadata: dict
@@ -28,9 +30,7 @@ class PartitionedJob(NamedTuple):
     dependencies: Dict[str, Sequence[str]] = {}
 
     @staticmethod
-    def to_subjobs_dict(
-        subjobs: Union[Sequence[SubJob], Dict[Any, SubJob]]
-    ) -> Dict[str, SubJob]:
+    def to_subjobs_dict(subjobs: Union[Sequence[SubJob], Dict[Any, SubJob]]) -> Dict[str, SubJob]:
         """Helper to convert a collection of SubJobs to a dictionary"""
         # TODO: hide this logic in a setter or __init__ (e.g. when outgrowing the constraints of typing.NamedTuple)
         if isinstance(subjobs, Sequence):

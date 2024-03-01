@@ -192,8 +192,11 @@ class PartitionedJobTracker:
                 _log.info(f"To create: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
                 if sjob_status == STATUS_INSERTED:
                     new_status = self._create_sjob(
-                        user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id,
-                        pjob_metadata=pjob_metadata, sjob_metadata=sjob_metadata,
+                        user_id=user_id,
+                        pjob_id=pjob_id,
+                        sjob_id=sjob_id,
+                        pjob_metadata=pjob_metadata,
+                        sjob_metadata=sjob_metadata,
                         flask_request=flask_request,
                     )
                     create_stats[new_status] += 1
@@ -206,15 +209,20 @@ class PartitionedJobTracker:
         )
 
     def _create_sjob(
-            self, user_id: str, pjob_id: str, sjob_id: str,
-            pjob_metadata: dict, sjob_metadata: dict,
-            flask_request: flask.Request,
+        self,
+        user_id: str,
+        pjob_id: str,
+        sjob_id: str,
+        pjob_metadata: dict,
+        sjob_metadata: dict,
+        flask_request: flask.Request,
     ) -> str:
         try:
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             # TODO: different way to authenticate request? #29
-            with con.authenticated_from_request(request=flask_request), \
-                    con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
+            with con.authenticated_from_request(request=flask_request), con.override(
+                default_timeout=CONNECTION_TIMEOUT_JOB_START
+            ):
                 with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.create_job(
                         process_graph=sjob_metadata["process_graph"],
@@ -227,16 +235,18 @@ class PartitionedJobTracker:
             _log.info(f"Created {pjob_id}:{sjob_id} on backend {con.id} as batch job {job.job_id}")
             self._db.set_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, job_id=job.job_id)
             self._db.set_sjob_status(
-                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_CREATED,
-                message=f"Created in {timer.elapsed}"
+                user_id=user_id,
+                pjob_id=pjob_id,
+                sjob_id=sjob_id,
+                status=STATUS_CREATED,
+                message=f"Created in {timer.elapsed}",
             )
             return STATUS_CREATED
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
             _log.error(f"Creation of {pjob_id}:{sjob_id} failed", exc_info=True)
             self._db.set_sjob_status(
-                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR,
-                message=f"Create failed: {e}"
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR, message=f"Create failed: {e}"
             )
             return STATUS_ERROR
 
@@ -252,7 +262,9 @@ class PartitionedJobTracker:
                 _log.info(f"To Start: {pjob_id!r}:{sjob_id!r} (status {sjob_status})")
                 if sjob_status == STATUS_CREATED:
                     new_status = self._start_sjob(
-                        user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id,
+                        user_id=user_id,
+                        pjob_id=pjob_id,
+                        sjob_id=sjob_id,
                         sjob_metadata=sjob_metadata,
                         flask_request=flask_request,
                     )
@@ -266,28 +278,31 @@ class PartitionedJobTracker:
         )
 
     def _start_sjob(
-            self, user_id: str, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request
+        self, user_id: str, pjob_id: str, sjob_id: str, sjob_metadata: dict, flask_request: flask.Request
     ) -> str:
         try:
             job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             # TODO: different way to authenticate request? #29
-            with con.authenticated_from_request(request=flask_request), \
-                    con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
+            with con.authenticated_from_request(request=flask_request), con.override(
+                default_timeout=CONNECTION_TIMEOUT_JOB_START
+            ):
                 with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.job(job_id)
                     job.start_job()
             self._db.set_sjob_status(
-                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_RUNNING,
-                message=f"Started in {timer.elapsed}"
+                user_id=user_id,
+                pjob_id=pjob_id,
+                sjob_id=sjob_id,
+                status=STATUS_RUNNING,
+                message=f"Started in {timer.elapsed}",
             )
             return STATUS_RUNNING
         except Exception as e:
             # TODO: detect recoverable issue and allow for retry?
             _log.error(f"Start of {pjob_id}:{sjob_id} failed", exc_info=True)
             self._db.set_sjob_status(
-                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR,
-                message=f"Failed to start: {e}"
+                user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=STATUS_ERROR, message=f"Failed to start: {e}"
             )
             return STATUS_ERROR
 
@@ -472,9 +487,13 @@ class PartitionedJobTracker:
                             log["id"] = f"{sjob_id}-{log.id}"
                         all_logs.extend(logs)
                 except Exception as e:
-                    all_logs.append(LogEntry(
-                        id=f"{sjob_id}-0", level="error", message=f"Failed to get logs of {pjob_id}:{sjob_id}: {e!r}"
-                    ))
+                    all_logs.append(
+                        LogEntry(
+                            id=f"{sjob_id}-0",
+                            level="error",
+                            message=f"Failed to get logs of {pjob_id}:{sjob_id}: {e!r}",
+                        )
+                    )
 
         return all_logs
 
@@ -494,7 +513,7 @@ class PartitionedJobConnection:
         Adapter for interfaces: `openeo.rest.RestJob`, `openeo.rest.JobResult`
         """
 
-        def __init__(self, pjob_id: str, connection: 'PartitionedJobConnection'):
+        def __init__(self, pjob_id: str, connection: "PartitionedJobConnection"):
             self.pjob_id = pjob_id
             self.connection = connection
 
@@ -503,7 +522,7 @@ class PartitionedJobConnection:
             return self.connection.partitioned_job_tracker.describe_job(
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
-                flask_request=self.connection._flask_request
+                flask_request=self.connection._flask_request,
             )
 
         def start_job(self):
@@ -511,7 +530,7 @@ class PartitionedJobConnection:
             return self.connection.partitioned_job_tracker.start_sjobs(
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
-                flask_request=self.connection._flask_request
+                flask_request=self.connection._flask_request,
             )
 
         # TODO: also support job cancel and delete. #39
@@ -525,7 +544,7 @@ class PartitionedJobConnection:
             return self.connection.partitioned_job_tracker.get_assets(
                 user_id=self.connection._user.user_id,
                 pjob_id=self.pjob_id,
-                flask_request=self.connection._flask_request
+                flask_request=self.connection._flask_request,
             )
 
         def get_metadata(self) -> dict:

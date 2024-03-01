@@ -34,17 +34,12 @@ def main():
     target_group = parser.add_argument_group(
         "Target", "Which checks to run (if none specified, all checks will be run)."
     )
-    target_group.add_argument(
-        "-c", "--collections", action="store_true", help="Check collection metadata"
-    )
-    target_group.add_argument(
-        "-p", "--processes", action="store_true", help="Check process metadata"
-    )
+    target_group.add_argument("-c", "--collections", action="store_true", help="Check collection metadata")
+    target_group.add_argument("-p", "--processes", action="store_true", help="Check process metadata")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     _log.info(f"{args=}")
-
 
     # Determine backend ids/urls
     aggregator_backends = get_backend_config().aggregator_backends
@@ -68,9 +63,7 @@ def main():
         compare_get_collections(backends_for_collection_id)
         # Compare /collections/{collection_id}
         for collection_id in sorted(set(backends_for_collection_id.keys())):
-            compare_get_collection_by_id(
-                backend_urls=backend_urls, collection_id=collection_id
-            )
+            compare_get_collection_by_id(backend_urls=backend_urls, collection_id=collection_id)
     if check_processes:
         # Compare /processes
         compare_get_processes(backend_urls=backend_urls)
@@ -84,10 +77,8 @@ def compare_get_collections(backends_for_collection_id):
         getter = MultiDictGetter(by_backend.values())
         cid = getter.single_value_for("id")
         if cid != collection_id:
-            reporter.report("Collection id in metadata does not match id in url", collection_id = cid)
-        merge_collection_metadata(
-            by_backend, full_metadata=False, report=reporter.report
-        )
+            reporter.report("Collection id in metadata does not match id in url", collection_id=cid)
+        merge_collection_metadata(by_backend, full_metadata=False, report=reporter.report)
 
 
 def compare_get_collection_by_id(backend_urls, collection_id):
@@ -103,7 +94,7 @@ def compare_get_collection_by_id(backend_urls, collection_id):
             if "id" in collection:
                 by_backend[url] = collection
             else:
-                reporter.report("Backend returned invalid collection", backend_id = url, collection_id = collection_id)
+                reporter.report("Backend returned invalid collection", backend_id=url, collection_id=collection_id)
     merge_collection_metadata(by_backend, full_metadata=True, report=reporter.report)
 
 
@@ -116,9 +107,7 @@ def compare_get_processes(backend_urls):
         processes = r.json().get("processes", [])
         processes_per_backend[url] = {p["id"]: p for p in processes}
     reporter = MarkDownReporter()
-    ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(
-        processes_per_backend
-    )
+    ProcessMetadataMerger(report=reporter.report).merge_processes_metadata(processes_per_backend)
 
 
 def get_all_collection_ids(backend_urls) -> Dict[str, Dict[str, Dict]]:

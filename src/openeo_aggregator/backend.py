@@ -140,7 +140,6 @@ class _InternalCollectionMetadata:
 
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
-
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
         self._memoizer = memoizer_from_config(namespace="CollectionCatalog")
@@ -195,14 +194,12 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             if len(by_backend) == 1:
                 # Simple case: collection is only available on single backend.
                 _log.debug(f"Accept single backend collection {cid} as is")
-                (bid, metadata), = by_backend.items()
+                ((bid, metadata),) = by_backend.items()
                 single_backend_collection_post_processing(metadata, backend_id=bid)
             else:
                 _log.info(f"Merging {cid!r} collection metadata from backends {by_backend.keys()}")
                 try:
-                    metadata = merge_collection_metadata(
-                        by_backend, full_metadata=False
-                    )
+                    metadata = merge_collection_metadata(by_backend, full_metadata=False)
                 except Exception as e:
                     _log.error(f"Failed to merge collection metadata for {cid!r}", exc_info=True)
                     continue
@@ -295,9 +292,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             single_backend_collection_post_processing(metadata, backend_id=bid)
         else:
             _log.info(f"Merging metadata for collection {collection_id}.")
-            metadata = merge_collection_metadata(
-                by_backend=by_backend, full_metadata=True
-            )
+            metadata = merge_collection_metadata(by_backend=by_backend, full_metadata=True)
         return normalize_collection_metadata(metadata)
 
     def load_collection(self, collection_id: str, load_params: LoadParameters, env: EvalEnv) -> DriverDataCube:
@@ -340,9 +335,9 @@ class JobIdMapping:
 
 class AggregatorProcessing(Processing):
     def __init__(
-            self,
-            backends: MultiBackendConnection,
-            catalog: AggregatorCollectionCatalog,
+        self,
+        backends: MultiBackendConnection,
+        catalog: AggregatorCollectionCatalog,
     ):
         self.backends = backends
         # TODO Cache per backend results instead of output?
@@ -350,17 +345,10 @@ class AggregatorProcessing(Processing):
         self.backends.on_connections_change.add(self._memoizer.invalidate)
         self._catalog = catalog
 
-    def get_process_registry(
-        self, api_version: Union[str, ComparableVersion]
-    ) -> ProcessRegistry:
-        if (
-            api_version < self.backends.api_version_minimum
-            or api_version > self.backends.api_version_maximum
-        ):
+    def get_process_registry(self, api_version: Union[str, ComparableVersion]) -> ProcessRegistry:
+        if api_version < self.backends.api_version_minimum or api_version > self.backends.api_version_maximum:
             # TODO: more relaxed version check? How useful is this check anyway?
-            _log.warning(
-                f"API mismatch: requested {api_version} outside of {self.backends.get_api_versions()}"
-            )
+            _log.warning(f"API mismatch: requested {api_version} outside of {self.backends.get_api_versions()}")
 
         combined_processes = self.get_merged_process_metadata()
         process_registry = ProcessRegistry()
@@ -388,9 +376,7 @@ class AggregatorProcessing(Processing):
         )
         return combined_processes
 
-    def _get_backend_candidates_for_processes(
-        self, processes: typing.Collection[str]
-    ) -> Union[List[str], None]:
+    def _get_backend_candidates_for_processes(self, processes: typing.Collection[str]) -> Union[List[str], None]:
         """
         Get backend ids providing all given processes
         :param processes: collection process ids
@@ -407,9 +393,7 @@ class AggregatorProcessing(Processing):
                 else:
                     candidates = candidates.intersection(backends)
             else:
-                _log.warning(
-                    f"Skipping unknown process {pid!r} in `_get_backend_candidates_for_processes`"
-                )
+                _log.warning(f"Skipping unknown process {pid!r} in `_get_backend_candidates_for_processes`")
         return candidates
 
     def get_backend_for_process_graph(
@@ -464,9 +448,7 @@ class AggregatorProcessing(Processing):
                             backends=self.backends,
                             aggregator_job_id=arguments["id"],
                         )
-                        backend_candidates = [
-                            b for b in backend_candidates if b == job_backend_id
-                        ]
+                        backend_candidates = [b for b in backend_candidates if b == job_backend_id]
                 elif process_id == "load_ml_model":
                     model_backend_id = self._process_load_ml_model(arguments)[0]
                     if model_backend_id:
@@ -484,26 +466,22 @@ class AggregatorProcessing(Processing):
             conditions = self._catalog.generate_backend_constraint_callables(
                 process_graphs=collection_backend_constraints
             )
-            backend_candidates = [
-                b for b in backend_candidates if all(c(b) for c in conditions)
-            ]
+            backend_candidates = [b for b in backend_candidates if all(c(b) for c in conditions)]
 
         if processes:
             process_candidates = self._get_backend_candidates_for_processes(processes)
             if process_candidates:
-                backend_candidates = [
-                    b for b in backend_candidates if b in process_candidates
-                ]
+                backend_candidates = [b for b in backend_candidates if b in process_candidates]
             else:
                 # TODO: make this an exception like we do with collections? (BackendLookupFailureException)
                 _log.warning(f"No process based backend candidates ({processes=})")
 
         if len(backend_candidates) > 1:
-                # TODO #42 Check `/validation` instead of naively picking first one?
-                _log.warning(
-                    f"Multiple back-end candidates {backend_candidates} for collections {collections}."
-                    f" Naively picking first one."
-                )
+            # TODO #42 Check `/validation` instead of naively picking first one?
+            _log.warning(
+                f"Multiple back-end candidates {backend_candidates} for collections {collections}."
+                f" Naively picking first one."
+            )
 
         if not backend_candidates:
             raise BackendLookupFailureException(message="No backend matching all constraints")
@@ -524,8 +502,10 @@ class AggregatorProcessing(Processing):
         with con.authenticated_from_request(flask.request), timing_logger:
             try:
                 backend_response = con.post(
-                    path="/result", json=request_pg,
-                    stream=True, timeout=CONNECTION_TIMEOUT_RESULT,
+                    path="/result",
+                    json=request_pg,
+                    stream=True,
+                    timeout=CONNECTION_TIMEOUT_RESULT,
                     expected_status=200,
                 )
             except Exception as e:
@@ -551,13 +531,9 @@ class AggregatorProcessing(Processing):
                                 backends=self.backends,
                                 aggregator_job_id=result_id,
                             )
-                            assert (
-                                job_backend_id == backend_id
-                            ), f"{job_backend_id} != {backend_id}"
+                            assert job_backend_id == backend_id, f"{job_backend_id} != {backend_id}"
                             # Create new load_result node dict with updated job id
-                            return dict_merge(
-                                node, arguments=dict_merge(arguments, id=job_id)
-                            )
+                            return dict_merge(node, arguments=dict_merge(arguments, id=job_id))
                     if process_id == "load_ml_model":
                         model_id = self._process_load_ml_model(arguments, expected_backend=backend_id)[1]
                         if model_id:
@@ -570,15 +546,14 @@ class AggregatorProcessing(Processing):
         return preprocess(process_graph)
 
     def _process_load_ml_model(
-            self, arguments: dict, expected_backend: Optional[str] = None
+        self, arguments: dict, expected_backend: Optional[str] = None
     ) -> Tuple[Union[str, None], str]:
         """Handle load_ml_model: detect/strip backend_id from model_id if it is a job_id"""
         model_id = arguments.get("id")
         if model_id and not model_id.startswith("http"):
             # TODO: load_ml_model's `id` could also be file path (see https://github.com/Open-EO/openeo-processes/issues/384)
             job_id, job_backend_id = JobIdMapping.parse_aggregator_job_id(
-                backends=self.backends,
-                aggregator_job_id=model_id
+                backends=self.backends, aggregator_job_id=model_id
             )
             if expected_backend and job_backend_id != expected_backend:
                 raise BackendLookupFailureException(f"{job_backend_id} != {expected_backend}")
@@ -632,9 +607,7 @@ class AggregatorProcessing(Processing):
         return errors
 
 
-
 class AggregatorBatchJobs(BatchJobs):
-
     def __init__(
         self,
         *,
@@ -712,12 +685,12 @@ class AggregatorBatchJobs(BatchJobs):
                 )
             else:
                 return self._create_partitioned_job(
-                user_id=user_id,
-                process=process,
-                api_version=api_version,
-                metadata=metadata,
-                job_options=job_options,
-            )
+                    user_id=user_id,
+                    process=process,
+                    api_version=api_version,
+                    metadata=metadata,
+                    job_options=job_options,
+                )
         else:
             return self._create_job_standard(
                 user_id=user_id,
@@ -741,24 +714,23 @@ class AggregatorBatchJobs(BatchJobs):
             api_version=api_version,
             job_options=job_options,
         )
-        process_graph = self.processing.preprocess_process_graph(
-            process_graph, backend_id=backend_id
-        )
+        process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
         if job_options:
-            additional = {
-                k: v for k, v in job_options.items() if not k.startswith("_agg_")
-            }
+            additional = {k: v for k, v in job_options.items() if not k.startswith("_agg_")}
         else:
             additional = None
 
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), \
-                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START):
+        with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), con.override(
+            default_timeout=CONNECTION_TIMEOUT_JOB_START
+        ):
             try:
                 job = con.create_job(
                     process_graph=process_graph,
-                    title=metadata.get("title"), description=metadata.get("description"),
-                    plan=metadata.get("plan"), budget=metadata.get("budget"),
+                    title=metadata.get("title"),
+                    description=metadata.get("description"),
+                    plan=metadata.get("plan"),
+                    budget=metadata.get("budget"),
                     additional=additional,
                 )
             except OpenEoApiError as e:
@@ -849,12 +821,10 @@ class AggregatorBatchJobs(BatchJobs):
         )
 
     def _get_connection_and_backend_job_id(
-            self,
-            aggregator_job_id: str
+        self, aggregator_job_id: str
     ) -> Tuple[Union[BackendConnection, PartitionedJobConnection], str]:
         backend_job_id, backend_id = JobIdMapping.parse_aggregator_job_id(
-            backends=self.backends,
-            aggregator_job_id=aggregator_job_id
+            backends=self.backends, aggregator_job_id=aggregator_job_id
         )
 
         if backend_id == JobIdMapping.AGG and self.partitioned_job_tracker:
@@ -878,54 +848,53 @@ class AggregatorBatchJobs(BatchJobs):
     def get_job_info(self, job_id: str, user_id: str) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         user = User(user_id=user_id)
-        with con.authenticated_from_request(request=flask.request, user=user), \
-                self._translate_job_errors(job_id=job_id):
+        with con.authenticated_from_request(request=flask.request, user=user), self._translate_job_errors(
+            job_id=job_id
+        ):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
         return BatchJobMetadata.from_api_dict(metadata)
 
     def start_job(self, job_id: str, user: User):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=user), \
-                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START), \
-                self._translate_job_errors(job_id=job_id):
+        with con.authenticated_from_request(request=flask.request, user=user), con.override(
+            default_timeout=CONNECTION_TIMEOUT_JOB_START
+        ), self._translate_job_errors(job_id=job_id):
             con.job(backend_job_id).start_job()
 
     def cancel_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
-                self._translate_job_errors(job_id=job_id):
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
+            job_id=job_id
+        ):
             con.job(backend_job_id).stop_job()
 
     def delete_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
-                self._translate_job_errors(job_id=job_id):
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
+            job_id=job_id
+        ):
             con.job(backend_job_id).delete_job()
 
     def get_result_assets(self, job_id: str, user_id: str) -> Dict[str, dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
-                self._translate_job_errors(job_id=job_id):
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
+            job_id=job_id
+        ):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
         return {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
 
     def get_result_metadata(self, job_id: str, user_id: str) -> BatchJobResultMetadata:
-        con, backend_job_id = self._get_connection_and_backend_job_id(
-            aggregator_job_id=job_id
-        )
-        with con.authenticated_from_request(
-            request=flask.request, user=User(user_id)
-        ), self._translate_job_errors(job_id=job_id):
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
+            job_id=job_id
+        ):
             results = con.job(backend_job_id).get_results()
             metadata = results.get_metadata()
             assets = results.get_assets()
 
-        assets = {
-            a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}}
-            for a in assets
-        }
+        assets = {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
         # TODO: better white/black list for links?
         links = [k for k in metadata.get("links", []) if k.get("rel") != "self"]
         return BatchJobResultMetadata(
@@ -942,10 +911,11 @@ class AggregatorBatchJobs(BatchJobs):
     ) -> Iterable[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         # Use parenthesized context managers, see #127
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), \
-                self._translate_job_errors(job_id=job_id), \
-                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_LOGS), \
-                TimingLogger(title=f"Get log entries for {job_id}", logger=_log.debug):
+        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
+            job_id=job_id
+        ), con.override(default_timeout=CONNECTION_TIMEOUT_JOB_LOGS), TimingLogger(
+            title=f"Get log entries for {job_id}", logger=_log.debug
+        ):
             return con.job(backend_job_id).logs(offset=offset, level=level)
 
 
@@ -958,7 +928,9 @@ class ServiceIdMapping:
         return f"{backend_id}-{backend_service_id}"
 
     @classmethod
-    def parse_aggregator_service_id(cls, backends: MultiBackendConnection, aggregator_service_id: str) -> Tuple[str, str]:
+    def parse_aggregator_service_id(
+        cls, backends: MultiBackendConnection, aggregator_service_id: str
+    ) -> Tuple[str, str]:
         """Given aggregator service id: extract backend service id and backend id"""
         for prefix in [f"{con.id}-" for con in backends]:
             if aggregator_service_id.startswith(prefix):
@@ -974,9 +946,9 @@ class AggregatorSecondaryServices(SecondaryServices):
     """
 
     def __init__(
-            self,
-            backends: MultiBackendConnection,
-            processing: AggregatorProcessing,
+        self,
+        backends: MultiBackendConnection,
+        processing: AggregatorProcessing,
     ):
         super(AggregatorSecondaryServices, self).__init__()
 
@@ -986,17 +958,13 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         self._processing = processing
 
-    def _get_connection_and_backend_service_id(
-            self,
-            aggregator_service_id: str
-    ) -> Tuple[BackendConnection, str]:
+    def _get_connection_and_backend_service_id(self, aggregator_service_id: str) -> Tuple[BackendConnection, str]:
         """Get connection to the backend and the corresponding service ID in that backend.
 
         raises: ServiceNotFoundException when service_id does not exist in any of the backends.
         """
         backend_service_id, backend_id = ServiceIdMapping.parse_aggregator_service_id(
-            backends=self._backends,
-            aggregator_service_id=aggregator_service_id
+            backends=self._backends, aggregator_service_id=aggregator_service_id
         )
 
         con = self._backends.get_connection(backend_id)
@@ -1017,9 +985,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         return {name: data["service_type"] for name, data, in service_types.items()}
 
     def _get_service_types_cached(self):
-        return self._memoizer.get_or_call(
-            key="service_types", callback=self._get_service_types
-        )
+        return self._memoizer.get_or_call(key="service_types", callback=self._get_service_types)
 
     def _find_backend_id_for_service_type(self, service_type: str) -> str:
         """Returns the ID of the backend that provides the service_type."""
@@ -1089,9 +1055,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         # so we can cache that information.
         # Some backends don not have the GET /service_types endpoint.
         supporting_backend_ids = [
-            con.id
-            for con in self._backends
-            if con.capabilities().supports_endpoint("/service_types")
+            con.id for con in self._backends if con.capabilities().supports_endpoint("/service_types")
         ]
         service_types = {}
 
@@ -1112,8 +1076,8 @@ class AggregatorSecondaryServices(SecondaryServices):
                 else:
                     conflicting_backend = service_types[name]["backend_id"]
                     _log.warning(
-                        f'Conflicting secondary service types: "{name}" is present in more than one backend, ' +
-                        f'already found in backend: {conflicting_backend}'
+                        f'Conflicting secondary service types: "{name}" is present in more than one backend, '
+                        + f"already found in backend: {conflicting_backend}"
                     )
         return {
             "supporting_backend_ids": supporting_backend_ids,
@@ -1126,9 +1090,7 @@ class AggregatorSecondaryServices(SecondaryServices):
 
         for backend_id in self.get_supporting_backend_ids():
             con = self._backends.get_connection(backend_id)
-            with con.authenticated_from_request(
-                request=flask.request, user=User(user_id)
-            ):
+            with con.authenticated_from_request(request=flask.request, user=User(user_id)):
                 try:
                     data = con.get("/services").json()
                     for service_data in data["services"]:
@@ -1159,15 +1121,19 @@ class AggregatorSecondaryServices(SecondaryServices):
                     raise ServiceNotFoundException(service_id=service_id) from e
                 raise
             except Exception as e:
-                _log.debug(f"Failed to get service with ID={backend_service_id} from backend with ID={con.id}: {e!r}", exc_info=True)
+                _log.debug(
+                    f"Failed to get service with ID={backend_service_id} from backend with ID={con.id}: {e!r}",
+                    exc_info=True,
+                )
                 raise
             else:
                 # Adapt the service ID so it points to the aggregator, with the backend ID included.
                 service_json["id"] = ServiceIdMapping.get_aggregator_service_id(service_json["id"], con.id)
                 return ServiceMetadata.from_dict(service_json)
 
-    def _create_service(self, user_id: str, process_graph: dict, service_type: str, api_version: str,
-                       configuration: dict) -> str:
+    def _create_service(
+        self, user_id: str, process_graph: dict, service_type: str, api_version: str, configuration: dict
+    ) -> str:
         """
         https://openeo.org/documentation/1.0/developers/api/reference.html#operation/create-service
         """
@@ -1228,7 +1194,9 @@ class AggregatorSecondaryServices(SecondaryServices):
             except OpenEoApiPlainError as e:
                 if e.http_status_code == 404:
                     # Expected error
-                    _log.debug(f"No service with ID={backend_service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True)
+                    _log.debug(
+                        f"No service with ID={backend_service_id!r} in backend with ID={con.id!r}: {e!r}", exc_info=True
+                    )
                     raise ServiceNotFoundException(service_id=service_id) from e
                 raise
             except Exception as e:
@@ -1314,7 +1282,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations
         self.cache_control = openeo_driver.util.view_helpers.cache_control(
-            max_age=datetime.timedelta(minutes=15), public=True,
+            max_age=datetime.timedelta(minutes=15),
+            public=True,
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
@@ -1352,42 +1321,48 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         if self._auth_entitlement_check:
             int_data = user.internal_auth_data
             issuer_whitelist = [
-                normalize_issuer_url(u)
-                for u in self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
+                normalize_issuer_url(u) for u in self._auth_entitlement_check.get("oidc_issuer_whitelist", [])
             ]
             # TODO: all this is openEO platform EGI VO specific. Should/Can this be generalized/encapsulated better?
             if not (
-                    int_data["authentication_method"] == "OIDC"
-                    and normalize_issuer_url(int_data["oidc_issuer"]) in issuer_whitelist
+                int_data["authentication_method"] == "OIDC"
+                and normalize_issuer_url(int_data["oidc_issuer"]) in issuer_whitelist
             ):
                 user_message = "An EGI account is required for using openEO Platform."
-                _log.warning(f"user_access_validation failure: %r %r", user_message, {
-                    "internal_auth_data": subdict(int_data, keys=["authentication_method", "oidc_issuer"]),
-                    "issuer_whitelist": issuer_whitelist,
-                })
+                _log.warning(
+                    f"user_access_validation failure: %r %r",
+                    user_message,
+                    {
+                        "internal_auth_data": subdict(int_data, keys=["authentication_method", "oidc_issuer"]),
+                        "issuer_whitelist": issuer_whitelist,
+                    },
+                )
                 raise PermissionsInsufficientException(user_message)
 
             enrollment_error_user_message = "Proper enrollment in openEO Platform virtual organization is required."
             try:
                 eduperson_entitlements = user.info["oidc_userinfo"]["eduperson_entitlement"]
             except KeyError as e:
-                _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
-                    "exception": repr(e),
-                    # Note: just log userinfo keys to avoid leaking sensitive user data.
-                    "userinfo keys": (user.info.keys(), user.info.get('oidc_userinfo', {}).keys())
-                })
+                _log.warning(
+                    f"user_access_validation failure: %r %r",
+                    enrollment_error_user_message,
+                    {
+                        "exception": repr(e),
+                        # Note: just log userinfo keys to avoid leaking sensitive user data.
+                        "userinfo keys": (user.info.keys(), user.info.get("oidc_userinfo", {}).keys()),
+                    },
+                )
                 raise PermissionsInsufficientException(enrollment_error_user_message)
 
-            roles = openeo_aggregator.egi.OPENEO_PLATFORM_USER_ROLES.extract_roles(
-                eduperson_entitlements
-            )
+            roles = openeo_aggregator.egi.OPENEO_PLATFORM_USER_ROLES.extract_roles(eduperson_entitlements)
             if roles:
                 user.add_roles(r.id for r in roles)
             else:
-                _log.warning(f"user_access_validation failure: %r %r", enrollment_error_user_message, {
-                    "user_id": user.user_id,
-                    "eduperson_entitlements": eduperson_entitlements
-                })
+                _log.warning(
+                    f"user_access_validation failure: %r %r",
+                    enrollment_error_user_message,
+                    {"user_id": user.user_id, "eduperson_entitlements": eduperson_entitlements},
+                )
                 raise PermissionsInsufficientException(enrollment_error_user_message)
 
         return user
@@ -1415,10 +1390,12 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 backend_status[con.id]["error_time"] = self._clock() - start_time
                 overall_status_code = 500
 
-        response = flask.jsonify({
-            "status_code": overall_status_code,
-            "backend_status": backend_status,
-        })
+        response = flask.jsonify(
+            {
+                "status_code": overall_status_code,
+                "backend_status": backend_status,
+            }
+        )
         response.status_code = overall_status_code
         return response
 

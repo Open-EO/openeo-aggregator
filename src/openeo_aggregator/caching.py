@@ -88,8 +88,7 @@ class TtlCache:
         else:
             if log_on_miss:
                 with TimingLogger(
-                        title=f"Cache miss {self.name!r} key {key!r}, calling {callback.__qualname__!r}",
-                        logger=_log.debug
+                    title=f"Cache miss {self.name!r} key {key!r}, calling {callback.__qualname__!r}", logger=_log.debug
                 ):
                     res = callback()
             else:
@@ -117,6 +116,7 @@ class Memoizer(metaclass=abc.ABCMeta):
 
     Concrete classes should just implement `get_or_call` and `invalidate`.
     """
+
     log_on_miss = True
 
     def __init__(self, namespace: str = DEFAULT_NAMESPACE):
@@ -226,11 +226,8 @@ class JsonSerDe:
         """Implementation of `default` parameter of `json.dump` and related"""
         if o.__class__ in self._custom_types:
             # TODO: also add signing with a secret?
-            return {"_jsonserde": {
-                "type": self._type_id(o.__class__),
-                "data": o.__jsonserde_prepare__()
-            }}
-        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
+            return {"_jsonserde": {"type": self._type_id(o.__class__), "data": o.__jsonserde_prepare__()}}
+        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
     def _object_hook(self, d: dict) -> Any:
         """Implementation of `object_hook` parameter of `json.load` and related"""
@@ -243,7 +240,7 @@ class JsonSerDe:
         data = json.dumps(
             obj=data,
             indent=None,
-            separators=(',', ':'),
+            separators=(",", ":"),
             default=self._default if self._custom_types else None,
         ).encode("utf8")
         if len(data) > self._gzip_threshold:
@@ -252,14 +249,11 @@ class JsonSerDe:
         return data
 
     def deserialize(self, data: bytes) -> dict:
-        if data[:1] == b'\x78':
+        if data[:1] == b"\x78":
             # First byte of zlib data is practically almost always x78
             _log.debug(f"JsonSerDe.deserialize: detected zlib compressed data")
             data = zlib.decompress(data)
-        return json.loads(
-            s=data.decode("utf8"),
-            object_hook=self._object_hook if self._decode_map else None
-        )
+        return json.loads(s=data.decode("utf8"), object_hook=self._object_hook if self._decode_map else None)
 
 
 # Global JSON SerDe instance
@@ -358,18 +352,19 @@ class ZkMemoizer(Memoizer):
         count = zk_cache.get_or_call("count", callback=calculate_count)
 
     """
+
     DEFAULT_TTL = 5 * 60
     DEFAULT_ZK_TIMEOUT = 5
 
     _serde = json_serde
 
     def __init__(
-            self,
-            client: KazooClient,
-            path_prefix: str,
-            namespace: str = DEFAULT_NAMESPACE,
-            default_ttl: Optional[float] = None,
-            zk_timeout: Optional[float] = None,
+        self,
+        client: KazooClient,
+        path_prefix: str,
+        namespace: str = DEFAULT_NAMESPACE,
+        default_ttl: Optional[float] = None,
+        zk_timeout: Optional[float] = None,
     ):
         super().__init__(namespace=namespace)
         self._client = client
@@ -523,10 +518,13 @@ def memoizer_from_config(namespace: str) -> Memoizer:
                 zk_timeout=memoizer_conf.get("zk_timeout"),
             )
         elif memoizer_type == "chained":
-            return ChainedMemoizer([
-                get_memoizer(memoizer_type=part["type"], memoizer_conf=part["config"])
-                for part in memoizer_conf["parts"]
-            ], namespace=namespace)
+            return ChainedMemoizer(
+                [
+                    get_memoizer(memoizer_type=part["type"], memoizer_conf=part["config"])
+                    for part in memoizer_conf["parts"]
+                ],
+                namespace=namespace,
+            )
         else:
             raise ValueError(memoizer_type)
 

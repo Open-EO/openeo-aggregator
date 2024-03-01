@@ -48,9 +48,7 @@ class AbstractJobSplitter(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def split(
-        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
-    ) -> PartitionedJob:
+    def split(self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         # TODO: how to express combination/aggregation of multiple subjob results as a final result?
         ...
 
@@ -65,9 +63,7 @@ class FlimsySplitter(AbstractJobSplitter):
     def __init__(self, processing: "AggregatorProcessing"):
         self.processing = processing
 
-    def split(
-        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
-    ) -> PartitionedJob:
+    def split(self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         process_graph = process["process_graph"]
         backend_id = self.processing.get_backend_for_process_graph(process_graph=process_graph, api_version="TODO")
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
@@ -85,6 +81,7 @@ class TileGrid(typing.NamedTuple):
     """
     Specification of a tile grid, parsed from a string, e.g. 'wgs84-1degree', 'utm-100km', 'utm-20km', 'utm-10km'.
     """
+
     crs_type: str
     size: int
     unit: str
@@ -113,9 +110,7 @@ class TileGrid(typing.NamedTuple):
             raise JobSplittingFailure(f"Unsupported tile grid {self.crs_type}")
 
         # Bounding box (in tiling CRS) to cover with tiles.
-        to_cover = BoundingBox.from_dict(
-            reproject_bounding_box(bbox.as_dict(), from_crs=bbox.crs, to_crs=tiling_crs)
-        )
+        to_cover = BoundingBox.from_dict(reproject_bounding_box(bbox.as_dict(), from_crs=bbox.crs, to_crs=tiling_crs))
         # Get ranges of tile indices
         xmin, xmax = [int(math.floor((x - x_offset) / tile_size)) for x in [to_cover.west, to_cover.east]]
         ymin, ymax = [int(math.floor(y / tile_size)) for y in [to_cover.south, to_cover.north]]
@@ -127,13 +122,15 @@ class TileGrid(typing.NamedTuple):
         tiles = []
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):
-                tiles.append(BoundingBox(
-                    west=x * tile_size + x_offset,
-                    south=y * tile_size,
-                    east=(x + 1) * tile_size + x_offset,
-                    north=(y + 1) * tile_size,
-                    crs=tiling_crs,
-                ))
+                tiles.append(
+                    BoundingBox(
+                        west=x * tile_size + x_offset,
+                        south=y * tile_size,
+                        east=(x + 1) * tile_size + x_offset,
+                        north=(y + 1) * tile_size,
+                        crs=tiling_crs,
+                    )
+                )
         return tiles
 
 
@@ -155,14 +152,9 @@ class TileGridSplitter(AbstractJobSplitter):
     METADATA_KEY = "_tiling_geometry"
 
     def __init__(self, processing: "AggregatorProcessing"):
-        self.backend_implementation = OpenEoBackendImplementation(
-            catalog=processing._catalog,
-            processing=processing
-        )
+        self.backend_implementation = OpenEoBackendImplementation(catalog=processing._catalog, processing=processing)
 
-    def split(
-        self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None
-    ) -> PartitionedJob:
+    def split(self, process: PGWithMetadata, metadata: dict = None, job_options: dict = None) -> PartitionedJob:
         # TODO: refactor process graph preprocessing and backend_id getting in reusable AbstractJobSplitter method?
         processing: AggregatorProcessing = self.backend_implementation.processing
         process_graph = process["process_graph"]
@@ -176,17 +168,14 @@ class TileGridSplitter(AbstractJobSplitter):
         tiles = tile_grid.get_tiles(bbox=global_spatial_extent, max_tiles=job_options.get("max_tiles", MAX_TILES))
         inject = self._filter_bbox_injector(process_graph=process_graph)
 
-        subjobs = [
-            SubJob(process_graph=inject(tile), backend_id=backend_id)
-            for tile in tiles
-        ]
+        subjobs = [SubJob(process_graph=inject(tile), backend_id=backend_id) for tile in tiles]
 
         # Store tiling geometry in metadata
         if metadata is None:
             metadata = {}
         metadata[self.METADATA_KEY] = {
             "global_spatial_extent": global_spatial_extent.as_dict(),
-            "tiles": [t.as_dict() for t in tiles]
+            "tiles": [t.as_dict() for t in tiles],
         }
 
         return PartitionedJob(
@@ -209,12 +198,17 @@ class TileGridSplitter(AbstractJobSplitter):
             catalog=self.backend_implementation.catalog,
             processing=ConcreteProcessing(),
         )
-        convert_node(result_node, env=EvalEnv({
-            ENV_DRY_RUN_TRACER: dry_run_tracer,
-            "backend_implementation": backend_implementation,
-            "version": "1.0.0",  # TODO
-            "user": None,  # TODO
-        }))
+        convert_node(
+            result_node,
+            env=EvalEnv(
+                {
+                    ENV_DRY_RUN_TRACER: dry_run_tracer,
+                    "backend_implementation": backend_implementation,
+                    "version": "1.0.0",  # TODO
+                    "user": None,  # TODO
+                }
+            ),
+        )
         source_constraints = dry_run_tracer.get_source_constraints()
         # get global spatial extent
         spatial_extents = [c["spatial_extent"] for _, c in source_constraints if "spatial_extent" in c]
@@ -223,9 +217,7 @@ class TileGridSplitter(AbstractJobSplitter):
         global_extent = BoundingBox.from_dict(spatial_extent_union(*spatial_extents))
         return global_extent
 
-    def _filter_bbox_injector(
-        self, process_graph: FlatPG
-    ) -> typing.Callable[[BoundingBox], dict]:
+    def _filter_bbox_injector(self, process_graph: FlatPG) -> typing.Callable[[BoundingBox], dict]:
         """
         Build function that takes a bounding box and injects a filter_bbox node
         just before result the `save_result` node of a "template" process graph.
@@ -234,7 +226,7 @@ class TileGridSplitter(AbstractJobSplitter):
         result_ids = [k for k, v in process_graph.items() if v.get("result")]
         if len(result_ids) != 1:
             raise JobSplittingFailure(f"Expected process graph with 1 result node but got {len(result_ids)}")
-        result_id, = result_ids
+        (result_id,) = result_ids
         if process_graph[result_id]["process_id"] != "save_result":
             raise JobSplittingFailure(f"Expected a save_result node but got {process_graph[result_id]}")
         previous_node_id = process_graph[result_id]["arguments"]["data"]["from_node"]
@@ -250,7 +242,7 @@ class TileGridSplitter(AbstractJobSplitter):
                 "arguments": {
                     "data": {"from_node": previous_node_id},
                     "extent": bbox.as_dict(),
-                }
+                },
             }
             new[result_id]["arguments"]["data"] = {"from_node": inject_id}
             return new
@@ -268,7 +260,7 @@ class TileGridSplitter(AbstractJobSplitter):
         def reproject(bbox: BoundingBox) -> shapely.geometry.Polygon:
             polygon = shapely.ops.transform(
                 pyproj.Transformer.from_crs(crs_from=bbox.crs, crs_to="epsg:4326", always_xy=True).transform,
-                bbox.as_polygon()
+                bbox.as_polygon(),
             )
             return polygon
 

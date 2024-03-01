@@ -6,8 +6,8 @@ with open("src/openeo_aggregator/about.py") as fp:
     exec(fp.read())
 
 tests_require = [
-    'pytest>=6.2.0',
-    'requests-mock>=1.9.0',
+    "pytest>=6.2.0",
+    "requests-mock>=1.9.0",
 ]
 
 setup(
@@ -52,6 +52,6 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
         "Development Status :: 3 - Alpha",
-        "Operating System :: OS Independent"
-    ]
+        "Operating System :: OS Independent",
+    ],
 )

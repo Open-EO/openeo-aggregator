@@ -37,7 +37,6 @@ def create_app(auto_logging_setup: bool = True, flask_error_handling: bool = Tru
 
     log_version_info(logger=_log)
 
-
     backends = MultiBackendConnection.from_config()
 
     _log.info("Creating AggregatorBackendImplementation")
@@ -59,9 +58,7 @@ def create_app(auto_logging_setup: bool = True, flask_error_handling: bool = Tru
 
     @app.route("/_info", methods=["GET"])
     def agg_backends():
-        info = {
-            "backends": [{"id": con.id, "root_url": con.root_url} for con in backends]
-        }
+        info = {"backends": [{"id": con.id, "root_url": con.root_url} for con in backends]}
         return flask.jsonify(info)
 
     _log.info(f"Built {app=!r}")

@@ -52,7 +52,7 @@ class MultiDictGetter:
             if key in d:
                 yield d[key]
 
-    def single_value_for(self, key:str)-> Any:
+    def single_value_for(self, key: str) -> Any:
         """Get value for given key and ensure that it is same everywhere"""
         values = set(self.get(key=key))
         if len(values) != 1:
@@ -80,15 +80,13 @@ class MultiDictGetter:
                         continue
                     result.append(item)
             else:
-                _log.warning(
-                    f"MultiDictGetter.concat with {key=}: skipping unexpected type {items}"
-                )
+                _log.warning(f"MultiDictGetter.concat with {key=}: skipping unexpected type {items}")
         return result
 
     def first(self, key, default=None):
         return next(self.get(key), default)
 
-    def select(self, key: str) -> 'MultiDictGetter':
+    def select(self, key: str) -> "MultiDictGetter":
         """Create new getter, one step deeper in the dictionary hierarchy."""
         return MultiDictGetter(d for d in self.get(key=key) if isinstance(d, dict))
 
@@ -118,9 +116,7 @@ def dict_merge(*args, **kwargs) -> dict:
 def drop_dict_keys(data: Any, keys: List[Any]) -> Any:
     """Recursively drop given keys from (nested) dictionaries"""
     if isinstance(data, dict):
-        return {
-            k: drop_dict_keys(v, keys=keys) for k, v in data.items() if k not in keys
-        }
+        return {k: drop_dict_keys(v, keys=keys) for k, v in data.items() if k not in keys}
     elif isinstance(data, (list, tuple)):
         return type(data)(drop_dict_keys(v, keys=keys) for v in data)
     else:
@@ -176,7 +172,8 @@ class Clock:
 
 
 class BoundingBox(NamedTuple):
-    """Simple NamedTuple container for a bounding box """
+    """Simple NamedTuple container for a bounding box"""
+
     # TODO: move this to openeo_driver
     west: float
     south: float
@@ -188,11 +185,7 @@ class BoundingBox(NamedTuple):
 
     @classmethod
     def from_dict(cls, d: dict) -> "BoundingBox":
-        return cls(**{
-            k: d[k]
-            for k in cls._fields
-            if k not in cls._field_defaults or k in d
-        })
+        return cls(**{k: d[k] for k in cls._fields if k not in cls._field_defaults or k in d})
 
     def as_dict(self) -> dict:
         return self._asdict()
@@ -234,10 +227,7 @@ def common_prefix(lists: Iterable[Iterable[Any]]) -> List[Any]:
     except StopIteration:
         prefix = []
     for other in list_iterator:
-        prefix = [
-            t[0]
-            for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, other))
-        ]
+        prefix = [t[0] for t in itertools.takewhile(lambda t: t[0] == t[1], zip(prefix, other))]
     return prefix
 
 
@@ -271,9 +261,7 @@ class SkipIntermittentFailures:
         if exc_type:
             self._successive_failures += 1
             if self._successive_failures > self._limit:
-                _log.error(
-                    f"Failure tolerance exceeded ({self._successive_failures} > {self._limit}) with {exc_val!r}"
-                )
+                _log.error(f"Failure tolerance exceeded ({self._successive_failures} > {self._limit}) with {exc_val!r}")
                 # Enough already!
                 return False
             else:
