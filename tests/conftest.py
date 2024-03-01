@@ -11,7 +11,6 @@ from openeo_aggregator.backend import (
     AggregatorCollectionCatalog,
     MultiBackendConnection,
 )
-from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import (
     DummyKazooClient,
     MetadataBuilder,
@@ -66,19 +65,6 @@ def zk_client() -> DummyKazooClient:
     return DummyKazooClient()
 
 
-
-
-@pytest.fixture
-def base_config(zk_client) -> AggregatorConfig:
-    """Base config for tests (without any configured backends)."""
-    conf = AggregatorConfig()
-    conf.config_source = "test fixture base_config"
-    # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
-
-
-    return conf
-
-
 @pytest.fixture
 def backend1_id() -> str:
     """Id of first upstream backend. As a fixture to allow per-test override"""
@@ -89,15 +75,6 @@ def backend1_id() -> str:
 def backend2_id() -> str:
     """Id of second upstream backend. As a fixture to allow per-test override"""
     return "b2"
-
-
-@pytest.fixture
-def config(
-    base_config, backend1, backend2, backend1_id, backend2_id
-) -> AggregatorConfig:
-    """Config for most tests with two backends."""
-    conf = base_config
-    return conf
 
 
 @pytest.fixture
