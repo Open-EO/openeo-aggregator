@@ -12,7 +12,7 @@ import kazoo.protocol.paths
 from kazoo.client import KazooClient
 from openeo.util import TimingLogger
 
-from openeo_aggregator.config import AggregatorConfig, get_backend_config
+from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.utils import AttrStatsProxy, Clock, strip_join
 
 DEFAULT_NAMESPACE = "_default"

@@ -7,11 +7,7 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError, NoNodeError
 from openeo_driver.errors import JobNotFoundException
 
-from openeo_aggregator.config import (
-    AggregatorConfig,
-    ConfigException,
-    get_backend_config,
-)
+from openeo_aggregator.config import ConfigException, get_backend_config
 from openeo_aggregator.partitionedjobs import (
     STATUS_INSERTED,
     PartitionedJob,

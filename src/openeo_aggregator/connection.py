@@ -39,7 +39,6 @@ from openeo_aggregator.config import (
     CONNECTION_TIMEOUT_DEFAULT,
     CONNECTION_TIMEOUT_INIT,
     STREAM_CHUNK_SIZE_DEFAULT,
-    AggregatorConfig,
     get_backend_config,
 )
 from openeo_aggregator.utils import _UNSET, Clock, EventHandler

@@ -70,7 +70,6 @@ from openeo_aggregator.config import (
     CONNECTION_TIMEOUT_JOB_LOGS,
     CONNECTION_TIMEOUT_JOB_START,
     CONNECTION_TIMEOUT_RESULT,
-    AggregatorConfig,
     get_backend_config,
 )
 from openeo_aggregator.connection import (
@@ -94,19 +93,14 @@ from openeo_aggregator.metadata.merging import (
     normalize_collection_metadata,
     single_backend_collection_post_processing,
 )
-from openeo_aggregator.metadata.reporter import LoggerReporter
 from openeo_aggregator.partitionedjobs import PartitionedJob
-from openeo_aggregator.partitionedjobs.crossbackend import (
-    CrossBackendSplitter,
-    SubGraphId,
-)
+from openeo_aggregator.partitionedjobs.crossbackend import CrossBackendSplitter
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import (
     PartitionedJobConnection,
     PartitionedJobTracker,
 )
 from openeo_aggregator.utils import (
-    Clock,
     FlatPG,
     PGWithMetadata,
     dict_merge,
