@@ -530,7 +530,7 @@ def memoizer_from_config(
         else:
             raise ValueError(memoizer_type)
 
-    memoizer_config = get_backend_config().memoizer or config.memoizer
+    memoizer_config = get_backend_config().memoizer
     return get_memoizer(
         memoizer_type=memoizer_config.get("type", "null"),
         memoizer_conf=memoizer_config.get("config", {}),

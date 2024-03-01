@@ -42,9 +42,6 @@ class AggregatorConfig(dict):
 
     config_source = dict_item()
 
-    # TODO #112 Deprecated, use AggregatorBackendConfig.memoizer instead
-    memoizer = dict_item(default={"type": "dict"})
-
     # Just a config field for test purposes (while were stripping down this config class)
     test_dummy = dict_item(default="alice")
 
@@ -137,8 +134,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     zookeeper_prefix: str = "/openeo-aggregator/"
 
     # See `memoizer_from_config` for details.
-    # TODO #112: empty default is to allow migration. Te be replaced with `attrs.Factory(lambda: {"type": "dict"})`
-    memoizer: Dict = attrs.Factory(dict)
+    memoizer: Dict = attrs.Factory(lambda: {"type": "dict"})
 
     zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
 
