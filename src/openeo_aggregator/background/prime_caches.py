@@ -20,7 +20,7 @@ import openeo_aggregator.caching
 from openeo_aggregator.about import log_version_info
 from openeo_aggregator.app import get_aggregator_logging_config
 from openeo_aggregator.backend import AggregatorBackendImplementation
-from openeo_aggregator.config import OPENEO_AGGREGATOR_CONFIG, get_backend_config
+from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.connection import MultiBackendConnection
 
 _log = logging.getLogger(__name__)
