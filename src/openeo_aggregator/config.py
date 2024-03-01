@@ -43,14 +43,16 @@ class AggregatorConfig(dict):
     config_source = dict_item()
 
     # Dictionary mapping backend id to backend url
-    aggregator_backends = dict_item()  # TODO #112 deprecated
+    # TODO #112 deprecated, instead use by AggregatorBackendConfig.aggregator_backends
+    aggregator_backends = dict_item()
 
-    partitioned_job_tracking = dict_item(default=None)  # TODO #112 deprecated
+    # TODO #112 deprecated, instead use AggregatorBackendConfig.partitioned_job_tracking
+    partitioned_job_tracking = dict_item(default=None)
 
     # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
-    # See `memoizer_from_config` for details.
+    # TODO #112 Deprecated, use AggregatorBackendConfig.memoizer instead
     memoizer = dict_item(default={"type": "dict"})
 
     # Just a config field for test purposes (while were stripping down this config class)
@@ -146,6 +148,10 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     # TODO #112: empty default is to allow config migration from AggregatorConfig to AggregatorBackendConfig.
     #       To be replaced eventually with  "/openeo-aggregator/"
     zookeeper_prefix: str = ""
+
+    # See `memoizer_from_config` for details.
+    # TODO #112: empty default is to allow migration. Te be replaced with `attrs.Factory(lambda: {"type": "dict"})`
+    memoizer: Dict = attrs.Factory(dict)
 
     zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
 

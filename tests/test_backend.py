@@ -26,9 +26,8 @@ from openeo_aggregator.backend import (
     _InternalCollectionMetadata,
 )
 from openeo_aggregator.caching import DictMemoizer
+from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.testing import clock_mock, config_overrides
-
-from .conftest import DEFAULT_MEMOIZER_CONFIG
 
 # TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
 #       and move the tested functionality to test_views.py?
@@ -72,13 +71,15 @@ class TestAggregatorBackendImplementation:
         file_formats = implementation.file_formats()
         assert file_formats == just_geotiff
 
-    @pytest.mark.parametrize("memoizer_config", [
-        DEFAULT_MEMOIZER_CONFIG,
-        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
-    ])
+    @pytest.mark.parametrize(
+        ["overrides", "expected_cache_types"],
+        [
+            ({"memoizer": {"type": "dict"}}, {dict}),
+            ({"memoizer": {"type": "jsondict"}}, {bytes}),
+        ],
+    )
     def test_file_formats_caching(
-            self,
-            multi_backend_connection, config, backend1, backend2, requests_mock, memoizer_config,
+        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
@@ -86,7 +87,10 @@ class TestAggregatorBackendImplementation:
         }
         mock1 = requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
         mock2 = requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
+        with config_overrides(**overrides):
+            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+
         file_formats = implementation.file_formats()
         assert file_formats == just_geotiff
         assert mock1.call_count == 1
@@ -102,8 +106,7 @@ class TestAggregatorBackendImplementation:
         assert isinstance(implementation._memoizer, DictMemoizer)
         cache_dump = implementation._memoizer.dump(values_only=True)
         assert len(cache_dump) == 1
-        expected_type = {"dict": dict, "jsondict": bytes}[memoizer_config["type"]]
-        assert all(isinstance(x, expected_type) for x in cache_dump)
+        assert set(type(v) for v in cache_dump) == expected_cache_types
 
     def test_file_formats_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/file_formats", json={
@@ -1798,13 +1801,21 @@ class TestAggregatorCollectionCatalog:
         assert differs_from_b2("b2") is False
         assert differs_from_b2("b3") is True
 
-    @pytest.mark.parametrize("memoizer_config", [
-        DEFAULT_MEMOIZER_CONFIG,
-        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
-    ])
-    def test_get_all_metadata_caching(self, catalog, backend1, backend2, requests_mock, memoizer_config):
+    @pytest.mark.parametrize(
+        ["overrides", "expected_cache_types"],
+        [
+            ({"memoizer": {"type": "dict"}}, {tuple}),
+            ({"memoizer": {"type": "jsondict", "config": {"default_ttl": 66}}}, {bytes}),
+        ],
+    )
+    def test_get_all_metadata_caching(
+        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+    ):
         b1am = requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b2am = requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        with config_overrides(**overrides):
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
 
         metadata = catalog.get_all_metadata()
         assert metadata == [DictSubSet({"id": "S2"})]
@@ -1820,15 +1831,28 @@ class TestAggregatorCollectionCatalog:
             assert metadata == [DictSubSet({"id": "S2"})]
             assert (b1am.call_count, b2am.call_count) == (2, 2)
 
-    @pytest.mark.parametrize("memoizer_config", [
-        DEFAULT_MEMOIZER_CONFIG,
-        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
-    ])
-    def test_get_collection_metadata_caching(self, catalog, backend1, backend2, requests_mock, memoizer_config):
+        assert isinstance(catalog._memoizer, DictMemoizer)
+        cache_dump = catalog._memoizer.dump(values_only=True)
+        assert set(type(v) for v in cache_dump) == expected_cache_types
+
+    @pytest.mark.parametrize(
+        ["overrides", "expected_cache_types"],
+        [
+            ({"memoizer": {"type": "dict"}}, {tuple, dict}),
+            ({"memoizer": {"type": "jsondict"}}, {bytes}),
+        ],
+    )
+    def test_get_collection_metadata_caching(
+        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+    ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b1s2 = requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         b2s2 = requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
+
+        with config_overrides(**overrides):
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
+
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
@@ -1843,6 +1867,10 @@ class TestAggregatorCollectionCatalog:
             metadata = catalog.get_collection_metadata("S2")
             assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
             assert (b1s2.call_count, b2s2.call_count) == (2, 2)
+
+        assert isinstance(catalog._memoizer, DictMemoizer)
+        cache_dump = catalog._memoizer.dump(values_only=True)
+        assert set(type(v) for v in cache_dump) == expected_cache_types
 
 
 class TestJobIdMapping:
@@ -1978,13 +2006,15 @@ class TestAggregatorProcessing:
             },
         ]
 
-    @pytest.mark.parametrize("memoizer_config", [
-        DEFAULT_MEMOIZER_CONFIG,
-        {"type": "jsondict", "config": {"default_ttl": 66}}  # Test caching with JSON serialization too
-    ])
+    @pytest.mark.parametrize(
+        ["overrides", "expected_cache_types"],
+        [
+            ({"memoizer": {"type": "dict"}}, {dict}),
+            ({"memoizer": {"type": "jsondict"}}, {bytes}),
+        ],
+    )
     def test_get_process_registry_caching(
-            self, catalog, multi_backend_connection, config, backend1, backend2, requests_mock,
-            memoizer_config
+        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         b1p = requests_mock.get(backend1 + "/processes", json={"processes": [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
@@ -1992,7 +2022,11 @@ class TestAggregatorProcessing:
         b2p = requests_mock.get(backend2 + "/processes", json={"processes": [
             {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
         ]})
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+
+        with config_overrides(**overrides):
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
+            processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+
         assert (b1p.call_count, b2p.call_count) == (0, 0)
 
         _ = processing.get_process_registry(api_version="1.0.0")
@@ -2005,6 +2039,11 @@ class TestAggregatorProcessing:
         with clock_mock(offset=1000):
             _ = processing.get_process_registry(api_version="1.0.0")
             assert (b1p.call_count, b2p.call_count) == (2, 2)
+
+        assert isinstance(processing._memoizer, DictMemoizer)
+        cache_dump = processing._memoizer.dump(values_only=True)
+        assert set(type(v) for v in cache_dump) == expected_cache_types
+
 
     def test_get_process_registry_parameter_differences(
             self, catalog, multi_backend_connection, config, backend1, backend2,

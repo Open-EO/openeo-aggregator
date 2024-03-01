@@ -45,6 +45,24 @@ ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-mas
 aggregator_config = AggregatorConfig(
     config_source=__file__,
     zookeeper_prefix="/openeo/aggregator-dev/",
+)
+
+
+config = AggregatorBackendConfig(
+    id="openeo-platform-aggregator-dev",
+    capabilities_title="openEO Platform (dev)",
+    capabilities_description="openEO Platform, provided through openEO Aggregator Driver (development instance).",
+    oidc_providers=oidc_providers,
+    aggregator_backends={
+        "vito": "https://openeo-dev.vito.be/openeo/1.1/",
+        "eodc": "https://openeo-dev.eodc.eu/openeo/1.1.0/",
+        "creo": "https://openeo-staging.creo.vito.be/openeo/1.1",
+        # Sentinel Hub OpenEO by Sinergise
+        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
+    },
+    partitioned_job_tracking={
+        "zk_hosts": ZK_HOSTS,
+    },
     memoizer={
         # See `memoizer_from_config` for more details
         "type": "chained",
@@ -63,23 +81,5 @@ aggregator_config = AggregatorConfig(
                 }
             ]
         }
-    },
-)
-
-
-config = AggregatorBackendConfig(
-    id="openeo-platform-aggregator-dev",
-    capabilities_title="openEO Platform (dev)",
-    capabilities_description="openEO Platform, provided through openEO Aggregator Driver (development instance).",
-    oidc_providers=oidc_providers,
-    aggregator_backends={
-        "vito": "https://openeo-dev.vito.be/openeo/1.1/",
-        "eodc": "https://openeo-dev.eodc.eu/openeo/1.1.0/",
-        "creo": "https://openeo-staging.creo.vito.be/openeo/1.1",
-        # Sentinel Hub OpenEO by Sinergise
-        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
-    },
-    partitioned_job_tracking={
-        "zk_hosts": ZK_HOSTS,
     },
 )

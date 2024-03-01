@@ -20,17 +20,18 @@ FILE_FORMATS_JUST_GEOTIFF = {
 }
 
 
-@pytest.fixture
-def config(backend1, backend2, backend1_id, backend2_id, zk_client) -> AggregatorConfig:
-    conf = AggregatorConfig()
-    conf.memoizer = {
-        "type": "zookeeper",
-        "config": {
-            "zk_hosts": "zk.test:2181",
-            "default_ttl": 24 * 60 * 60,
-        },
-    }
-    return conf
+@pytest.fixture(autouse=True)
+def _use_zookeeper_memoizer():
+    with config_overrides(
+        memoizer={
+            "type": "zookeeper",
+            "config": {
+                "zk_hosts": "zk.test:2181",
+                "default_ttl": 24 * 60 * 60,
+            },
+        }
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)

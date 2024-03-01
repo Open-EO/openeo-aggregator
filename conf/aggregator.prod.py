@@ -38,6 +38,23 @@ ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-mas
 aggregator_config = AggregatorConfig(
     config_source=__file__,
     zookeeper_prefix="/openeo/aggregator/",
+)
+
+
+config = AggregatorBackendConfig(
+    id="openeo-platform-aggregator-prod",
+    capabilities_title="openEO Platform",
+    capabilities_description="openEO Platform, provided through openEO Aggregator Driver.",
+    oidc_providers=oidc_providers,
+    aggregator_backends={
+        "vito": "https://openeo.vito.be/openeo/1.1/",
+        "eodc": "https://openeo.eodc.eu/openeo/1.1.0/",
+        # Sentinel Hub OpenEO by Sinergise
+        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
+    },
+    partitioned_job_tracking={
+        "zk_hosts": ZK_HOSTS,
+    },
     memoizer={
         # See `memoizer_from_config` for more details
         "type": "chained",
@@ -56,23 +73,5 @@ aggregator_config = AggregatorConfig(
                 }
             ]
         }
-    },
-
-)
-
-
-config = AggregatorBackendConfig(
-    id="openeo-platform-aggregator-prod",
-    capabilities_title="openEO Platform",
-    capabilities_description="openEO Platform, provided through openEO Aggregator Driver.",
-    oidc_providers=oidc_providers,
-    aggregator_backends={
-        "vito": "https://openeo.vito.be/openeo/1.1/",
-        "eodc": "https://openeo.eodc.eu/openeo/1.1.0/",
-        # Sentinel Hub OpenEO by Sinergise
-        "sentinelhub": "https://openeo.sentinel-hub.com/production/",
-    },
-    partitioned_job_tracking={
-        "zk_hosts": ZK_HOSTS,
     },
 )

@@ -19,4 +19,8 @@ config = AggregatorBackendConfig(
     },
     connections_cache_ttl=1.0,
     zookeeper_prefix="/o-a/",
+    memoizer={
+        "type": "dict",
+        "config": {"default_ttl": 66},
+    },
 )

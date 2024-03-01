@@ -642,15 +642,16 @@ class TestZkMemoizer(_TestMemoizer):
 
     @clock_mock(0)
     def test_from_config(self, config, zk_client):
-        config.memoizer = {
-            "type": "zookeeper",
-            "config": {
-                "zk_hosts": "zk1.test:2181,zk2.test:2181",
-                "default_ttl": 123,
-                "zk_timeout": 7.25,
+        with config_overrides(
+            memoizer={
+                "type": "zookeeper",
+                "config": {
+                    "zk_hosts": "zk1.test:2181,zk2.test:2181",
+                    "default_ttl": 123,
+                    "zk_timeout": 7.25,
+                },
             }
-        }
-        with mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient:
+        ), mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient:
             zk_cache = memoizer_from_config(config, namespace="tezt")
 
         KazooClient.assert_called_with(hosts="zk1.test:2181,zk2.test:2181")
@@ -697,49 +698,47 @@ class TestZkMemoizer(_TestMemoizer):
 
 class TestMemoizerFromConfig:
 
-    def test_null_memoizer(self):
-        config = AggregatorConfig()
-        config.memoizer = {"type": "null"}
-        memoizer = memoizer_from_config(config, namespace="test")
+    def test_null_memoizer(self, config):
+        with config_overrides(memoizer={"type": "null"}):
+            memoizer = memoizer_from_config(config, namespace="test")
         assert isinstance(memoizer, NullMemoizer)
 
-    def test_dict_memoizer(self):
-        config = AggregatorConfig()
-        config.memoizer = {"type": "dict", "config": {"default_ttl": 99}}
-        memoizer = memoizer_from_config(config, namespace="test")
+    def test_dict_memoizer(self, config):
+        with config_overrides(memoizer={"type": "dict", "config": {"default_ttl": 99}}):
+            memoizer = memoizer_from_config(config, namespace="test")
         assert isinstance(memoizer, DictMemoizer)
         assert memoizer._default_ttl == 99
 
-    def test_jsondict_memoizer(self):
-        config = AggregatorConfig()
-        config.memoizer = {"type": "jsondict", "config": {"default_ttl": 99}}
-        memoizer = memoizer_from_config(config, namespace="test")
+    def test_jsondict_memoizer(self, config):
+        with config_overrides(memoizer={"type": "jsondict", "config": {"default_ttl": 99}}):
+            memoizer = memoizer_from_config(config, namespace="test")
         assert isinstance(memoizer, JsonDictMemoizer)
         assert memoizer._default_ttl == 99
 
-    def test_zookeeper_memoizer(self):
-        config = AggregatorConfig()
-        config.memoizer = {
-            "type": "zookeeper",
-            "config": {"zk_hosts": "zk.test:2181", "default_ttl": 99, "zk_timeout": 88}
-        }
-        with config_overrides(zookeeper_prefix="/oea/test"):
+    def test_zookeeper_memoizer(self, config):
+        with config_overrides(
+            memoizer={"type": "zookeeper", "config": {"zk_hosts": "zk.test:2181", "default_ttl": 99, "zk_timeout": 88}},
+            zookeeper_prefix="/oea/test",
+        ):
             memoizer = memoizer_from_config(config, namespace="test-ns")
         assert isinstance(memoizer, ZkMemoizer)
         assert memoizer._default_ttl == 99
         assert memoizer._prefix == "/oea/test/cache/test-ns"
         assert memoizer._zk_timeout == 88
 
-    def test_chained_memoizer(self):
-        config = AggregatorConfig()
-        config.memoizer = {
-            "type": "chained",
-            "config": {"parts": [
-                {"type": "jsondict", "config": {"default_ttl": 99}},
-                {"type": "dict", "config": {"default_ttl": 333}},
-            ]}
-        }
-        memoizer = memoizer_from_config(config, namespace="test-ns")
+    def test_chained_memoizer(self, config):
+        with config_overrides(
+            memoizer={
+                "type": "chained",
+                "config": {
+                    "parts": [
+                        {"type": "jsondict", "config": {"default_ttl": 99}},
+                        {"type": "dict", "config": {"default_ttl": 333}},
+                    ]
+                },
+            }
+        ):
+            memoizer = memoizer_from_config(config, namespace="test-ns")
         assert isinstance(memoizer, ChainedMemoizer)
         assert len(memoizer._memoizers) == 2
         assert isinstance(memoizer._memoizers[0], JsonDictMemoizer)

@@ -68,29 +68,15 @@ def zk_client() -> DummyKazooClient:
     return DummyKazooClient()
 
 
-DEFAULT_MEMOIZER_CONFIG = {
-    "type": "dict",
-    "config": {"default_ttl": 66},
-}
 
 
 @pytest.fixture
-def memoizer_config() -> dict:
-    """
-    Fixture for global memoizer config, to allow overriding/parameterizing it for certain tests.
-    Also see https://docs.pytest.org/en/7.1.x/how-to/fixtures.html#override-a-fixture-with-direct-test-parametrization
-    """
-    return DEFAULT_MEMOIZER_CONFIG
-
-
-@pytest.fixture
-def base_config(zk_client, memoizer_config) -> AggregatorConfig:
+def base_config(zk_client) -> AggregatorConfig:
     """Base config for tests (without any configured backends)."""
     conf = AggregatorConfig()
     conf.config_source = "test fixture base_config"
     # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
 
-    conf.memoizer = memoizer_config
 
     return conf
 
