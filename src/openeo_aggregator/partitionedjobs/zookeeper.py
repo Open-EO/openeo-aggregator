@@ -43,7 +43,7 @@ class ZooKeeperPartitionedJobDB:
     @classmethod
     def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
         # Get ZooKeeper client
-        pjt_config = get_backend_config().partitioned_job_tracking or config.partitioned_job_tracking
+        pjt_config = get_backend_config().partitioned_job_tracking
         if pjt_config.get("zk_client"):
             zk_client = pjt_config["zk_client"]
         elif pjt_config.get("zk_hosts"):

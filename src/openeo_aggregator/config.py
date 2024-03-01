@@ -42,9 +42,6 @@ class AggregatorConfig(dict):
 
     config_source = dict_item()
 
-    # TODO #112 deprecated, instead use AggregatorBackendConfig.partitioned_job_tracking
-    partitioned_job_tracking = dict_item(default=None)
-
     # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
     zookeeper_prefix = dict_item(default="/openeo-aggregator/")
 
