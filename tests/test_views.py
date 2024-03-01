@@ -1,14 +1,12 @@
 import logging
 import re
-import time
 from typing import List, Tuple
 
-import openeo_driver.config.load
 import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo.rest.connection import url_join
-from openeo.util import ContextTimer, rfc3339
+from openeo.util import rfc3339
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
     JobNotFinishedException,
@@ -28,7 +26,6 @@ from openeo_driver.testing import (
 from openeo_driver.users.oidc import OidcProvider
 
 import openeo_aggregator.about
-from openeo_aggregator.config import AggregatorConfig, get_config_dir
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.metadata import (
     STAC_PROPERTY_FEDERATION_BACKENDS,
@@ -484,10 +481,7 @@ class TestAuthEntitlementCheck:
             (["https://egi.test/foo"], "https://egi.test/bar", False),
         ],
     )
-    def test_issuer_url_normalization(
-        self, config, requests_mock, backend1, backend2, whitelist, oidc_issuer, success, caplog
-    ):
-
+    def test_issuer_url_normalization(self, requests_mock, backend1, backend2, whitelist, oidc_issuer, success, caplog):
         requests_mock.get(
             backend1 + "/credentials/oidc", json={"providers": [{"id": "egi", "issuer": oidc_issuer, "title": "EGI"}]}
         )
@@ -507,7 +501,7 @@ class TestAuthEntitlementCheck:
             oidc_providers=[OidcProvider(id="egi", issuer=oidc_issuer, title="EGI")],
             auth_entitlement_check={"oidc_issuer_whitelist": whitelist},
         ):
-            api100 = get_api100(get_flask_app(config))
+            api100 = get_api100(get_flask_app())
 
         api100.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
@@ -788,8 +782,8 @@ class TestProcessing:
         res.assert_error(500, "Internal", message="Failed to process synchronously on backend b1")
 
     @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
-    def test_result_large_response_streaming(self, config, chunk_size, requests_mock, backend1, backend2):
-        api100 = get_api100(get_flask_app(config))
+    def test_result_large_response_streaming(self, chunk_size, requests_mock, backend1, backend2):
+        api100 = get_api100(get_flask_app())
 
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
@@ -1357,12 +1351,12 @@ class TestBatchJobs:
         }
 
     @pytest.mark.parametrize("b2_oidc_pid", ["egi", "aho"])
-    def test_list_jobs_oidc_pid_mapping(self, config, requests_mock, backend1, backend2, b2_oidc_pid):
+    def test_list_jobs_oidc_pid_mapping(self, requests_mock, backend1, backend2, b2_oidc_pid):
         # Override /credentials/oidc of backend2 before building flask app and ApiTester
         requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
             {"id": b2_oidc_pid, "issuer": "https://egi.test", "title": "EGI"}
         ]})
-        api100 = get_api100(get_flask_app(config))
+        api100 = get_api100(get_flask_app())
 
         # OIDC setup
         def get_userinfo(request: requests.Request, context):
@@ -2752,13 +2746,13 @@ class TestResilience:
         root_mock = requests_mock.get(backend2 + "/", status_code=500)
         return backend2, root_mock
 
-    def test_startup_during_backend_downtime(self, config, backend1, broken_backend2, requests_mock, caplog):
+    def test_startup_during_backend_downtime(self, backend1, broken_backend2, requests_mock, caplog):
         caplog.set_level(logging.WARNING)
 
         # Initial backend setup with broken backend2
         requests_mock.get(backend1 + "/health", text="OK")
         backend2, b2_root = broken_backend2
-        api100 = get_api100(get_flask_app(config))
+        api100 = get_api100(get_flask_app())
 
         api100.get("/").assert_status_code(200)
 
@@ -2770,11 +2764,11 @@ class TestResilience:
             "status_code": 200,
         }
 
-    def test_startup_during_backend_downtime_and_recover(self, config, backend1, broken_backend2, requests_mock):
+    def test_startup_during_backend_downtime_and_recover(self, backend1, broken_backend2, requests_mock):
         # Initial backend setup with broken backend2
         requests_mock.get(backend1 + "/health", text="OK")
         backend2, b2_root = broken_backend2
-        api100 = get_api100(get_flask_app(config))
+        api100 = get_api100(get_flask_app())
 
         assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
             "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
@@ -2798,10 +2792,10 @@ class TestResilience:
             }
 
     @pytest.mark.parametrize("b2_oidc_provider_id", ["egi", "aho"])
-    def test_oidc_mapping_after_recover(self, config, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
+    def test_oidc_mapping_after_recover(self, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
         # Initial backend setup with broken backend2
         backend2, b2_root = broken_backend2
-        api100 = get_api100(get_flask_app(config))
+        api100 = get_api100(get_flask_app())
 
         # OIDC setup
         def get_userinfo(request: requests.Request, context):

@@ -26,7 +26,6 @@ from openeo_aggregator.backend import (
     _InternalCollectionMetadata,
 )
 from openeo_aggregator.caching import DictMemoizer
-from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.testing import clock_mock, config_overrides
 
 # TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
@@ -34,40 +33,37 @@ from openeo_aggregator.testing import clock_mock, config_overrides
 #       Also see https://github.com/Open-EO/openeo-aggregator/pull/79#discussion_r1022018851
 TEST_USER = "Mr.Test"
 TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
-TEST_USER_AUTH_HEADER = {
-    "Authorization": "Bearer " + TEST_USER_BEARER_TOKEN
-}
+TEST_USER_AUTH_HEADER = {"Authorization": "Bearer " + TEST_USER_BEARER_TOKEN}
 
 
 class TestAggregatorBackendImplementation:
-
-    def test_oidc_providers(self, multi_backend_connection, config, backend1, backend2):
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+    def test_oidc_providers(self, multi_backend_connection, backend1, backend2):
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         providers = implementation.oidc_providers()
         assert providers == [
-            OidcProvider(id='egi', issuer='https://egi.test', title='EGI'),
-            OidcProvider(id='x-agg', issuer='https://x.test', title='X (agg)'),
-            OidcProvider(id='y-agg', issuer='https://y.test', title='Y (agg)'),
-            OidcProvider(id='z-agg', issuer='https://z.test', title='Z (agg)'),
+            OidcProvider(id="egi", issuer="https://egi.test", title="EGI"),
+            OidcProvider(id="x-agg", issuer="https://x.test", title="X (agg)"),
+            OidcProvider(id="y-agg", issuer="https://y.test", title="Y (agg)"),
+            OidcProvider(id="z-agg", issuer="https://z.test", title="Z (agg)"),
         ]
 
-    def test_oidc_providers_new_config_support(self, multi_backend_connection, config, backend1, backend2):
+    def test_oidc_providers_new_config_support(self, multi_backend_connection, backend1, backend2):
         """Test for new AggregatorBackendConfig.oidc_providers support."""
         with config_overrides(oidc_providers=[OidcProvider(id="aagg", issuer="https://aagg.test", title="Aagg)")]):
-            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+            implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         providers = implementation.oidc_providers()
         assert providers == [
             OidcProvider(id="aagg", issuer="https://aagg.test", title="Aagg)"),
         ]
 
-    def test_file_formats_simple(self, multi_backend_connection, config, backend1, backend2, requests_mock):
+    def test_file_formats_simple(self, multi_backend_connection, backend1, backend2, requests_mock):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
             "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
         }
         requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
         requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         file_formats = implementation.file_formats()
         assert file_formats == just_geotiff
 
@@ -79,7 +75,7 @@ class TestAggregatorBackendImplementation:
         ],
     )
     def test_file_formats_caching(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+        self, multi_backend_connection, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
@@ -89,7 +85,7 @@ class TestAggregatorBackendImplementation:
         mock2 = requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
 
         with config_overrides(**overrides):
-            implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+            implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
 
         file_formats = implementation.file_formats()
         assert file_formats == just_geotiff
@@ -108,31 +104,38 @@ class TestAggregatorBackendImplementation:
         assert len(cache_dump) == 1
         assert set(type(v) for v in cache_dump) == expected_cache_types
 
-    def test_file_formats_merging(self, multi_backend_connection, config, backend1, backend2, requests_mock):
-        requests_mock.get(backend1 + "/file_formats", json={
-            "input": {
-                "GeoJSON": {"gis_data_types": ["vector"], "parameters": {}}},
-            "output": {
-                "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
-                "GTiff": {
-                    "gis_data_types": ["raster"],
-                    "parameters": {"ZLEVEL": {"type": "string", "default": "6"}, },
-                    "title": "GeoTiff"
+    def test_file_formats_merging(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(
+            backend1 + "/file_formats",
+            json={
+                "input": {"GeoJSON": {"gis_data_types": ["vector"], "parameters": {}}},
+                "output": {
+                    "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
+                    "GTiff": {
+                        "gis_data_types": ["raster"],
+                        "parameters": {
+                            "ZLEVEL": {"type": "string", "default": "6"},
+                        },
+                        "title": "GeoTiff",
+                    },
+                    "JSON": {"gis_data_types": ["raster"], "parameters": {}},
+                    "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
                 },
-                "JSON": {"gis_data_types": ["raster"], "parameters": {}},
-                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
-            }
-        })
-        requests_mock.get(backend2 + "/file_formats", json={
-            "input": {
-                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
             },
-            "output": {
-                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
-                "NetCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
-            }
-        })
-        implementation = AggregatorBackendImplementation(backends=multi_backend_connection, config=config)
+        )
+        requests_mock.get(
+            backend2 + "/file_formats",
+            json={
+                "input": {
+                    "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+                },
+                "output": {
+                    "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+                    "NetCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
+                },
+            },
+        )
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         file_formats = implementation.file_formats()
         assert file_formats == {
             "input": {
@@ -171,20 +174,18 @@ class TestAggregatorSecondaryServices:
                     "default": "1.0.0",
                     "description": "The WMTS version to use.",
                     "enum": ["1.0.0"],
-                    "type": "string"
-                }
+                    "type": "string",
+                },
             },
             "links": [],
             "process_parameters": [],
-            "title": "Web Map Tile Service"
+            "title": "Web Map Tile Service",
         }
     }
 
-    def test_get_supporting_backend_ids_none_supported(
-        self, multi_backend_connection, config, catalog
-    ):
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+    def test_get_supporting_backend_ids_none_supported(self, multi_backend_connection, catalog):
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == []
@@ -192,25 +193,16 @@ class TestAggregatorSecondaryServices:
     def test_get_supporting_backend_ids_all_supported(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
         requests_mock,
         mbldr,
     ):
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        processing = AggregatorProcessing(
-            backends=multi_backend_connection, catalog=catalog, config=config
-        )
-        implementation = AggregatorSecondaryServices(
-            backends=multi_backend_connection, processing=processing, config=config
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == ["b1", "b2"]
@@ -218,25 +210,16 @@ class TestAggregatorSecondaryServices:
     def test_get_supporting_backend_ids_only_one_supported(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
         requests_mock,
         mbldr,
     ):
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=False)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        processing = AggregatorProcessing(
-            backends=multi_backend_connection, catalog=catalog, config=config
-        )
-        implementation = AggregatorSecondaryServices(
-            backends=multi_backend_connection, processing=processing, config=config
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=False))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         actual_supported_backends = implementation.get_supporting_backend_ids()
         assert actual_supported_backends == ["b2"]
@@ -244,7 +227,6 @@ class TestAggregatorSecondaryServices:
     def test_service_types_simple(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -252,21 +234,17 @@ class TestAggregatorSecondaryServices:
         mbldr,
     ):
         """Given 2 backends and only 1 backend has a single service type, then the aggregator
-            returns that 1 service type's metadata.
+        returns that 1 service type's metadata.
         """
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
         requests_mock.get(backend2 + "/service_types", json={})
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         service_types = implementation.service_types()
         assert service_types == single_service_type
@@ -274,7 +252,6 @@ class TestAggregatorSecondaryServices:
     def test_service_types_simple_cached(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -287,17 +264,13 @@ class TestAggregatorSecondaryServices:
         But the third call that happens after the cache has expired does hit the backend again.
         """
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         # Just need one service type for the test.
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        mock_be1 = requests_mock.get(
-            backend1 + "/service_types", json=single_service_type
-        )
+        mock_be1 = requests_mock.get(backend1 + "/service_types", json=single_service_type)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         service_types = implementation.service_types()
         assert mock_be1.call_count == 1
@@ -317,7 +290,6 @@ class TestAggregatorSecondaryServices:
     def test_service_types_skips_unsupported_backend(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -325,29 +297,21 @@ class TestAggregatorSecondaryServices:
         mbldr,
     ):
         """Given 2 backends and only 1 backend support secondary services, as states in its capabilities,
-            when the aggregator fulfills a request to list the service types,
-            then the aggregator skips the unsupported backend.
+        when the aggregator fulfills a request to list the service types,
+        then the aggregator skips the unsupported backend.
         """
         # We are testing that the aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         # We want to verify that the capabilities are actually queried.
-        mock_b1_capabilities = requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=False)
-        )
-        mock_b2_capabilities = requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        mock_b1_capabilities = requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=False))
+        mock_b2_capabilities = requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
 
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         # Backend 1 does support secondary services
-        mock_b1_service_types = requests_mock.get(
-            backend1 + "/service_types", status_code=500
-        )
-        mock_b2_service_types = requests_mock.get(
-            backend2 + "/service_types", json=single_service_type
-        )
+        mock_b1_service_types = requests_mock.get(backend1 + "/service_types", status_code=500)
+        mock_b2_service_types = requests_mock.get(backend2 + "/service_types", json=single_service_type)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         service_types = implementation.service_types()
         assert service_types == single_service_type
@@ -360,7 +324,6 @@ class TestAggregatorSecondaryServices:
     def test_service_types_multiple_backends(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -370,12 +333,8 @@ class TestAggregatorSecondaryServices:
         """Given 2 backends with each 1 service type, then the aggregator lists both service types."""
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         service_type_1 = {
             "WMTS": {
                 "configuration": {
@@ -398,18 +357,13 @@ class TestAggregatorSecondaryServices:
             }
         }
         service_type_2 = {
-            "WMS": {
-                "title": "OGC Web Map Service",
-                "configuration": {},
-                "process_parameters": [],
-                "links": []
-            }
+            "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         actual_service_types = implementation.service_types()
 
@@ -420,7 +374,6 @@ class TestAggregatorSecondaryServices:
     def test_service_types_warns_about_duplicate_service(
         self,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -436,12 +389,8 @@ class TestAggregatorSecondaryServices:
 
         caplog.set_level(logging.WARNING)
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         service_type_1 = {
             "WMS": {
                 "title": "OGC Web Map Service",
@@ -461,8 +410,8 @@ class TestAggregatorSecondaryServices:
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         actual_service_types = implementation.service_types()
 
@@ -496,20 +445,19 @@ class TestAggregatorSecondaryServices:
         return ServiceMetadata(
             id="wms-bar",
             process={"process_graph": {"bar": {"process_id": "bar", "arguments": {}}}},
-            url='https://oeo.net/wms/bar',
+            url="https://oeo.net/wms/bar",
             type="WMS",
             enabled=True,
             configuration={"version": "0.5.8"},
             attributes={},
             title="Test WMS service",
-            created=dt.datetime(2022, 2, 1, 13, 30, 3)
+            created=dt.datetime(2022, 2, 1, 13, 30, 3),
         )
 
     def test_service_info_succeeds(
         self,
         flask_app,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         backend2,
@@ -522,8 +470,8 @@ class TestAggregatorSecondaryServices:
         json_wms_bar = service_metadata_wms_bar.prepare_for_json()
         requests_mock.get(backend1 + "/services/wmts-foo", json=json_wmts_foo)
         requests_mock.get(backend2 + "/services/wms-bar", json=json_wms_bar)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         # Check the expected metadata on *both* of the services.
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -545,27 +493,31 @@ class TestAggregatorSecondaryServices:
             assert actual_service2 == expected_service2
 
     def test_service_info_wrong_backend_id(
-        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock,
-        service_metadata_wmts_foo
+        self, flask_app, multi_backend_connection, catalog, backend1, requests_mock, service_metadata_wmts_foo
     ):
         """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
 
         requests_mock.get(backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json())
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
                 implementation.service_info(user_id=TEST_USER, service_id="backenddoesnotexist-wtms-foo")
 
     def test_service_info_wrong_service_id(
-        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock,
+        self,
+        flask_app,
+        multi_backend_connection,
+        catalog,
+        backend1,
+        requests_mock,
     ):
         """When it gets a non-existent service ID, it raises a ServiceNotFoundException."""
 
         requests_mock.get(backend1 + "/services/service-does-not-exist", status_code=404)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
@@ -577,7 +529,6 @@ class TestAggregatorSecondaryServices:
         self,
         flask_app,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         requests_mock,
@@ -586,9 +537,7 @@ class TestAggregatorSecondaryServices:
         """When it gets a correct params for a new service, it successfully creates it."""
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
 
         # Set up responses for creating the service in backend 1
         backend_service_id = "wmts-foo"
@@ -607,8 +556,8 @@ class TestAggregatorSecondaryServices:
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             actual_openeo_id = implementation.create_service(
@@ -616,7 +565,7 @@ class TestAggregatorSecondaryServices:
                 process_graph=process_graph,
                 service_type="WMTS",
                 api_version="1.0.0",
-                configuration={}
+                configuration={},
             )
             assert actual_openeo_id == expected_service_id
 
@@ -624,7 +573,6 @@ class TestAggregatorSecondaryServices:
         self,
         flask_app,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         requests_mock,
@@ -633,17 +581,13 @@ class TestAggregatorSecondaryServices:
         """When it gets a request for a service type but no backend supports this service type, it raises ServiceUnsupportedException."""
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        mock_get_capabilities = requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
 
         # At least 1 service type must be present.
         # We don't want test to succeed erroneously simply because there are no services at all.
-        mock_service_types = requests_mock.get(
-            backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS
-        )
+        mock_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        non_existent_service_id =  "b1-doesnotexist"
+        non_existent_service_id = "b1-doesnotexist"
         # Check that this requests_mock does not get called.
         location_backend_1 = backend1 + "/services/" + non_existent_service_id
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
@@ -655,8 +599,8 @@ class TestAggregatorSecondaryServices:
             },
             status_code=201
         )
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceUnsupportedException):
@@ -685,7 +629,6 @@ class TestAggregatorSecondaryServices:
         self,
         flask_app,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         requests_mock,
@@ -695,9 +638,7 @@ class TestAggregatorSecondaryServices:
         """When the backend raises a general exception the aggregator raises an OpenEOApiException."""
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        mock_get_capabilities = requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
 
         # Set up responses for creating the service in backend 1:
         # This time the backend raises an error, one that will be reported as a OpenEOApiException.
@@ -708,8 +649,8 @@ class TestAggregatorSecondaryServices:
         )
         mock_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(OpenEOApiException):
@@ -718,20 +659,19 @@ class TestAggregatorSecondaryServices:
                     process_graph=process_graph,
                     service_type="WMTS",
                     api_version="1.0.0",
-                    configuration={}
+                    configuration={},
                 )
             assert mock_get_capabilities.called
             assert mock_service_types.called
             assert mock_post.called
 
-    @pytest.mark.parametrize("exception_class",
-        [ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException]
+    @pytest.mark.parametrize(
+        "exception_class", [ProcessGraphMissingException, ProcessGraphInvalidException, ServiceUnsupportedException]
     )
     def test_create_service_backend_reraises(
         self,
         flask_app,
         multi_backend_connection,
-        config,
         catalog,
         backend1,
         requests_mock,
@@ -743,21 +683,16 @@ class TestAggregatorSecondaryServices:
         """
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        mock_get_capabilities = requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        mock_get_capabilities = requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
 
         # Set up responses for creating the service in backend 1
         # This time the backend raises an error, one that will simply be re-raised/passed on as it is.
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
-        mock_post = requests_mock.post(
-            backend1 + "/services",
-            exc=exception_class("Some server error")
-        )
+        mock_post = requests_mock.post(backend1 + "/services", exc=exception_class("Some server error"))
         mock_get_service_types = requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             # These exception types should be re-raised, not become an OpenEOApiException.
@@ -767,20 +702,18 @@ class TestAggregatorSecondaryServices:
                     process_graph=process_graph,
                     service_type="WMTS",
                     api_version="1.0.0",
-                    configuration={}
+                    configuration={},
                 )
             assert mock_get_service_types.called
             assert mock_get_capabilities.called
             assert mock_post.called
 
-    def test_remove_service_succeeds(
-        self, flask_app, multi_backend_connection, config, catalog, backend1, requests_mock
-    ):
+    def test_remove_service_succeeds(self, flask_app, multi_backend_connection, catalog, backend1, requests_mock):
         """When remove_service is called with an existing service ID, it removes service and returns HTTP 204."""
 
         mock_delete = requests_mock.delete(backend1 + "/services/wmts-foo", status_code=204)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             implementation.remove_service(user_id=TEST_USER, service_id="b1-wmts-foo")
@@ -789,12 +722,15 @@ class TestAggregatorSecondaryServices:
             assert mock_delete.called
 
     def test_remove_service_but_backend_id_not_found(
-            self, flask_app, multi_backend_connection, config, catalog,
+        self,
+        flask_app,
+        multi_backend_connection,
+        catalog,
     ):
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         # Case 1: the backend doesn't even exist
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
@@ -802,19 +738,15 @@ class TestAggregatorSecondaryServices:
                 implementation.remove_service(user_id=TEST_USER, service_id="doesnotexist-wmts-foo")
 
     def test_remove_service_but_service_id_not_found(
-            self, flask_app, multi_backend_connection, config, catalog,
-            backend1, requests_mock
+        self, flask_app, multi_backend_connection, catalog, backend1, requests_mock
     ):
         """When the service ID does not exist for the specified backend then the aggregator raises an ServiceNotFoundException."""
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         # The backend exists but the service ID does not.
-        mock_delete1 = requests_mock.delete(
-            backend1 + "/services/doesnotexist",
-            status_code=404
-        )
+        mock_delete1 = requests_mock.delete(backend1 + "/services/doesnotexist", status_code=404)
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
                 implementation.remove_service(user_id=TEST_USER, service_id="b1-doesnotexist")
@@ -823,14 +755,13 @@ class TestAggregatorSecondaryServices:
             assert mock_delete1.called
 
     def test_remove_service_backend_response_is_an_error_status(
-            self, flask_app, multi_backend_connection, config, catalog,
-            backend1, requests_mock
-        ):
+        self, flask_app, multi_backend_connection, catalog, backend1, requests_mock
+    ):
         """When the backend response is an HTTP error status then the aggregator raises an OpenEoApiError."""
 
         requests_mock.delete(backend1 + "/services/wmts-foo", status_code=500)
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(OpenEoApiPlainError) as e:
@@ -840,22 +771,21 @@ class TestAggregatorSecondaryServices:
             # TODO: Statement above is an assumption. Is that really what we expect?
             assert e.value.http_status_code == 500
 
-    def test_update_service_succeeds(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, requests_mock
-    ):
+    def test_update_service_succeeds(self, flask_app, multi_backend_connection, catalog, backend1, requests_mock):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
         mock_patch = requests_mock.patch(
             backend1 + "/services/wmts-foo",
             status_code=204,
         )
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
-            implementation.update_service(user_id=TEST_USER, service_id="b1-wmts-foo", process_graph=process_graph_after)
+            implementation.update_service(
+                user_id=TEST_USER, service_id="b1-wmts-foo", process_graph=process_graph_after
+            )
 
             # Make sure the aggregator asked the backend to remove the service.
             assert mock_patch.called
@@ -865,21 +795,25 @@ class TestAggregatorSecondaryServices:
             assert mock_patch.last_request.json() == expected_process
 
     def test_update_service_but_backend_id_does_not_exist(
-        self, flask_app, multi_backend_connection, config, catalog,
+        self,
+        flask_app,
+        multi_backend_connection,
+        catalog,
     ):
         """When the backend ID/prefix does not exist then the aggregator raises an ServiceNotFoundException."""
 
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
-                implementation.update_service(user_id=TEST_USER, service_id="doesnotexist-wmts-foo", process_graph=process_graph_after)
+                implementation.update_service(
+                    user_id=TEST_USER, service_id="doesnotexist-wmts-foo", process_graph=process_graph_after
+                )
 
     def test_update_service_but_service_id_not_found(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, requests_mock
+        self, flask_app, multi_backend_connection, catalog, backend1, requests_mock
     ):
         """When the service ID does not exist for the specified backend then the aggregator raises an ServiceNotFoundException."""
 
@@ -888,19 +822,20 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services/doesnotexist",
             status_code=404,
         )
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         process_graph_after = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(ServiceNotFoundException):
-                implementation.update_service(user_id=TEST_USER, service_id="b1-doesnotexist", process_graph=process_graph_after)
+                implementation.update_service(
+                    user_id=TEST_USER, service_id="b1-doesnotexist", process_graph=process_graph_after
+                )
 
             assert mock_patch1.called
 
     def test_update_service_backend_response_is_an_error_status(
-        self, flask_app, multi_backend_connection, config, catalog,
-        backend1, requests_mock
+        self, flask_app, multi_backend_connection, catalog, backend1, requests_mock
     ):
         """When the backend response is an HTTP error status then the aggregator raises an OpenEoApiError."""
 
@@ -908,13 +843,15 @@ class TestAggregatorSecondaryServices:
             backend1 + "/services/wmts-foo",
             status_code=500,
         )
-        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
-        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing, config=config)
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+        implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
         new_process_graph = {"bar": {"process_id": "bar", "arguments": {"arg1": "bar"}}}
 
         with flask_app.test_request_context(headers=TEST_USER_AUTH_HEADER):
             with pytest.raises(OpenEoApiPlainError) as e:
-                implementation.update_service(user_id=TEST_USER, service_id="b1-wmts-foo", process_graph=new_process_graph)
+                implementation.update_service(
+                    user_id=TEST_USER, service_id="b1-wmts-foo", process_graph=new_process_graph
+                )
 
             assert e.value.http_status_code == 500
             assert mock_patch.called
@@ -1809,13 +1746,13 @@ class TestAggregatorCollectionCatalog:
         ],
     )
     def test_get_all_metadata_caching(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+        self, multi_backend_connection, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         b1am = requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b2am = requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
 
         with config_overrides(**overrides):
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
 
         metadata = catalog.get_all_metadata()
         assert metadata == [DictSubSet({"id": "S2"})]
@@ -1843,7 +1780,7 @@ class TestAggregatorCollectionCatalog:
         ],
     )
     def test_get_collection_metadata_caching(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+        self, multi_backend_connection, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b1s2 = requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
@@ -1851,7 +1788,7 @@ class TestAggregatorCollectionCatalog:
         b2s2 = requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
 
         with config_overrides(**overrides):
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
 
 
         metadata = catalog.get_collection_metadata("S2")
@@ -1925,7 +1862,6 @@ class TestAggregatorProcessing:
         self,
         catalog,
         multi_backend_connection,
-        config,
         backend1,
         backend2,
         requests_mock,
@@ -1960,9 +1896,7 @@ class TestAggregatorProcessing:
                 ]
             },
         )
-        processing = AggregatorProcessing(
-            backends=multi_backend_connection, catalog=catalog, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
             {
@@ -2014,7 +1948,7 @@ class TestAggregatorProcessing:
         ],
     )
     def test_get_process_registry_caching(
-        self, multi_backend_connection, config, backend1, backend2, requests_mock, overrides, expected_cache_types
+        self, multi_backend_connection, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
         b1p = requests_mock.get(backend1 + "/processes", json={"processes": [
             {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
@@ -2024,8 +1958,8 @@ class TestAggregatorProcessing:
         ]})
 
         with config_overrides(**overrides):
-            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection, config=config)
-            processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+            catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
+            processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
 
         assert (b1p.call_count, b2p.call_count) == (0, 0)
 
@@ -2044,10 +1978,13 @@ class TestAggregatorProcessing:
         cache_dump = processing._memoizer.dump(values_only=True)
         assert set(type(v) for v in cache_dump) == expected_cache_types
 
-
     def test_get_process_registry_parameter_differences(
-            self, catalog, multi_backend_connection, config, backend1, backend2,
-            requests_mock,
+        self,
+        catalog,
+        multi_backend_connection,
+        backend1,
+        backend2,
+        requests_mock,
     ):
         requests_mock.get(
             backend1 + "/processes",
@@ -2079,9 +2016,7 @@ class TestAggregatorProcessing:
                 ]
             },
         )
-        processing = AggregatorProcessing(
-            backends=multi_backend_connection, catalog=catalog, config=config
-        )
+        processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         registry = processing.get_process_registry(api_version="1.0.0")
         assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
             {

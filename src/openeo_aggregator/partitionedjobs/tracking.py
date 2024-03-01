@@ -1,19 +1,17 @@
 import collections
 import contextlib
-import dataclasses
-import datetime
 import logging
 import threading
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import flask
 from openeo.api.logs import LogEntry
 from openeo.rest.job import BatchJob, ResultAsset
-from openeo.util import TimingLogger, rfc3339
+from openeo.util import TimingLogger
 from openeo_driver.errors import JobNotFinishedException
 from openeo_driver.users import User
 
-from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START, AggregatorConfig
+from openeo_aggregator.config import CONNECTION_TIMEOUT_JOB_START
 from openeo_aggregator.connection import MultiBackendConnection
 from openeo_aggregator.partitionedjobs import (
     STATUS_CREATED,
@@ -31,7 +29,7 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 )
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.utils import _UNSET, Clock, PGWithMetadata, timestamp_to_rfc3339
+from openeo_aggregator.utils import _UNSET, Clock, PGWithMetadata
 
 PJOB_METADATA_FIELD_RESULT_JOBS = "result_jobs"
 
@@ -48,8 +46,8 @@ class PartitionedJobTracker:
         self._backends = backends
 
     @classmethod
-    def from_config(cls, config: AggregatorConfig, backends: MultiBackendConnection) -> "PartitionedJobTracker":
-        return cls(db=ZooKeeperPartitionedJobDB.from_config(config), backends=backends)
+    def from_config(cls, backends: MultiBackendConnection) -> "PartitionedJobTracker":
+        return cls(db=ZooKeeperPartitionedJobDB.from_config(), backends=backends)
 
     def list_user_jobs(self, user_id: str) -> List[dict]:
         return self._db.list_user_jobs(user_id=user_id)

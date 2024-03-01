@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.27.0]
+
+- Remove deprecated `AggregatorConfig` fields: `aggregator_backends`, `partitioned_job_tracking`,
+  `zookeeper_prefix`, `memoizer` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- Remove `AggregatorConfig` usage (both in `src` and `tests`) ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+
 ## [0.26.0]
 
 - Remove now unused `conf/backend_config.py` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112), [#117](https://github.com/Open-EO/openeo-aggregator/issues/117))

@@ -20,12 +20,8 @@ def test_tile_grid_spec_from_string():
     assert TileGrid.from_string("utm-10km") == TileGrid(crs_type="utm", size=10, unit="km")
 
 
-def test_flimsy_splitter(multi_backend_connection, catalog, config):
-    splitter = FlimsySplitter(processing=AggregatorProcessing(
-        backends=multi_backend_connection,
-        catalog=catalog,
-        config=config,
-    ))
+def test_flimsy_splitter(multi_backend_connection, catalog):
+    splitter = FlimsySplitter(processing=AggregatorProcessing(backends=multi_backend_connection, catalog=catalog))
     process = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
     pjob = splitter.split(process)
     assert len(pjob.subjobs) == 1
@@ -39,12 +35,10 @@ def test_flimsy_splitter(multi_backend_connection, catalog, config):
 class TestTileGridSplitter:
 
     @pytest.fixture
-    def aggregator_processing(
-            self, multi_backend_connection, catalog, config, requests_mock, backend1
-    ) -> AggregatorProcessing:
+    def aggregator_processing(self, multi_backend_connection, catalog, requests_mock, backend1) -> AggregatorProcessing:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", json={"id": "S2"})
-        return AggregatorProcessing(backends=multi_backend_connection, catalog=catalog, config=config)
+        return AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
 
     @pytest.mark.parametrize(["west", "south", "tile_grid", "expected_extent"], [
         # >>> from pyproj import Transformer

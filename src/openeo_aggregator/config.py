@@ -15,7 +15,6 @@ import openeo_aggregator.about
 
 _log = logging.getLogger(__name__)
 
-OPENEO_AGGREGATOR_CONFIG = "OPENEO_AGGREGATOR_CONFIG"
 
 CACHE_TTL_DEFAULT = 6 * 60 * 60
 
@@ -34,103 +33,21 @@ class ConfigException(ValueError):
 
 
 class AggregatorConfig(dict):
-    """
-    Simple dictionary based configuration for aggregator backend
-    """
-
-    # TODO #112 migrate everything to AggregatorBackendConfig (attrs based instead of dictionary based)
-
+    # TODO #112 Remove this empty shell
     config_source = dict_item()
 
-    # Dictionary mapping backend id to backend url
-    # TODO #112 deprecated, instead use by AggregatorBackendConfig.aggregator_backends
-    aggregator_backends = dict_item()
 
-    # TODO #112 deprecated, instead use AggregatorBackendConfig.partitioned_job_tracking
-    partitioned_job_tracking = dict_item(default=None)
-
-    # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
-    zookeeper_prefix = dict_item(default="/openeo-aggregator/")
-
-    # TODO #112 Deprecated, use AggregatorBackendConfig.memoizer instead
-    memoizer = dict_item(default={"type": "dict"})
-
-    # Just a config field for test purposes (while were stripping down this config class)
-    test_dummy = dict_item(default="alice")
-
-    @staticmethod
-    def from_py_file(path: Union[str, Path]) -> 'AggregatorConfig':
-        """Load config from Python file."""
-        path = Path(path)
-        _log.debug(f"Loading config from Python file {path}")
-        # Based on flask's Config.from_pyfile
-        with path.open(mode="rb") as f:
-            code = compile(f.read(), path, "exec")
-        globals = {"__file__": str(path)}
-        exec(code, globals)
-        for var_name in ["aggregator_config", "config"]:
-            if var_name in globals:
-                config = globals[var_name]
-                _log.info(f"Loaded config from {path=} {var_name=}")
-                break
-        else:
-            raise ConfigException(f"No 'config' variable defined in config file {path}")
-        if not isinstance(config, AggregatorConfig):
-            raise ConfigException(f"Variable 'config' from {path} is not AggregatorConfig but {type(config)}")
-        return config
-
-    def copy(self) -> 'AggregatorConfig':
-        return AggregatorConfig(self)
-
-
-def get_config_dir() -> Path:
-    # TODO: make this robust against packaging operations (e.g. no guaranteed real __file__ path)
-    # TODO #117: eliminate the need for this hardcoded, package based config dir
-    for root in [Path.cwd(), Path(__file__).parent.parent.parent]:
-        config_dir = root / "conf"
-        if config_dir.is_dir():
-            return config_dir
-    raise RuntimeError("No config dir found")
-
-
-def get_config(x: Union[str, Path, AggregatorConfig, None] = None) -> AggregatorConfig:
-    """
-    Get aggregator config from given object:
-    - if None: check env variable "OPENEO_AGGREGATOR_CONFIG" or return default config
-    - if it is already an `AggregatorConfig` object: return as is
-    - if it is a string and looks like a path of a Python file: load config from that
-    """
-
-    if x is None:
-        if OPENEO_AGGREGATOR_CONFIG in os.environ:
-            x = os.environ[OPENEO_AGGREGATOR_CONFIG]
-            _log.info(f"Config from env var {OPENEO_AGGREGATOR_CONFIG}: {x!r}")
-        else:
-            x = get_config_dir() / "aggregator.dummy.py"
-            _log.info(f"Config from fallback {x!r}")
-
-    if isinstance(x, str):
-        x = Path(x)
-
-    if isinstance(x, AggregatorConfig):
-        return x
-    elif isinstance(x, Path) and x.suffix.lower() == ".py":
-        return AggregatorConfig.from_py_file(x)
-
-    raise ValueError(repr(x))
 
 
 @attrs.frozen(kw_only=True)
 class AggregatorBackendConfig(OpenEoBackendConfig):
-    # TODO #112 migrate everything from AggregatorConfig to this class
 
     capabilities_backend_version: str = openeo_aggregator.about.__version__
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
 
-    # TODO #112 temporary default to allow migration, but make this field mandatory (and require non-empty)
-    aggregator_backends: Dict[str, str] = attrs.Factory(dict)
+    aggregator_backends: Dict[str, str] = attrs.field(validator=attrs.validators.min_len(1))
 
     # See `ZooKeeperPartitionedJobDB.from_config` for supported fields.
     partitioned_job_tracking: Optional[dict] = None
@@ -145,13 +62,10 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
 
-    # TODO #112: empty default is to allow config migration from AggregatorConfig to AggregatorBackendConfig.
-    #       To be replaced eventually with  "/openeo-aggregator/"
-    zookeeper_prefix: str = ""
+    zookeeper_prefix: str = "/openeo-aggregator/"
 
     # See `memoizer_from_config` for details.
-    # TODO #112: empty default is to allow migration. Te be replaced with `attrs.Factory(lambda: {"type": "dict"})`
-    memoizer: Dict = attrs.Factory(dict)
+    memoizer: Dict = attrs.Factory(lambda: {"type": "dict"})
 
     zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
 

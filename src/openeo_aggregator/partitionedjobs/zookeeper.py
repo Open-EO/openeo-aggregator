@@ -7,11 +7,7 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError, NoNodeError
 from openeo_driver.errors import JobNotFoundException
 
-from openeo_aggregator.config import (
-    AggregatorConfig,
-    ConfigException,
-    get_backend_config,
-)
+from openeo_aggregator.config import ConfigException, get_backend_config
 from openeo_aggregator.partitionedjobs import (
     STATUS_INSERTED,
     PartitionedJob,
@@ -41,9 +37,9 @@ class ZooKeeperPartitionedJobDB:
         self._prefix = prefix or f"/openeo-aggregator/{self.NAMESPACE}"
 
     @classmethod
-    def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
+    def from_config(cls) -> "ZooKeeperPartitionedJobDB":
         # Get ZooKeeper client
-        pjt_config = get_backend_config().partitioned_job_tracking or config.partitioned_job_tracking
+        pjt_config = get_backend_config().partitioned_job_tracking
         if pjt_config.get("zk_client"):
             zk_client = pjt_config["zk_client"]
         elif pjt_config.get("zk_hosts"):
@@ -51,7 +47,7 @@ class ZooKeeperPartitionedJobDB:
         else:
             raise ConfigException("Failed to construct zk_client")
         # Determine ZooKeeper prefix
-        base_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
+        base_prefix = get_backend_config().zookeeper_prefix
         assert len(base_prefix.replace("/", "")) >= 3
         partitioned_jobs_prefix = pjt_config.get("zookeeper_prefix", cls.NAMESPACE)
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)

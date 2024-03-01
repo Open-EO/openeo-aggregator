@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
-from typing import List
 
 import flask
 import pytest
 from openeo_driver.testing import ApiTester
-from openeo_driver.users.oidc import OidcProvider
 
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import (
@@ -13,7 +11,6 @@ from openeo_aggregator.backend import (
     AggregatorCollectionCatalog,
     MultiBackendConnection,
 )
-from openeo_aggregator.config import AggregatorConfig
 from openeo_aggregator.testing import (
     DummyKazooClient,
     MetadataBuilder,
@@ -68,19 +65,6 @@ def zk_client() -> DummyKazooClient:
     return DummyKazooClient()
 
 
-
-
-@pytest.fixture
-def base_config(zk_client) -> AggregatorConfig:
-    """Base config for tests (without any configured backends)."""
-    conf = AggregatorConfig()
-    conf.config_source = "test fixture base_config"
-    # conf.flask_error_handling = False  # Temporary disable flask error handlers to simplify debugging (better stack traces).
-
-
-    return conf
-
-
 @pytest.fixture
 def backend1_id() -> str:
     """Id of first upstream backend. As a fixture to allow per-test override"""
@@ -94,22 +78,12 @@ def backend2_id() -> str:
 
 
 @pytest.fixture
-def config(
-    base_config, backend1, backend2, backend1_id, backend2_id
-) -> AggregatorConfig:
-    """Config for most tests with two backends."""
-    conf = base_config
-    return conf
+def multi_backend_connection(backend1, backend2) -> MultiBackendConnection:
+    return MultiBackendConnection.from_config()
 
 
-@pytest.fixture
-def multi_backend_connection(config) -> MultiBackendConnection:
-    return MultiBackendConnection.from_config(config)
-
-
-def get_flask_app(config: AggregatorConfig) -> flask.Flask:
+def get_flask_app() -> flask.Flask:
     app = create_app(
-        config=config,
         auto_logging_setup=False,
         # flask_error_handling=False,  # Failing test debug tip: set to False for deeper stack trace insights
     )
@@ -119,8 +93,8 @@ def get_flask_app(config: AggregatorConfig) -> flask.Flask:
 
 
 @pytest.fixture
-def flask_app(config: AggregatorConfig) -> flask.Flask:
-    app = get_flask_app(config)
+def flask_app(backend1, backend2) -> flask.Flask:
+    app = get_flask_app()
     with app.app_context():
         yield app
 
@@ -141,11 +115,11 @@ def api100(flask_app: flask.Flask) -> ApiTester:
 
 
 @pytest.fixture
-def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
+def api100_with_entitlement_check() -> ApiTester:
     with config_overrides(
         auth_entitlement_check={"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
     ):
-        yield get_api100(get_flask_app(config))
+        yield get_api100(get_flask_app())
 
 
 def assert_dict_subset(d1: dict, d2: dict):
@@ -154,11 +128,8 @@ def assert_dict_subset(d1: dict, d2: dict):
 
 
 @pytest.fixture
-def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
-    return AggregatorCollectionCatalog(
-        backends=multi_backend_connection,
-        config=config
-    )
+def catalog(multi_backend_connection) -> AggregatorCollectionCatalog:
+    return AggregatorCollectionCatalog(backends=multi_backend_connection)
 
 
 @pytest.fixture

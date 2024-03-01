@@ -1,10 +1,10 @@
 import argparse
 import logging
-from typing import Dict, List
+from typing import Dict
 
 import requests
 
-from openeo_aggregator.config import AggregatorConfig, get_backend_config, get_config
+from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.metadata.merging import (
     ProcessMetadataMerger,
     merge_collection_metadata,
@@ -45,12 +45,9 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     _log.info(f"{args=}")
 
-    # Load config
-    # TODO: load from file iso "environment"?
-    config: AggregatorConfig = get_config(args.environment)
 
     # Determine backend ids/urls
-    aggregator_backends = get_backend_config().aggregator_backends or config.aggregator_backends
+    aggregator_backends = get_backend_config().aggregator_backends
     backend_ids = args.backends or list(aggregator_backends.keys())
     try:
         backend_urls = [aggregator_backends[b] for b in backend_ids]
