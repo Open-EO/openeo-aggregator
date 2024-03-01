@@ -135,30 +135,6 @@ class TestGeneral:
         }
 
 
-class TestGeneralRealConfig:
-    """Some temporary test against real config (that is going to be moved out of this repo at some point)"""
-
-    @pytest.fixture(autouse=True)
-    def real_config(self, monkeypatch):
-        openeo_driver.config.load._backend_config_getter.flush()
-        monkeypatch.setenv(
-            openeo_driver.config.load.ConfigGetter.OPENEO_BACKEND_CONFIG,
-            str(get_config_dir() / "backend_config.py"),
-        )
-        yield
-        openeo_driver.config.load._backend_config_getter.flush()
-
-    def test_title_and_description(self, api100):
-        res = api100.get("/").assert_status_code(200)
-        capabilities = res.json
-        assert capabilities["title"] == "openEO Platform"
-        assert capabilities["description"] == "openEO Platform, provided through openEO Aggregator Driver"
-
-    def test_only_oidc_auth(self, api100):
-        res = api100.get("/").assert_status_code(200)
-        capabilities = res.json
-        endpoints = {e["path"] for e in capabilities["endpoints"]}
-        assert {e for e in endpoints if e.startswith("/credentials")} == {"/credentials/oidc"}
 
 
 class TestCatalog:

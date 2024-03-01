@@ -39,9 +39,6 @@ def create_app(config: Any = None, auto_logging_setup: bool = True, flask_error_
 
     log_version_info(logger=_log)
 
-    # TODO #112 move this default to the AggregatorBackendConfig getter (get_backend_config)
-    os.environ.setdefault(ConfigGetter.OPENEO_BACKEND_CONFIG, str(get_config_dir() / "backend_config.py"))
-
     config: AggregatorConfig = get_config(config)
     _log.info(f"Using config: {config.config_source=!r}")
 
