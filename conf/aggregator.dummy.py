@@ -7,7 +7,6 @@ from openeo_aggregator.config import AggregatorBackendConfig, AggregatorConfig
 
 aggregator_config = AggregatorConfig(
     config_source=__file__,
-    zookeeper_prefix="/openeo/aggregator/dummy/",
 )
 
 
@@ -26,4 +25,5 @@ config = AggregatorBackendConfig(
             scopes=["openid"],
         ),
     ],
+    zookeeper_prefix="/openeo/aggregator/dummy/",
 )

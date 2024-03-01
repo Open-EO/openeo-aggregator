@@ -44,7 +44,6 @@ ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-mas
 
 aggregator_config = AggregatorConfig(
     config_source=__file__,
-    zookeeper_prefix="/openeo/aggregator-dev/",
 )
 
 
@@ -60,6 +59,7 @@ config = AggregatorBackendConfig(
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
+    zookeeper_prefix="/openeo/aggregator-dev/",
     partitioned_job_tracking={
         "zk_hosts": ZK_HOSTS,
     },
