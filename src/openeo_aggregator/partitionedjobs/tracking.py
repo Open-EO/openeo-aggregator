@@ -48,8 +48,8 @@ class PartitionedJobTracker:
         self._backends = backends
 
     @classmethod
-    def from_config(cls, config: AggregatorConfig, backends: MultiBackendConnection) -> "PartitionedJobTracker":
-        return cls(db=ZooKeeperPartitionedJobDB.from_config(config), backends=backends)
+    def from_config(cls, backends: MultiBackendConnection) -> "PartitionedJobTracker":
+        return cls(db=ZooKeeperPartitionedJobDB.from_config(), backends=backends)
 
     def list_user_jobs(self, user_id: str) -> List[dict]:
         return self._db.list_user_jobs(user_id=user_id)

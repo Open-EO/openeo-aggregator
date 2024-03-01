@@ -12,11 +12,7 @@ from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiExcep
 from openeo_driver.testing import DictSubSet
 
 from openeo_aggregator.caching import DictMemoizer
-from openeo_aggregator.config import (
-    CONNECTION_TIMEOUT_DEFAULT,
-    AggregatorConfig,
-    get_backend_config,
-)
+from openeo_aggregator.config import CONNECTION_TIMEOUT_DEFAULT, get_backend_config
 from openeo_aggregator.connection import (
     BackendConnection,
     InvalidatedConnection,
@@ -229,8 +225,7 @@ class TestMultiBackendConnection:
     # TODO test version discovery in constructor
 
     def test_from_config(self, backend1, backend2):
-        config = AggregatorConfig()
-        backends = MultiBackendConnection.from_config(config)
+        backends = MultiBackendConnection.from_config()
         assert set(c.id for c in backends.get_connections()) == {"b1", "b2"}
 
 
@@ -272,7 +267,6 @@ class TestMultiBackendConnection:
     def test_api_version(
         self,
         requests_mock,
-        config,
         backend1,
         backend2,
         overrides,
@@ -283,7 +277,7 @@ class TestMultiBackendConnection:
         m2 = requests_mock.get(backend2 + "/", json={"api_version": "1.2.3"})
 
         with config_overrides(**overrides):
-            multi_backend_connection = MultiBackendConnection.from_config(config)
+            multi_backend_connection = MultiBackendConnection.from_config()
 
         assert (m1.call_count, m2.call_count) == (0, 0)
         v123 = ComparableVersion("1.2.3")
@@ -313,7 +307,6 @@ class TestMultiBackendConnection:
     )
     def test_api_versions(
         self,
-        config,
         requests_mock,
         backend1,
         backend2,
@@ -325,7 +318,7 @@ class TestMultiBackendConnection:
         m2 = requests_mock.get(backend2 + "/", json={"api_version": "1.3.5"})
 
         with config_overrides(**overrides):
-            multi_backend_connection = MultiBackendConnection.from_config(config)
+            multi_backend_connection = MultiBackendConnection.from_config()
 
         assert (m1.call_count, m2.call_count) == (0, 0)
         v123 = ComparableVersion("1.2.3")
@@ -350,11 +343,14 @@ class TestMultiBackendConnection:
         cache_dump = multi_backend_connection._memoizer.dump(values_only=True)
         assert set(type(v) for v in cache_dump) == expected_cache_types
 
-    @pytest.mark.parametrize(["pid", "issuer", "title"], [
-        ("egi", "https://egi.test", "EGI"),
-        ("agg-egi", "https://EGI.test/", "Agg EGI"),
-    ])
-    def test_build_oidc_handling_basic(self, config, pid, issuer, title):
+    @pytest.mark.parametrize(
+        ["pid", "issuer", "title"],
+        [
+            ("egi", "https://egi.test", "EGI"),
+            ("agg-egi", "https://EGI.test/", "Agg EGI"),
+        ],
+    )
+    def test_build_oidc_handling_basic(self, pid, issuer, title):
         multi_backend_connection = MultiBackendConnection(
             backends=get_backend_config().aggregator_backends,
             configured_oidc_providers=[
@@ -365,22 +361,33 @@ class TestMultiBackendConnection:
         for con in multi_backend_connection:
             assert con.get_oidc_provider_map() == {pid: "egi"}
 
-    @pytest.mark.parametrize(["issuer_y1", "issuer_y2"], [
-        ("https://y.test", "https://y.test"),
-        ("https://y.test", "https://y.test/"),
-        ("https://y.test/", "https://y.test/"),
-    ])
-    def test_build_oidc_handling_intersection(
-            self, config, requests_mock, backend1, backend2, issuer_y1, issuer_y2
-    ):
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "x1", "issuer": "https://x.test", "title": "X1"},
-            {"id": "y1", "issuer": issuer_y1, "title": "YY1"},
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "y2", "issuer": issuer_y2, "title": "YY2"},
-            {"id": "z2", "issuer": "https://z.test", "title": "ZZZ2"},
-        ]})
+    @pytest.mark.parametrize(
+        ["issuer_y1", "issuer_y2"],
+        [
+            ("https://y.test", "https://y.test"),
+            ("https://y.test", "https://y.test/"),
+            ("https://y.test/", "https://y.test/"),
+        ],
+    )
+    def test_build_oidc_handling_intersection(self, requests_mock, backend1, backend2, issuer_y1, issuer_y2):
+        requests_mock.get(
+            backend1 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "x1", "issuer": "https://x.test", "title": "X1"},
+                    {"id": "y1", "issuer": issuer_y1, "title": "YY1"},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "y2", "issuer": issuer_y2, "title": "YY2"},
+                    {"id": "z2", "issuer": "https://z.test", "title": "ZZZ2"},
+                ]
+            },
+        )
 
         multi_backend_connection = MultiBackendConnection(
             backends=get_backend_config().aggregator_backends,
@@ -395,15 +402,23 @@ class TestMultiBackendConnection:
             {"ya": "y2", "za": "z2"},
         ]
 
-    def test_build_oidc_handling_intersection_empty(
-            self, config, requests_mock, backend1, backend2
-    ):
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "x1", "issuer": "https://x.test", "title": "X1"},
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "y2", "issuer": "https://y.test", "title": "YY2"},
-        ]})
+    def test_build_oidc_handling_intersection_empty(self, requests_mock, backend1, backend2):
+        requests_mock.get(
+            backend1 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "x1", "issuer": "https://x.test", "title": "X1"},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "y2", "issuer": "https://y.test", "title": "YY2"},
+                ]
+            },
+        )
 
         multi_backend_connection = MultiBackendConnection(
             backends=get_backend_config().aggregator_backends,
@@ -417,21 +432,31 @@ class TestMultiBackendConnection:
             {"ya": "y2"},
         ]
 
-    def test_build_oidc_handling_order(self, config, requests_mock, backend1, backend2):
-        requests_mock.get(backend1 + "/credentials/oidc", json={"providers": [
-            {"id": "d1", "issuer": "https://d.test", "title": "D1"},
-            {"id": "b1", "issuer": "https://b.test", "title": "B1"},
-            {"id": "c1", "issuer": "https://c.test/", "title": "C1"},
-            {"id": "a1", "issuer": "https://a.test", "title": "A1"},
-            {"id": "e1", "issuer": "https://e.test/", "title": "E1"},
-        ]})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "e2", "issuer": "https://e.test", "title": "E2"},
-            {"id": "b2", "issuer": "https://b.test/", "title": "B2"},
-            {"id": "c2", "issuer": "https://c.test", "title": "C2"},
-            {"id": "a2", "issuer": "https://a.test", "title": "A2"},
-            {"id": "d2", "issuer": "https://d.test", "title": "D2"},
-        ]})
+    def test_build_oidc_handling_order(self, requests_mock, backend1, backend2):
+        requests_mock.get(
+            backend1 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "d1", "issuer": "https://d.test", "title": "D1"},
+                    {"id": "b1", "issuer": "https://b.test", "title": "B1"},
+                    {"id": "c1", "issuer": "https://c.test/", "title": "C1"},
+                    {"id": "a1", "issuer": "https://a.test", "title": "A1"},
+                    {"id": "e1", "issuer": "https://e.test/", "title": "E1"},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "e2", "issuer": "https://e.test", "title": "E2"},
+                    {"id": "b2", "issuer": "https://b.test/", "title": "B2"},
+                    {"id": "c2", "issuer": "https://c.test", "title": "C2"},
+                    {"id": "a2", "issuer": "https://a.test", "title": "A2"},
+                    {"id": "d2", "issuer": "https://d.test", "title": "D2"},
+                ]
+            },
+        )
 
         multi_backend_connection = MultiBackendConnection(
             backends=get_backend_config().aggregator_backends,

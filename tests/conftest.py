@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
-from typing import List
 
 import flask
 import pytest
 from openeo_driver.testing import ApiTester
-from openeo_driver.users.oidc import OidcProvider
 
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import (
@@ -103,13 +101,12 @@ def config(
 
 
 @pytest.fixture
-def multi_backend_connection(config) -> MultiBackendConnection:
-    return MultiBackendConnection.from_config(config)
+def multi_backend_connection(backend1, backend2) -> MultiBackendConnection:
+    return MultiBackendConnection.from_config()
 
 
-def get_flask_app(config: AggregatorConfig) -> flask.Flask:
+def get_flask_app() -> flask.Flask:
     app = create_app(
-        config=config,
         auto_logging_setup=False,
         # flask_error_handling=False,  # Failing test debug tip: set to False for deeper stack trace insights
     )
@@ -119,8 +116,8 @@ def get_flask_app(config: AggregatorConfig) -> flask.Flask:
 
 
 @pytest.fixture
-def flask_app(config: AggregatorConfig) -> flask.Flask:
-    app = get_flask_app(config)
+def flask_app(backend1, backend2) -> flask.Flask:
+    app = get_flask_app()
     with app.app_context():
         yield app
 
@@ -141,11 +138,11 @@ def api100(flask_app: flask.Flask) -> ApiTester:
 
 
 @pytest.fixture
-def api100_with_entitlement_check(config: AggregatorConfig) -> ApiTester:
+def api100_with_entitlement_check() -> ApiTester:
     with config_overrides(
         auth_entitlement_check={"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
     ):
-        yield get_api100(get_flask_app(config))
+        yield get_api100(get_flask_app())
 
 
 def assert_dict_subset(d1: dict, d2: dict):
@@ -154,11 +151,8 @@ def assert_dict_subset(d1: dict, d2: dict):
 
 
 @pytest.fixture
-def catalog(multi_backend_connection, config) -> AggregatorCollectionCatalog:
-    return AggregatorCollectionCatalog(
-        backends=multi_backend_connection,
-        config=config
-    )
+def catalog(multi_backend_connection) -> AggregatorCollectionCatalog:
+    return AggregatorCollectionCatalog(backends=multi_backend_connection)
 
 
 @pytest.fixture

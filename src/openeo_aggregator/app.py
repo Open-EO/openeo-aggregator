@@ -4,11 +4,10 @@ openeo-aggregator Flask app
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
 
 import flask
 import openeo_driver.views
-from openeo_driver.config.load import ConfigGetter
 from openeo_driver.util.logging import (
     LOG_HANDLER_STDERR_JSON,
     LOGGING_CONTEXT_FLASK,
@@ -22,12 +21,11 @@ from openeo_aggregator.backend import (
     AggregatorBackendImplementation,
     MultiBackendConnection,
 )
-from openeo_aggregator.config import AggregatorConfig, get_config, get_config_dir
 
 _log = logging.getLogger(__name__)
 
 
-def create_app(config: Any = None, auto_logging_setup: bool = True, flask_error_handling: bool = True) -> flask.Flask:
+def create_app(auto_logging_setup: bool = True, flask_error_handling: bool = True) -> flask.Flask:
     """
     Flask application factory function.
     """
@@ -39,13 +37,11 @@ def create_app(config: Any = None, auto_logging_setup: bool = True, flask_error_
 
     log_version_info(logger=_log)
 
-    config: AggregatorConfig = get_config(config)
-    _log.info(f"Using config: {config.config_source=!r}")
 
-    backends = MultiBackendConnection.from_config(config)
+    backends = MultiBackendConnection.from_config()
 
     _log.info("Creating AggregatorBackendImplementation")
-    backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
+    backend_implementation = AggregatorBackendImplementation(backends=backends)
 
     _log.info(f"Building Flask app with {backend_implementation=!r}")
     app = openeo_driver.views.build_app(

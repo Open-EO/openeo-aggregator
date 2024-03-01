@@ -41,7 +41,7 @@ class ZooKeeperPartitionedJobDB:
         self._prefix = prefix or f"/openeo-aggregator/{self.NAMESPACE}"
 
     @classmethod
-    def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
+    def from_config(cls) -> "ZooKeeperPartitionedJobDB":
         # Get ZooKeeper client
         pjt_config = get_backend_config().partitioned_job_tracking
         if pjt_config.get("zk_client"):

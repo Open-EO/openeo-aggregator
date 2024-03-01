@@ -492,11 +492,11 @@ class ZkMemoizer(Memoizer):
 
 zk_memoizer_stats = {}
 
-def memoizer_from_config(
-        config: AggregatorConfig,
-        namespace: str,
-) -> Memoizer:
+
+def memoizer_from_config(namespace: str) -> Memoizer:
     """Factory to create `ZkMemoizer` instance from config values."""
+
+    backend_config = get_backend_config()
 
     def get_memoizer(memoizer_type: str, memoizer_conf: dict) -> Memoizer:
         if memoizer_type == "null":
@@ -507,14 +507,14 @@ def memoizer_from_config(
             return JsonDictMemoizer(namespace=namespace, default_ttl=memoizer_conf.get("default_ttl"))
         elif memoizer_type == "zookeeper":
             kazoo_client = KazooClient(hosts=memoizer_conf.get("zk_hosts", "localhost:2181"))
-            if get_backend_config().zk_memoizer_tracking:
+            if backend_config.zk_memoizer_tracking:
                 kazoo_client = AttrStatsProxy(
                     target=kazoo_client,
                     to_track=["start", "stop", "create", "get", "set"],
                     # TODO: better solution than using a module level global here?
                     stats=zk_memoizer_stats,
                 )
-            zookeeper_prefix = get_backend_config().zookeeper_prefix
+            zookeeper_prefix = backend_config.zookeeper_prefix
             return ZkMemoizer(
                 client=kazoo_client,
                 path_prefix=f"{zookeeper_prefix}/cache/{namespace}",
@@ -530,8 +530,7 @@ def memoizer_from_config(
         else:
             raise ValueError(memoizer_type)
 
-    memoizer_config = get_backend_config().memoizer
     return get_memoizer(
-        memoizer_type=memoizer_config.get("type", "null"),
-        memoizer_conf=memoizer_config.get("config", {}),
+        memoizer_type=backend_config.memoizer.get("type", "null"),
+        memoizer_conf=backend_config.memoizer.get("config", {}),
     )

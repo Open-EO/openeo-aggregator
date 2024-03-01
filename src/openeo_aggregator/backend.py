@@ -147,9 +147,9 @@ class _InternalCollectionMetadata:
 
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
 
-    def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
+    def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
-        self._memoizer = memoizer_from_config(config=config, namespace="CollectionCatalog")
+        self._memoizer = memoizer_from_config(namespace="CollectionCatalog")
         self.backends.on_connections_change.add(self._memoizer.invalidate)
 
     def get_all_metadata(self) -> List[dict]:
@@ -349,11 +349,10 @@ class AggregatorProcessing(Processing):
             self,
             backends: MultiBackendConnection,
             catalog: AggregatorCollectionCatalog,
-            config: AggregatorConfig,
     ):
         self.backends = backends
         # TODO Cache per backend results instead of output?
-        self._memoizer = memoizer_from_config(config=config, namespace="Processing")
+        self._memoizer = memoizer_from_config(namespace="Processing")
         self.backends.on_connections_change.add(self._memoizer.invalidate)
         self._catalog = catalog
 
@@ -984,12 +983,11 @@ class AggregatorSecondaryServices(SecondaryServices):
             self,
             backends: MultiBackendConnection,
             processing: AggregatorProcessing,
-            config: AggregatorConfig
     ):
         super(AggregatorSecondaryServices, self).__init__()
 
         self._backends = backends
-        self._memoizer = memoizer_from_config(config=config, namespace="SecondaryServices")
+        self._memoizer = memoizer_from_config(namespace="SecondaryServices")
         self._backends.on_connections_change.add(self._memoizer.invalidate)
 
         self._processing = processing
@@ -1287,16 +1285,13 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
     # Simplify mocking time for unit tests.
     _clock = time.time  # TODO: centralized helper for this test pattern
 
-    def __init__(self, backends: MultiBackendConnection, config: AggregatorConfig):
+    def __init__(self, backends: MultiBackendConnection):
         self._backends = backends
-        catalog = AggregatorCollectionCatalog(backends=backends, config=config)
-        processing = AggregatorProcessing(
-            backends=backends, catalog=catalog,
-            config=config,
-        )
+        catalog = AggregatorCollectionCatalog(backends=backends)
+        processing = AggregatorProcessing(backends=backends, catalog=catalog)
 
         if get_backend_config().partitioned_job_tracking:
-            partitioned_job_tracker = PartitionedJobTracker.from_config(config=config, backends=self._backends)
+            partitioned_job_tracker = PartitionedJobTracker.from_config(backends=self._backends)
         else:
             partitioned_job_tracker = None
 
@@ -1307,7 +1302,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             partitioned_job_tracker=partitioned_job_tracker,
         )
 
-        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing, config=config)
+        secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing)
         user_defined_processes = AggregatorUserDefinedProcesses(backends=backends)
 
         super().__init__(
@@ -1321,7 +1316,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         self._configured_oidc_providers: List[OidcProvider] = get_backend_config().oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = get_backend_config().auth_entitlement_check
 
-        self._memoizer: Memoizer = memoizer_from_config(config=config, namespace="general")
+        self._memoizer: Memoizer = memoizer_from_config(namespace="general")
         self._backends.on_connections_change.add(self._memoizer.invalidate)
 
         # Shorter HTTP cache TTL to adapt quicker to changed back-end configurations

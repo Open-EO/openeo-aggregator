@@ -97,8 +97,8 @@ def prime_caches(
         config: AggregatorConfig = get_config(config)
         _log.info(f"Using config: {config.get('config_source')=}")
 
-        backends = MultiBackendConnection.from_config(config)
-        backend_implementation = AggregatorBackendImplementation(backends=backends, config=config)
+        backends = MultiBackendConnection.from_config()
+        backend_implementation = AggregatorBackendImplementation(backends=backends)
 
         if fail_mode == FAIL_MODE_FAILFAST:
             # Do not intercept any exceptions.
