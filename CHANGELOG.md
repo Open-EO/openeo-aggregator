@@ -6,7 +6,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Unreleased
 
-- Remove deprecated `AggregatorConfig` fields: `aggregator_backends`, `partitioned_job_tracking` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- Remove deprecated `AggregatorConfig` fields: `aggregator_backends`, `partitioned_job_tracking`,
+  `zookeeper_prefix` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
 
 ## [0.26.0]
 

@@ -42,9 +42,6 @@ class AggregatorConfig(dict):
 
     config_source = dict_item()
 
-    # TODO #112 Deprecated, use AggregatorBackendConfig.zookeeper_prefix instead
-    zookeeper_prefix = dict_item(default="/openeo-aggregator/")
-
     # TODO #112 Deprecated, use AggregatorBackendConfig.memoizer instead
     memoizer = dict_item(default={"type": "dict"})
 
@@ -137,9 +134,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
 
-    # TODO #112: empty default is to allow config migration from AggregatorConfig to AggregatorBackendConfig.
-    #       To be replaced eventually with  "/openeo-aggregator/"
-    zookeeper_prefix: str = ""
+    zookeeper_prefix: str = "/openeo-aggregator/"
 
     # See `memoizer_from_config` for details.
     # TODO #112: empty default is to allow migration. Te be replaced with `attrs.Factory(lambda: {"type": "dict"})`

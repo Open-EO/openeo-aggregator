@@ -514,7 +514,7 @@ def memoizer_from_config(
                     # TODO: better solution than using a module level global here?
                     stats=zk_memoizer_stats,
                 )
-            zookeeper_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
+            zookeeper_prefix = get_backend_config().zookeeper_prefix
             return ZkMemoizer(
                 client=kazoo_client,
                 path_prefix=f"{zookeeper_prefix}/cache/{namespace}",

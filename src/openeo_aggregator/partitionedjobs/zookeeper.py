@@ -51,7 +51,7 @@ class ZooKeeperPartitionedJobDB:
         else:
             raise ConfigException("Failed to construct zk_client")
         # Determine ZooKeeper prefix
-        base_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
+        base_prefix = get_backend_config().zookeeper_prefix
         assert len(base_prefix.replace("/", "")) >= 3
         partitioned_jobs_prefix = pjt_config.get("zookeeper_prefix", cls.NAMESPACE)
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
