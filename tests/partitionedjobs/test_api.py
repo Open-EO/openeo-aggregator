@@ -77,13 +77,16 @@ class TestFlimsyBatchJobSplitting:
     def test_create_job_basic(self, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "3+5",
-            "description": "Addition of 3 and 5",
-            "process": P35,
-            "plan": "free",
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "3+5",
+                "description": "Addition of 3 and 5",
+                "process": P35,
+                "plan": "free",
+                "job_options": {"split_strategy": "flimsy"},
+            },
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -115,16 +118,18 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id) == {"0000": {
-            "backend_id": "b1",
-            "process_graph": PG35,
-            "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)"
-        }}
+        assert zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "0000": {
+                "backend_id": "b1",
+                "process_graph": PG35,
+                "title": "Partitioned job pj-20220119-123456 part 0000 (1/1)",
+            }
+        }
         assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
         assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == {
             "status": "created",
             "message": approx_str_prefix("Created in 0:00"),
-            "timestamp": pytest.approx(self.now.epoch, abs=5)
+            "timestamp": pytest.approx(self.now.epoch, abs=5),
         }
 
     @now.mock
@@ -133,10 +138,7 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {"load": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}, "result": True}}
-        res = api100.post("/jobs", json={
-            "process": {"process_graph": pg},
-            "job_options": {"split_strategy": "flimsy"}
-        })
+        res = api100.post("/jobs", json={"process": {"process_graph": pg}, "job_options": {"split_strategy": "flimsy"}})
         res.assert_status_code(201)
 
         expected_job_id = "agg-pj-20220119-123456"
@@ -151,10 +153,9 @@ class TestFlimsyBatchJobSplitting:
     def test_create_and_list_job(self, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -164,7 +165,7 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == {
             "jobs": [
                 {"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"},
-                {"id": expected_job_id, "created": self.now.rfc3339, "status": "created", "progress": 0}
+                {"id": expected_job_id, "created": self.now.rfc3339, "status": "created", "progress": 0},
             ],
             "federation:missing": ["b2"],
             "links": [],
@@ -173,13 +174,16 @@ class TestFlimsyBatchJobSplitting:
     def test_describe_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "3+5",
-            "description": "Addition of 3 and 5",
-            "process": P35,
-            "plan": "free",
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "3+5",
+                "description": "Addition of 3 and 5",
+                "process": P35,
+                "plan": "free",
+                "job_options": {"split_strategy": "flimsy"},
+            },
+        ).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
         res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
@@ -194,13 +198,16 @@ class TestFlimsyBatchJobSplitting:
         requests_mock.post(dummy1.backend_url + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "3+5",
-            "description": "Addition of 3 and 5",
-            "process": P35,
-            "plan": "free",
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "3+5",
+                "description": "Addition of 3 and 5",
+                "process": P35,
+                "plan": "free",
+                "job_options": {"split_strategy": "flimsy"},
+            },
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -217,13 +224,17 @@ class TestFlimsyBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "status": "error",
-        })
-        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet({
-            "status": "error",
-            "message": "Create failed: [500] Internal: nope",
-        })
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "error",
+            }
+        )
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
+            {
+                "status": "error",
+                "message": "Create failed: [500] Internal: nope",
+            }
+        )
 
         res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {
@@ -236,10 +247,9 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -254,26 +264,30 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
-        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "created": self.now.epoch,
-            "process": P35,
-        })
-        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "status": "running",
-            "message": approx_str_contains("{'running': 1}"),
-        })
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "created": self.now.epoch,
+                "process": P35,
+            }
+        )
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "running",
+                "message": approx_str_contains("{'running': 1}"),
+            }
+        )
         assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
         assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
-            {"status": "running"})
+            {"status": "running"}
+        )
 
     def test_start_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
         res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
@@ -288,10 +302,9 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -306,35 +319,39 @@ class TestFlimsyBatchJobSplitting:
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: still running
-        dummy1.set_job_status(TEST_USER, '1-jb-0', "running")
+        dummy1.set_job_status(TEST_USER, "1-jb-0", "running")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: finished
-        dummy1.set_job_status(TEST_USER, '1-jb-0', "finished")
+        dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
-        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "created": self.now.epoch,
-            "process": P35,
-        })
-        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "status": "finished",
-            "message": approx_str_contains("{'finished': 1}"),
-        })
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "created": self.now.epoch,
+                "process": P35,
+            }
+        )
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "finished",
+                "message": approx_str_contains("{'finished': 1}"),
+            }
+        )
         assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
         assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
-            {"status": "finished"})
+            {"status": "finished"}
+        )
 
     def test_sync_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
         # Start job
@@ -355,10 +372,9 @@ class TestFlimsyBatchJobSplitting:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
 
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
@@ -377,23 +393,24 @@ class TestFlimsyBatchJobSplitting:
         dummy1.setup_assets(job_id="1-jb-0", assets=["preview.png", "res001.tif", "res002.tif"])
 
         res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
-        assert res.json == DictSubSet({
-            "id": expected_job_id,
-            "assets": {
-                "0000-preview.png": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/preview.png"}),
-                "0000-res001.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res001.tif"}),
-                "0000-res002.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res002.tif"}),
+        assert res.json == DictSubSet(
+            {
+                "id": expected_job_id,
+                "assets": {
+                    "0000-preview.png": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/preview.png"}),
+                    "0000-res001.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res001.tif"}),
+                    "0000-res002.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/res002.tif"}),
+                },
             }
-        })
+        )
 
     def test_job_results_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
         # Start job
@@ -410,18 +427,22 @@ class TestFlimsyBatchJobSplitting:
 
     @now.mock
     def test_get_logs(self, api100, requests_mock, dummy1):
-        requests_mock.get(dummy1.backend_url + "/jobs/1-jb-0/logs", json={
-            "logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]
-        })
+        requests_mock.get(
+            dummy1.backend_url + "/jobs/1-jb-0/logs",
+            json={"logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]},
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "3+5",
-            "description": "Addition of 3 and 5",
-            "process": P35,
-            "plan": "free",
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "3+5",
+                "description": "Addition of 3 and 5",
+                "process": P35,
+                "plan": "free",
+                "job_options": {"split_strategy": "flimsy"},
+            },
+        ).assert_status_code(201)
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
@@ -434,10 +455,9 @@ class TestFlimsyBatchJobSplitting:
     @now.mock
     def test_get_logs_wrong_user(self, api100, requests_mock, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        res = api100.post("/jobs", json={
-            "process": P35,
-            "job_options": {"split_strategy": "flimsy"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
@@ -455,15 +475,14 @@ class TestTileGridBatchJobSplitting:
                 "id": "S2",
                 # covers 9 (3x3) utm-10km tiles
                 "spatial_extent": {"west": 4.9, "south": 51.1, "east": 5.2, "north": 51.3},
-            }
+            },
         },
         "sr": {
             "process_id": "save_result",
             "arguments": {"data": {"from_node": "lc"}, "format": "GTiff"},
             "result": True,
-        }
+        },
     }
-
 
     @pytest.fixture(autouse=True)
     def _partitioned_job_tracking(self, zk_client):
@@ -474,12 +493,15 @@ class TestTileGridBatchJobSplitting:
     def test_create_job_basic(self, flask_app, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "Mol",
-            "process": {"process_graph": self.PG_MOL},
-            "plan": "free",
-            "job_options": {"tile_grid": "utm-10km"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "Mol",
+                "process": {"process_graph": self.PG_MOL},
+                "plan": "free",
+                "job_options": {"tile_grid": "utm-10km"},
+            },
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -496,18 +518,19 @@ class TestTileGridBatchJobSplitting:
             "progress": 0,
         }
 
-        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet({
-            "user_id": TEST_USER,
-            "created": self.now.epoch,
-            "process": {"process_graph": self.PG_MOL},
-            "metadata": {
-                "title": "Mol", "plan": "free",
-                "_tiling_geometry": DictSubSet({
-                    "global_spatial_extent": DictSubSet({"west": 4.9})
-                }),
-            },
-            "job_options": {"tile_grid": "utm-10km"},
-        })
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "user_id": TEST_USER,
+                "created": self.now.epoch,
+                "process": {"process_graph": self.PG_MOL},
+                "metadata": {
+                    "title": "Mol",
+                    "plan": "free",
+                    "_tiling_geometry": DictSubSet({"global_spatial_extent": DictSubSet({"west": 4.9})}),
+                },
+                "job_options": {"tile_grid": "utm-10km"},
+            }
+        )
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
             "status": "created",
             "message": approx_str_contains("{'created': 9}"),
@@ -520,7 +543,8 @@ class TestTileGridBatchJobSplitting:
         tiles = []
         for sjob_id, subjob_metadata in subjobs.items():
             assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet(
-                {"status": "created"})
+                {"status": "created"}
+            )
             job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id)
             dummy_jobs.append(job_id)
             assert dummy1.get_job_status(TEST_USER, job_id) == "created"
@@ -541,20 +565,22 @@ class TestTileGridBatchJobSplitting:
         # Process graph with load_result
         pg = {
             "lr": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}},
-            "fb": {"process_id": "filter_bbox", "arguments": {
-                "data": {"from_node": "lr"},
-                "extent": {"west": 4.9, "south": 51.1, "east": 4.91, "north": 51.11},
-            }},
+            "fb": {
+                "process_id": "filter_bbox",
+                "arguments": {
+                    "data": {"from_node": "lr"},
+                    "extent": {"west": 4.9, "south": 51.1, "east": 4.91, "north": 51.11},
+                },
+            },
             "sr": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "fb"}, "format": "GTiff"},
                 "result": True,
-            }
+            },
         }
-        res = api100.post("/jobs", json={
-            "process": {"process_graph": pg},
-            "job_options": {"tile_grid": "utm-10km"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs", json={"process": {"process_graph": pg}, "job_options": {"tile_grid": "utm-10km"}}
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -568,12 +594,15 @@ class TestTileGridBatchJobSplitting:
     def test_job_results_basic(self, flask_app, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post("/jobs", json={
-            "title": "Mol",
-            "process": {"process_graph": self.PG_MOL},
-            "plan": "free",
-            "job_options": {"tile_grid": "utm-10km"}
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "title": "Mol",
+                "process": {"process_graph": self.PG_MOL},
+                "plan": "free",
+                "job_options": {"tile_grid": "utm-10km"},
+            },
+        ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
@@ -609,28 +638,34 @@ class TestTileGridBatchJobSplitting:
 
         # Get results
         res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
-        assert res.json == DictSubSet({
-            "id": expected_job_id,
-            "assets": {
-                "0000-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/result.tif"}),
-                "0001-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-1/results/result.tif"}),
-                "0002-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-2/results/result.tif"}),
-                "0003-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-3/results/result.tif"}),
-                "0004-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-4/results/result.tif"}),
-                "0005-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-5/results/result.tif"}),
-                "0006-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-6/results/result.tif"}),
-                "0007-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-7/results/result.tif"}),
-                "0008-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-8/results/result.tif"}),
-                "tile_grid.geojson": DictSubSet({
-                    "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson",
-                    "type": "application/geo+json",
-                })
-            },
-            "geometry": DictSubSet({
-                "type": "GeometryCollection",
-                "geometries": [DictSubSet({"type": "Polygon"}), DictSubSet({"type": "MultiPolygon"})]
-            })
-        })
+        assert res.json == DictSubSet(
+            {
+                "id": expected_job_id,
+                "assets": {
+                    "0000-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-0/results/result.tif"}),
+                    "0001-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-1/results/result.tif"}),
+                    "0002-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-2/results/result.tif"}),
+                    "0003-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-3/results/result.tif"}),
+                    "0004-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-4/results/result.tif"}),
+                    "0005-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-5/results/result.tif"}),
+                    "0006-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-6/results/result.tif"}),
+                    "0007-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-7/results/result.tif"}),
+                    "0008-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-8/results/result.tif"}),
+                    "tile_grid.geojson": DictSubSet(
+                        {
+                            "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson",
+                            "type": "application/geo+json",
+                        }
+                    ),
+                },
+                "geometry": DictSubSet(
+                    {
+                        "type": "GeometryCollection",
+                        "geometries": [DictSubSet({"type": "Polygon"}), DictSubSet({"type": "MultiPolygon"})],
+                    }
+                ),
+            }
+        )
 
         res = api100.get("/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson").assert_status_code(200)
         assert res.json == DictSubSet({"type": "FeatureCollection"})

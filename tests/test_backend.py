@@ -59,7 +59,7 @@ class TestAggregatorBackendImplementation:
     def test_file_formats_simple(self, multi_backend_connection, backend1, backend2, requests_mock):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
         }
         requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
         requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
@@ -79,7 +79,7 @@ class TestAggregatorBackendImplementation:
     ):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}}
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
         }
         mock1 = requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
         mock2 = requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
@@ -147,12 +147,14 @@ class TestAggregatorBackendImplementation:
                 "GTiff": {
                     "gis_data_types": ["raster"],
                     # TODO: merge parameters of backend1 and backend2?
-                    "parameters": {"ZLEVEL": {"type": "string", "default": "6"}, },
-                    "title": "GeoTiff"
+                    "parameters": {
+                        "ZLEVEL": {"type": "string", "default": "6"},
+                    },
+                    "title": "GeoTiff",
                 },
                 "JSON": {"gis_data_types": ["raster"], "parameters": {}},
                 "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
-            }
+            },
         }
 
 
@@ -166,9 +168,8 @@ class TestAggregatorSecondaryServices:
             "configuration": {
                 "colormap": {
                     "default": "YlGn",
-                    "description":
-                    "The colormap to apply to single band layers",
-                    "type": "string"
+                    "description": "The colormap to apply to single band layers",
+                    "type": "string",
                 },
                 "version": {
                     "default": "1.0.0",
@@ -340,20 +341,19 @@ class TestAggregatorSecondaryServices:
                 "configuration": {
                     "colormap": {
                         "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
+                        "description": "The colormap to apply to single band layers",
+                        "type": "string",
                     },
                     "version": {
                         "default": "1.0.0",
                         "description": "The WMTS version to use.",
                         "enum": ["1.0.0"],
-                        "type": "string"
-                    }
+                        "type": "string",
+                    },
                 },
                 "links": [],
                 "process_parameters": [],
-                "title": "Web Map Tile Service"
+                "title": "Web Map Tile Service",
             }
         }
         service_type_2 = {
@@ -392,19 +392,14 @@ class TestAggregatorSecondaryServices:
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         service_type_1 = {
-            "WMS": {
-                "title": "OGC Web Map Service",
-                "configuration": {},
-                "process_parameters": [],
-                "links": []
-            }
+            "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
         }
         service_type_2 = {
             "WMS": {
                 "title": "A duplicate OGC Web Map Service",
                 "configuration": {},
                 "process_parameters": [],
-                "links": []
+                "links": [],
             }
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
@@ -421,8 +416,8 @@ class TestAggregatorSecondaryServices:
         assert actual_service_types == expected_service_types
 
         expected_log_message = (
-            'Conflicting secondary service types: "WMS" is present in more than one backend, ' +
-            'already found in backend: b1'
+            'Conflicting secondary service types: "WMS" is present in more than one backend, '
+            + "already found in backend: b1"
         )
         assert expected_log_message in caplog.text
 
@@ -431,13 +426,13 @@ class TestAggregatorSecondaryServices:
         return ServiceMetadata(
             id="wmts-foo",
             process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
-            url='https://oeo.net/wmts/foo',
+            url="https://oeo.net/wmts/foo",
             type="WMTS",
             enabled=True,
             configuration={"version": "0.5.8"},
             attributes={},
             title="Test WMTS service",
-            created=dt.datetime(2020, 4, 9, 15, 5, 8)
+            created=dt.datetime(2020, 4, 9, 15, 5, 8),
         )
 
     @pytest.fixture
@@ -548,11 +543,8 @@ class TestAggregatorSecondaryServices:
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         requests_mock.post(
             backend1 + "/services",
-            headers={
-                "OpenEO-Identifier": backend_service_id,
-                "Location": location_backend_1
-            },
-            status_code=201
+            headers={"OpenEO-Identifier": backend_service_id, "Location": location_backend_1},
+            status_code=201,
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
@@ -593,11 +585,8 @@ class TestAggregatorSecondaryServices:
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         mock_post = requests_mock.post(
             backend1 + "/services",
-            headers={
-                "OpenEO-Identifier": "wmts-foo",
-                "Location": location_backend_1
-            },
-            status_code=201
+            headers={"OpenEO-Identifier": "wmts-foo", "Location": location_backend_1},
+            status_code=201,
         )
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
@@ -609,7 +598,7 @@ class TestAggregatorSecondaryServices:
                     process_graph=process_graph,
                     service_type="does-not-exist",
                     api_version="1.0.0",
-                    configuration={}
+                    configuration={},
                 )
             assert not mock_post.called
             # The backend that we are using should support the GET /service_types endpoint,
@@ -858,7 +847,6 @@ class TestAggregatorSecondaryServices:
 
 
 class TestInternalCollectionMetadata:
-
     def test_get_set_backends_for_collection(self):
         internal = _InternalCollectionMetadata()
         internal.set_backends_for_collection("S2", ["b1", "b3"])
@@ -880,7 +868,6 @@ class TestInternalCollectionMetadata:
 
 @pytest.mark.usefixtures("flask_app")  # Automatically enter flask app context for `url_for` to work
 class TestAggregatorCollectionCatalog:
-
     def test_get_all_metadata_simple(self, catalog, backend1, backend2, requests_mock):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
@@ -896,9 +883,7 @@ class TestAggregatorCollectionCatalog:
             },
         ]
 
-    def test_get_all_metadata_common_collections_minimal(
-        self, catalog, backend1, backend2, requests_mock
-    ):
+    def test_get_all_metadata_common_collections_minimal(self, catalog, backend1, backend2, requests_mock):
         requests_mock.get(
             backend1 + "/collections",
             json={"collections": [{"id": "S3"}, {"id": "S4"}]},
@@ -935,9 +920,7 @@ class TestAggregatorCollectionCatalog:
             },
         ]
 
-    def test_get_all_metadata_common_collections_merging(
-        self, catalog, backend1, backend2, requests_mock
-    ):
+    def test_get_all_metadata_common_collections_merging(self, catalog, backend1, backend2, requests_mock):
         requests_mock.get(
             backend1 + "/collections",
             json={
@@ -953,11 +936,7 @@ class TestAggregatorCollectionCatalog:
                         "providers": [{"name": "ESA", "roles": ["producer"]}],
                         "extent": {
                             "spatial": {"bbox": [[-10, 20, 30, 50]]},
-                            "temporal": {
-                                "interval": [
-                                    ["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"]
-                                ]
-                            },
+                            "temporal": {"interval": [["2011-01-01T00:00:00Z", "2019-01-01T00:00:00Z"]]},
                         },
                         "cube:dimensions": {
                             "bands": {"type": "bands", "values": ["B01", "B02"]},
@@ -988,11 +967,7 @@ class TestAggregatorCollectionCatalog:
                         "providers": [{"name": "ESA", "roles": ["licensor"]}],
                         "extent": {
                             "spatial": {"bbox": [[-20, -20, 40, 40]]},
-                            "temporal": {
-                                "interval": [
-                                    ["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]
-                                ]
-                            },
+                            "temporal": {"interval": [["2012-02-02T00:00:00Z", "2019-01-01T00:00:00Z"]]},
                         },
                         "cube:dimensions": {
                             "bands": {"type": "bands", "values": ["B01", "B02"]},
@@ -1051,9 +1026,7 @@ class TestAggregatorCollectionCatalog:
             },
         ]
 
-    def test_get_best_backend_for_collections_basic(
-        self, catalog, backend1, backend2, requests_mock
-    ):
+    def test_get_best_backend_for_collections_basic(self, catalog, backend1, backend2, requests_mock):
         requests_mock.get(
             backend1 + "/collections",
             json={"collections": [{"id": "S3"}, {"id": "S4"}]},
@@ -1070,47 +1043,33 @@ class TestAggregatorCollectionCatalog:
         assert catalog.get_backend_candidates_for_collections(["S3", "S4"]) == ["b1"]
         assert catalog.get_backend_candidates_for_collections(["S4", "S5"]) == ["b2"]
 
-        with pytest.raises(
-            OpenEOApiException, match="Collections across multiple backends"
-        ):
+        with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
             catalog.get_backend_candidates_for_collections(["S3", "S4", "S5"])
 
-    def test_get_collection_metadata_basic(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
-        requests_mock.get(
-            backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"}
-        )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S3"}]}
-        )
-        requests_mock.get(
-            backend2 + "/collections/S3", json={"id": "S3", "title": "b2's S3"}
-        )
+    def test_get_collection_metadata_basic(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend1 + "/collections/S2", json={"id": "S2", "title": "b1's S2"})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
+        requests_mock.get(backend2 + "/collections/S3", json={"id": "S3", "title": "b2's S3"})
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
-            'id': 'S2', 'title': "b1's S2",
+            "id": "S2",
+            "title": "b1's S2",
             "summaries": {"federation:backends": ["b1"]},
         }
         metadata = catalog.get_collection_metadata("S3")
         assert metadata == {
-            "id": "S3", "title": "b2's S3",
+            "id": "S3",
+            "title": "b2's S3",
             "summaries": {"federation:backends": ["b2"]},
         }
 
         with pytest.raises(CollectionNotFoundException):
             catalog.get_collection_metadata("S5")
 
-    def test_get_collection_metadata_merging(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1133,9 +1092,7 @@ class TestAggregatorCollectionCatalog:
                 "datasource_type": "1sentinel-2-grd",
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1202,12 +1159,8 @@ class TestAggregatorCollectionCatalog:
             "sci:citation": "Modified Copernicus Sentinel data [Year]/Sentinel Hub",
         }
 
-    def test_get_collection_metadata_merging_summaries(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_summaries(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1235,9 +1188,7 @@ class TestAggregatorCollectionCatalog:
                 },
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1307,12 +1258,8 @@ class TestAggregatorCollectionCatalog:
             "type": "Collection",
         }
 
-    def test_get_collection_metadata_merging_extent(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_extent(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1323,9 +1270,7 @@ class TestAggregatorCollectionCatalog:
                 },
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1362,12 +1307,8 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
-    def test_get_collection_metadata_merging_links(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_links(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1389,9 +1330,7 @@ class TestAggregatorCollectionCatalog:
                 ],
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1434,12 +1373,8 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
-    def test_get_collection_metadata_merging_removes_duplicate_links(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_removes_duplicate_links(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1462,9 +1397,7 @@ class TestAggregatorCollectionCatalog:
                 ],
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1510,12 +1443,8 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
-    def test_get_collection_metadata_merging_cubedimensions(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_cubedimensions(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         b1_bands = ["VV", "VH", "HV", "HH"]
         requests_mock.get(
             backend1 + "/collections/S2",
@@ -1546,9 +1475,7 @@ class TestAggregatorCollectionCatalog:
                 "summaries": {"eo:bands": [{"name": b} for b in b1_bands]},
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         b2_bands = ["VV", "VH", "HH", "HH+HV", "VV+VH", "HV"]
         requests_mock.get(
             backend2 + "/collections/S2",
@@ -1649,9 +1576,7 @@ class TestAggregatorCollectionCatalog:
         b2_bands,
         expected_bands,
     ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend1 + "/collections/S2",
             json={
@@ -1662,9 +1587,7 @@ class TestAggregatorCollectionCatalog:
                 "summaries": {"eo:bands": [{"name": b} for b in b1_bands]},
             },
         )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(
             backend2 + "/collections/S2",
             json={
@@ -1701,19 +1624,11 @@ class TestAggregatorCollectionCatalog:
             },
         }
 
-    def test_get_collection_metadata_merging_with_error(
-        self, catalog, backend1, backend2, requests_mock
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_get_collection_metadata_merging_with_error(self, catalog, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend1 + "/collections/S2", status_code=500)
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
-        requests_mock.get(
-            backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"}
-        )
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections/S2", json={"id": "S2", "title": "b2's S2"})
 
         metadata = catalog.get_collection_metadata("S2")
         assert metadata == {
@@ -1726,10 +1641,24 @@ class TestAggregatorCollectionCatalog:
     # TODO tests for caching of collection metadata
 
     def test_generate_backend_constraint_callables(self):
-        callables = AggregatorCollectionCatalog.generate_backend_constraint_callables([
-            {"eq": {"process_id": "eq", "arguments": {"x": {"from_parameter": "value"}, "y": "b1"}, "result": True}},
-            {"eq": {"process_id": "neq", "arguments": {"x": {"from_parameter": "value"}, "y": "b2"}, "result": True}},
-        ])
+        callables = AggregatorCollectionCatalog.generate_backend_constraint_callables(
+            [
+                {
+                    "eq": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_parameter": "value"}, "y": "b1"},
+                        "result": True,
+                    }
+                },
+                {
+                    "eq": {
+                        "process_id": "neq",
+                        "arguments": {"x": {"from_parameter": "value"}, "y": "b2"},
+                        "result": True,
+                    }
+                },
+            ]
+        )
         equals_b1, differs_from_b2 = callables
         assert equals_b1("b1") is True
         assert equals_b1("b2") is False
@@ -1790,19 +1719,18 @@ class TestAggregatorCollectionCatalog:
         with config_overrides(**overrides):
             catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
 
-
         metadata = catalog.get_collection_metadata("S2")
-        assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
+        assert metadata == DictSubSet({"id": "S2", "title": "b1's S2"})
         assert (b1s2.call_count, b2s2.call_count) == (1, 1)
 
         with clock_mock(offset=10):
             metadata = catalog.get_collection_metadata("S2")
-            assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
+            assert metadata == DictSubSet({"id": "S2", "title": "b1's S2"})
             assert (b1s2.call_count, b2s2.call_count) == (1, 1)
 
         with clock_mock(offset=100):
             metadata = catalog.get_collection_metadata("S2")
-            assert metadata == DictSubSet({'id': 'S2', 'title': "b1's S2"})
+            assert metadata == DictSubSet({"id": "S2", "title": "b1's S2"})
             assert (b1s2.call_count, b2s2.call_count) == (2, 2)
 
         assert isinstance(catalog._memoizer, DictMemoizer)
@@ -1811,11 +1739,10 @@ class TestAggregatorCollectionCatalog:
 
 
 class TestJobIdMapping:
-
     def test_get_aggregator_job_id(self):
-        assert JobIdMapping.get_aggregator_job_id(
-            backend_job_id="j0bId-f00b6r", backend_id="vito"
-        ) == "vito-j0bId-f00b6r"
+        assert (
+            JobIdMapping.get_aggregator_job_id(backend_job_id="j0bId-f00b6r", backend_id="vito") == "vito-j0bId-f00b6r"
+        )
 
     def test_parse_aggregator_job_id(self, multi_backend_connection):
         assert JobIdMapping.parse_aggregator_job_id(
@@ -1836,11 +1763,11 @@ from openeo_aggregator.backend import ServiceIdMapping
 
 
 class TestServiceIdMapping:
-
     def test_get_aggregator_job_id(self):
-        assert ServiceIdMapping.get_aggregator_service_id(
-            backend_service_id="service-x17-abc", backend_id="vito"
-        ) == "vito-service-x17-abc"
+        assert (
+            ServiceIdMapping.get_aggregator_service_id(backend_service_id="service-x17-abc", backend_id="vito")
+            == "vito-service-x17-abc"
+        )
 
     def test_parse_aggregator_job_id(self, multi_backend_connection):
         assert ServiceIdMapping.parse_aggregator_service_id(
@@ -1908,10 +1835,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
             {
                 "id": "mean",
@@ -1919,10 +1846,10 @@ class TestAggregatorProcessing:
                 "parameters": [{"name": "data", "schema": {}, "description": "data"}],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1", "b2"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
             {
                 "id": "multiply",
@@ -1933,10 +1860,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b2"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
         ]
 
@@ -1950,12 +1877,22 @@ class TestAggregatorProcessing:
     def test_get_process_registry_caching(
         self, multi_backend_connection, backend1, backend2, requests_mock, overrides, expected_cache_types
     ):
-        b1p = requests_mock.get(backend1 + "/processes", json={"processes": [
-            {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
-        ]})
-        b2p = requests_mock.get(backend2 + "/processes", json={"processes": [
-            {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
-        ]})
+        b1p = requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {"id": "add", "parameters": [{"name": "x"}, {"name": "y"}]},
+                ]
+            },
+        )
+        b2p = requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {"id": "multiply", "parameters": [{"name": "x"}, {"name": "y"}]},
+                ]
+            },
+        )
 
         with config_overrides(**overrides):
             catalog = AggregatorCollectionCatalog(backends=multi_backend_connection)
@@ -2028,10 +1965,10 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
             {
                 "id": "mean",
@@ -2039,10 +1976,10 @@ class TestAggregatorProcessing:
                 "parameters": [{"name": "array", "schema": {}, "description": "array"}],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1", "b2"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
             {
                 "id": "multiply",
@@ -2053,9 +1990,9 @@ class TestAggregatorProcessing:
                 ],
                 "returns": {"schema": {}},
                 "federation:backends": ["b2"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': []
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             },
         ]

@@ -33,10 +33,10 @@ class TestMergeProcessMetadata:
                 "parameters": [],
                 "returns": {"schema": {}},
                 "federation:backends": ["b1", "b2"],
-                'deprecated': False,
-                'experimental': False,
-                'examples': [],
-                'links': [],
+                "deprecated": False,
+                "experimental": False,
+                "examples": [],
+                "links": [],
             }
         }
         assert reporter.logs == []
@@ -55,10 +55,10 @@ class TestMergeProcessMetadata:
             "parameters": [],
             "returns": {"schema": {}},
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == []
 
@@ -72,19 +72,12 @@ class TestMergeProcessMetadata:
                             "type": "array",
                             "items": {"description": "All data types are allowed."},
                         },
-                        "description": "some description"
-                    }
+                        "description": "some description",
+                    },
                 },
                 "b2": {
                     "id": "add",
-                    "returns": {
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "description": "Any data type is allowed."
-                            }
-                        }
-                    }
+                    "returns": {"schema": {"type": "array", "items": {"description": "Any data type is allowed."}}},
                 },
             }
         )
@@ -93,7 +86,7 @@ class TestMergeProcessMetadata:
             "id": "add",
             "description": "add",
             "parameters": [],
-            'returns': {
+            "returns": {
                 "description": "some description",
                 "schema": {
                     "type": "array",
@@ -101,10 +94,10 @@ class TestMergeProcessMetadata:
                 },
             },
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == []
 
@@ -122,10 +115,10 @@ class TestMergeProcessMetadata:
             "parameters": [],
             "returns": {"schema": {"type": "number"}},
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -175,10 +168,10 @@ class TestMergeProcessMetadata:
                 "OverflowError": {"message": "Jeez"},
             },
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == []
 
@@ -203,10 +196,10 @@ class TestMergeProcessMetadata:
             "returns": {"schema": {}},
             "exceptions": {"MathError": {"message": "Nope"}},
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -232,10 +225,10 @@ class TestMergeProcessMetadata:
             "returns": {"schema": {}},
             "categories": ["Math", "Maths"],
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == []
 
@@ -254,10 +247,10 @@ class TestMergeProcessMetadata:
             "returns": {"schema": {}},
             "categories": ["Math"],
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -308,10 +301,10 @@ class TestMergeProcessMetadata:
             ],
             "returns": {"schema": {}},
             "federation:backends": ["b1", "b2"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': []
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == []
 
@@ -336,9 +329,7 @@ class TestMergeProcessMetadata:
             "description": "cos",
             "federation:backends": ["b1", "b2"],
             "id": "cos",
-            "parameters": [
-                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
-            ],
+            "parameters": [{"name": "x", "schema": {"type": "number"}, "description": "x value"}],
             "returns": {"schema": {}},
             "deprecated": False,
             "experimental": False,
@@ -382,9 +373,7 @@ class TestMergeProcessMetadata:
             "description": "cos",
             "federation:backends": ["b1", "b2"],
             "id": "cos",
-            "parameters": [
-                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
-            ],
+            "parameters": [{"name": "x", "schema": {"type": "number"}, "description": "x value"}],
             "returns": {"schema": {}},
             "deprecated": False,
             "experimental": False,
@@ -441,14 +430,12 @@ class TestMergeProcessMetadata:
             "description": "cos",
             "federation:backends": ["b1", "b2"],
             "id": "cos",
-            "parameters": [
-                {"name": "x", "schema": {"type": "number"}, "description": "x value"}
-            ],
+            "parameters": [{"name": "x", "schema": {"type": "number"}, "description": "x value"}],
             "returns": {"schema": {}},
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': [],
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -509,10 +496,10 @@ class TestMergeProcessMetadata:
             ],
             "returns": {"schema": {}},
             "federation:backends": ["b1", "b2", "b3"],
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': [],
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
         assert reporter.logs == [
             {
@@ -540,7 +527,7 @@ class TestMergeProcessMetadata:
                     '+  "type": "array"\n',
                     " }\n",
                 ],
-            }
+            },
         ]
 
     def test_merge_process_parameters_differences_precedence(self, merger, reporter):
@@ -632,9 +619,7 @@ class TestMergeProcessMetadata:
                         "schema": {
                             "type": "object",
                             "subtype": "process-graph",
-                            "parameters": [
-                                {"name": "x", "schema": {}, "description": "the x"}
-                            ],
+                            "parameters": [{"name": "x", "schema": {}, "description": "the x"}],
                             "returns": {"schema": {}},
                         },
                     },
@@ -679,9 +664,7 @@ class TestMergeProcessMetadata:
                     "schema": {
                         "type": "object",
                         "subtype": "process-graph",
-                        "parameters": [
-                            {"name": "x", "description": "the x", "schema": {}}
-                        ],
+                        "parameters": [{"name": "x", "description": "the x", "schema": {}}],
                         "returns": {"schema": {}},
                     },
                 }
@@ -714,9 +697,7 @@ class TestMergeProcessMetadata:
                         "description": "what to count",
                         "schema": [
                             {
-                                "parameters": [
-                                    {"name": "x", "schema": {}, "description": "X."}
-                                ],
+                                "parameters": [{"name": "x", "schema": {}, "description": "X."}],
                                 "returns": {"schema": {"type": "boolean"}},
                                 "subtype": "process-graph",
                                 "type": "object",
@@ -789,9 +770,7 @@ class TestMergeProcessMetadata:
                         {
                             "type": "object",
                             "subtype": "process-graph",
-                            "parameters": [
-                                {"name": "x", "description": "X.", "schema": {}}
-                            ],
+                            "parameters": [{"name": "x", "description": "X.", "schema": {}}],
                             "returns": {"schema": {"type": "boolean"}},
                         },
                         {"const": True, "type": "boolean"},
@@ -800,10 +779,10 @@ class TestMergeProcessMetadata:
             ],
             "returns": {"schema": {"type": "number"}},
             "summary": "Count the number of elements",
-            'deprecated': False,
-            'experimental': False,
-            'examples': [],
-            'links': [],
+            "deprecated": False,
+            "experimental": False,
+            "examples": [],
+            "links": [],
         }
 
         assert reporter.logs == []

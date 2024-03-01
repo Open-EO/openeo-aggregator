@@ -27,8 +27,6 @@ def pytest_configure(config):
     os.environ["OPENEO_BACKEND_CONFIG"] = str(Path(__file__).parent / "backend_config.py")
 
 
-
-
 _DEFAULT_PROCESSES = [
     "load_collection",
     "load_result",

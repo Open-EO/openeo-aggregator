@@ -75,7 +75,6 @@ class TestGeneral:
         capabilities = api100.get("/").assert_status_code(200).json
         assert "openeo_aggregator" in capabilities["processing:software"]
 
-
     def test_only_oidc_auth(self, api100):
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json
@@ -116,7 +115,7 @@ class TestGeneral:
 
     def test_health_check_invalid_backend(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/health", json={"health": "OK"}, headers={"Content-type": "application/json"})
-        requests_mock.get(backend2 + "/health", text='Inva{id J}0n', headers={"Content-type": "application/json"})
+        requests_mock.get(backend2 + "/health", text="Inva{id J}0n", headers={"Content-type": "application/json"})
         resp = api100.get("/health").assert_status_code(500)
         assert resp.json == {
             "backend_status": {
@@ -132,10 +131,7 @@ class TestGeneral:
         }
 
 
-
-
 class TestCatalog:
-
     def test_collections_basic(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
@@ -182,13 +178,16 @@ class TestCatalog:
         res.assert_status_code(200)
         assert res.json == {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": "blabla"}]}
 
-    @pytest.mark.parametrize(["backend1_up", "backend2_up", "expected"], [
-        (True, False, {"S1", "S2"}),
-        (False, True, {"S3"}),
-        (False, False, set()),
-    ])
+    @pytest.mark.parametrize(
+        ["backend1_up", "backend2_up", "expected"],
+        [
+            (True, False, {"S1", "S2"}),
+            (False, True, {"S3"}),
+            (False, False, set()),
+        ],
+    )
     def test_collections_resilience(
-            self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected
+        self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected
     ):
         if backend1_up:
             requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
@@ -324,12 +323,14 @@ class TestCatalog:
 class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):
         res = api100.get("/credentials/oidc").assert_status_code(200).json
-        assert res == {"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]},
-            {"id": "x-agg", "issuer": "https://x.test", "title": "X (agg)", "scopes": ["openid"]},
-            {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]},
-            {"id": "z-agg", "issuer": "https://z.test", "title": "Z (agg)", "scopes": ["openid"]},
-        ]}
+        assert res == {
+            "providers": [
+                {"id": "egi", "issuer": "https://egi.test", "title": "EGI", "scopes": ["openid"]},
+                {"id": "x-agg", "issuer": "https://x.test", "title": "X (agg)", "scopes": ["openid"]},
+                {"id": "y-agg", "issuer": "https://y.test", "title": "Y (agg)", "scopes": ["openid"]},
+                {"id": "z-agg", "issuer": "https://z.test", "title": "Z (agg)", "scopes": ["openid"]},
+            ]
+        }
 
     def test_me_unauthorized(self, api100):
         api100.get("/me").assert_error(401, "AuthenticationRequired")
@@ -349,8 +350,7 @@ class TestAuthEntitlementCheck:
         api100_with_entitlement_check.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
-            403, "PermissionsInsufficient",
-            message="An EGI account is required for using openEO Platform."
+            403, "PermissionsInsufficient", message="An EGI account is required for using openEO Platform."
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"internal_auth_data.*authentication_method.*basic", warnings)
@@ -360,16 +360,17 @@ class TestAuthEntitlementCheck:
             assert request.headers["Authorization"] == "Bearer funiculifunicula"
             return {"sub": "john"}
 
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
         requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
-            403, "PermissionsInsufficient",
-            message="Proper enrollment in openEO Platform virtual organization is required."
+            403,
+            "PermissionsInsufficient",
+            message="Proper enrollment in openEO Platform virtual organization is required.",
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"KeyError.*eduperson_entitlement", warnings)
@@ -377,50 +378,50 @@ class TestAuthEntitlementCheck:
     def _get_userifo_handler(self, eduperson_entitlement: List[str], bearer_token: str = "funiculifunicula"):
         def get_userinfo(request: requests.Request, context):
             assert request.headers["Authorization"] == f"Bearer {bearer_token}"
-            return {
-                "sub": "john",
-                "eduperson_entitlement": eduperson_entitlement
-            }
+            return {"sub": "john", "eduperson_entitlement": eduperson_entitlement}
 
         return get_userinfo
 
-    @pytest.mark.parametrize(["eduperson_entitlement", "warn_regex"], [
-        (
+    @pytest.mark.parametrize(
+        ["eduperson_entitlement", "warn_regex"],
+        [
+            (
                 [],
                 r"eduperson_entitlements['\": ]*\[\]",
-        ),
-        (
+            ),
+            (
                 ["urn:mace:egi.eu:group:vo.openeo.test:role=foo#test"],
                 r"eduperson_entitlements.*vo\.openeo\.test:role=foo",
-        ),
-        (
+            ),
+            (
                 ["urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#aai.egi.eu"],
                 r"eduperson_entitlements.*vo\.openeo\.cloud:role=foo",
-        ),
-        (
+            ),
+            (
                 [
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=foo#test",
                     "urn:mace:egi.eu:group:vo.openeo.cloud:role=member#test",
                 ],
                 r"eduperson_entitlements.*vo\.openeo\.cloud:role=member",
-        )
-    ])
+            ),
+        ],
+    )
     def test_oidc_not_enrolled(
-            self, api100_with_entitlement_check, requests_mock, caplog, eduperson_entitlement, warn_regex
+        self, api100_with_entitlement_check, requests_mock, caplog, eduperson_entitlement, warn_regex
     ):
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
         requests_mock.get(
-            "https://egi.test/userinfo",
-            json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
+        requests_mock.get(
+            "https://egi.test/userinfo", json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
         )
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
         res = api100_with_entitlement_check.get("/me")
         res.assert_error(
-            403, "PermissionsInsufficient",
-            message="Proper enrollment in openEO Platform virtual organization is required."
+            403,
+            "PermissionsInsufficient",
+            message="Proper enrollment in openEO Platform virtual organization is required.",
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
         assert re.search(r"user_id.*john", warnings)
@@ -454,12 +455,11 @@ class TestAuthEntitlementCheck:
         ],
     )
     def test_oidc_enrolled(self, api100_with_entitlement_check, requests_mock, eduperson_entitlement, expected_roles):
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
         requests_mock.get(
-            "https://egi.test/userinfo",
-            json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
+        requests_mock.get(
+            "https://egi.test/userinfo", json=self._get_userifo_handler(eduperson_entitlement=eduperson_entitlement)
         )
         api100_with_entitlement_check.set_auth_bearer_token(token="oidc/egi/funiculifunicula")
 
@@ -493,9 +493,11 @@ class TestAuthEntitlementCheck:
         requests_mock.get(oidc_url_conf, json={"userinfo_endpoint": oidc_url_ui})
         requests_mock.get(
             oidc_url_ui,
-            json=self._get_userifo_handler(eduperson_entitlement=[
-                "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
-            ])
+            json=self._get_userifo_handler(
+                eduperson_entitlement=[
+                    "urn:mace:egi.eu:group:vo.openeo.cloud:role=early_adopter#aai.egi.eu",
+                ]
+            ),
         )
         with config_overrides(
             oidc_providers=[OidcProvider(id="egi", issuer=oidc_issuer, title="EGI")],
@@ -515,7 +517,7 @@ class TestAuthEntitlementCheck:
             res.assert_error(403, "PermissionsInsufficient")
             assert re.search(
                 "user_access_validation failure.*oidc_issuer.*https://egi.test/bar.*issuer_whitelist.*https://egi.test/foo",
-                caplog.text
+                caplog.text,
             )
 
 
@@ -570,10 +572,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b1"],
-                    'deprecated': False,
-                    'experimental': False,
-                    'examples': [],
-                    'links': []
+                    "deprecated": False,
+                    "experimental": False,
+                    "examples": [],
+                    "links": [],
                 },
                 {
                     "id": "mean",
@@ -587,10 +589,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {"type": "number"}},
                     "federation:backends": ["b1", "b2"],
-                    'deprecated': False,
-                    'experimental': False,
-                    'examples': [],
-                    'links': []
+                    "deprecated": False,
+                    "experimental": False,
+                    "examples": [],
+                    "links": [],
                 },
                 {
                     "id": "multiply",
@@ -601,10 +603,10 @@ class TestProcessing:
                     ],
                     "returns": {"schema": {}},
                     "federation:backends": ["b2"],
-                    'deprecated': False,
-                    'experimental': False,
-                    'examples': [],
-                    'links': []
+                    "deprecated": False,
+                    "experimental": False,
+                    "examples": [],
+                    "links": [],
                 },
             ],
             "links": [],
@@ -626,23 +628,21 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b1"],
-                        'deprecated': False,
-                        'experimental': False,
-                        'examples': [],
-                        'links': []
+                        "deprecated": False,
+                        "experimental": False,
+                        "examples": [],
+                        "links": [],
                     },
                     {
                         "id": "mean",
                         "description": "mean",
-                        "parameters": [
-                            {"name": "data", "schema": {}, "description": "data"}
-                        ],
+                        "parameters": [{"name": "data", "schema": {}, "description": "data"}],
                         "returns": {"schema": {}},
                         "federation:backends": ["b1"],
-                        'deprecated': False,
-                        'experimental': False,
-                        'examples': [],
-                        'links': []
+                        "deprecated": False,
+                        "experimental": False,
+                        "examples": [],
+                        "links": [],
                     },
                 ],
             ),
@@ -656,10 +656,10 @@ class TestProcessing:
                         "parameters": [{"name": "data", "schema": {}, "description": "data"}],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
-                        'deprecated': False,
-                        'experimental': False,
-                        'examples': [],
-                        'links': []
+                        "deprecated": False,
+                        "experimental": False,
+                        "examples": [],
+                        "links": [],
                     },
                     {
                         "id": "multiply",
@@ -670,10 +670,10 @@ class TestProcessing:
                         ],
                         "returns": {"schema": {}},
                         "federation:backends": ["b2"],
-                        'deprecated': False,
-                        'experimental': False,
-                        'examples': [],
-                        'links': []
+                        "deprecated": False,
+                        "experimental": False,
+                        "examples": [],
+                        "links": [],
                     },
                 ],
             ),
@@ -733,7 +733,7 @@ class TestProcessing:
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
             pg = request.json()["process"]["process_graph"]
-            (_, node), = pg.items()
+            ((_, node),) = pg.items()
             assert node["process_id"] == "add"
             assert node["result"] is True
             context.headers["Content-Type"] = "application/json"
@@ -754,15 +754,15 @@ class TestProcessing:
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == "Bearer oidc/egi/funiculifunicula"
             pg = request.json()["process"]["process_graph"]
-            (_, node), = pg.items()
+            ((_, node),) = pg.items()
             assert node["process_id"] == "add"
             assert node["result"] is True
             context.headers["Content-Type"] = "application/json"
             return node["arguments"]["x"] + node["arguments"]["y"]
 
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
         requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
 
         requests_mock.post(backend1 + "/result", json=post_result)
@@ -807,15 +807,34 @@ class TestProcessing:
         assert len(next(chunks)) == chunk_size
         assert len(res.data) == 1000 - 2 * chunk_size
 
-    @pytest.mark.parametrize(["cid", "call_counts"], [
-        ("S1", (1, 0)),
-        ("S10", (1, 0)),
-        ("S2", (0, 1)),
-        ("S20", (0, 1)),
-    ])
+    @pytest.mark.parametrize(
+        ["cid", "call_counts"],
+        [
+            ("S1", (1, 0)),
+            ("S10", (1, 0)),
+            ("S2", (0, 1)),
+            ("S20", (0, 1)),
+        ],
+    )
     def test_result_backend_by_collection(self, api100, requests_mock, backend1, backend2, cid, call_counts):
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S10"}, ]})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S20"}, ]})
+        requests_mock.get(
+            backend1 + "/collections",
+            json={
+                "collections": [
+                    {"id": "S1"},
+                    {"id": "S10"},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections",
+            json={
+                "collections": [
+                    {"id": "S2"},
+                    {"id": "S20"},
+                ]
+            },
+        )
 
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
@@ -832,9 +851,7 @@ class TestProcessing:
         assert res.json == 123
         assert (b1_mock.call_count, b2_mock.call_count) == call_counts
 
-    def test_processes_different_versions(
-        self, api100, requests_mock, backend1, backend2, mbldr
-    ):
+    def test_processes_different_versions(self, api100, requests_mock, backend1, backend2, mbldr):
         """
         This used to fail with
             OpenEOApiException: Only single version is supported, but found: {'1.2.3', '1.3.5'}
@@ -856,8 +873,24 @@ class TestProcessing:
 
     def test_result_backend_by_collection_multiple_hits(self, api100, requests_mock, backend1, backend2, caplog):
         caplog.set_level(logging.WARNING)
-        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}, ]})
-        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}, ]})
+        requests_mock.get(
+            backend1 + "/collections",
+            json={
+                "collections": [
+                    {"id": "S1"},
+                    {"id": "S2"},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/collections",
+            json={
+                "collections": [
+                    {"id": "S2"},
+                    {"id": "S3"},
+                ]
+            },
+        )
 
         def post_result(request: requests.Request, context):
             assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
@@ -886,12 +919,15 @@ class TestProcessing:
         res = api100.post("/result", json={"process": {"process_graph": pg}})
         res.assert_error(404, "CollectionNotFound", "Collection 'S3' does not exist")
 
-    @pytest.mark.parametrize("pg", [
-        {"lc": {}},
-        {"lc": {"foo": "bar"}},
-        {"lc": {"process_id": "load_collection"}},
-        {"lc": {"process_id": "load_collection", "arguments": {}}},
-    ])
+    @pytest.mark.parametrize(
+        "pg",
+        [
+            {"lc": {}},
+            {"lc": {"foo": "bar"}},
+            {"lc": {"process_id": "load_collection"}},
+            {"lc": {"process_id": "load_collection", "arguments": {}}},
+        ],
+    )
     def test_result_backend_by_collection_invalid_pg(self, api100, requests_mock, backend1, backend2, pg):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -1006,14 +1042,17 @@ class TestProcessing:
         assert res.json == 222
         assert (b1_mock.call_count, b2_mock.call_count) == (1, 1)
 
-    @pytest.mark.parametrize(["job_id", "s2_backend", "expected_success"], [
-        ("b1-b6tch-j08", 1, True),
-        ("b2-b6tch-j08", 1, False),
-        ("b1-b6tch-j08", 2, False),
-        ("b2-b6tch-j08", 2, True),
-    ])
+    @pytest.mark.parametrize(
+        ["job_id", "s2_backend", "expected_success"],
+        [
+            ("b1-b6tch-j08", 1, True),
+            ("b2-b6tch-j08", 1, False),
+            ("b1-b6tch-j08", 2, False),
+            ("b2-b6tch-j08", 2, True),
+        ],
+    )
     def test_load_result_job_id_parsing_with_load_collection(
-            self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
+        self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
     ):
         """Issue #19: strip backend prefix from job_id in load_result"""
 
@@ -1041,16 +1080,19 @@ class TestProcessing:
             api100.post("/result", json=request).assert_error(400, "BackendLookupFailure")
             assert (b1_mock.call_count, b2_mock.call_count) == (0, 0)
 
-    @pytest.mark.parametrize(["job_id", "s2_backend", "expected_success"], [
-        ("b1-b6tch-j08", 1, True),
-        ("b2-b6tch-j08", 1, False),
-        ("b1-b6tch-j08", 2, False),
-        ("b2-b6tch-j08", 2, True),
-        ("https://example.com/ml_model_metadata.json", 1, True),  # In this case it picks the first backend.
-        ("https://example.com/ml_model_metadata.json", 2, True),
-    ])
+    @pytest.mark.parametrize(
+        ["job_id", "s2_backend", "expected_success"],
+        [
+            ("b1-b6tch-j08", 1, True),
+            ("b2-b6tch-j08", 1, False),
+            ("b1-b6tch-j08", 2, False),
+            ("b2-b6tch-j08", 2, True),
+            ("https://example.com/ml_model_metadata.json", 1, True),  # In this case it picks the first backend.
+            ("https://example.com/ml_model_metadata.json", 2, True),
+        ],
+    )
     def test_load_result_job_id_parsing_with_load_ml_model(
-            self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
+        self, api100, requests_mock, backend1, backend2, job_id, s2_backend, expected_success
     ):
         """Issue #70: random forest: providing training job with aggregator job id fails"""
 
@@ -1086,9 +1128,7 @@ class TestProcessing:
             "https://external.test/bla/bla",
         ],
     )
-    def test_load_result_http_reference(
-        self, api100, requests_mock, backend1, backend2, result_id
-    ):
+    def test_load_result_http_reference(self, api100, requests_mock, backend1, backend2, result_id):
         """Support load_result with HTTP references (instead of job id)"""
 
         def b1_post_result(request: requests.Request, context):
@@ -1125,11 +1165,7 @@ class TestProcessing:
             (
                 "blargh",
                 (1, 0),
-                [
-                    RegexMatcher(
-                        "Multiple back-end candidates.*Naively picking first one"
-                    )
-                ],
+                [RegexMatcher("Multiple back-end candidates.*Naively picking first one")],
             ),
             ("wibble", (1, 0), []),
             ("snorfle", (0, 1), []),
@@ -1138,9 +1174,7 @@ class TestProcessing:
                 (1, 0),
                 [
                     RegexMatcher("Skipping unknown process 'frobnicate'"),
-                    RegexMatcher(
-                        "Multiple back-end candidates.*Naively picking first one"
-                    ),
+                    RegexMatcher("Multiple back-end candidates.*Naively picking first one"),
                 ],
             ),
         ],
@@ -1170,10 +1204,7 @@ class TestProcessing:
         )
 
         def post_result(request: requests.Request, context):
-            assert (
-                request.headers["Authorization"]
-                == TEST_USER_AUTH_HEADER["Authorization"]
-            )
+            assert request.headers["Authorization"] == TEST_USER_AUTH_HEADER["Authorization"]
             assert request.json()["process"]["process_graph"] == pg
             context.headers["Content-Type"] = "application/json"
             return 123
@@ -1296,18 +1327,27 @@ class TestProcessing:
 
 
 class TestBatchJobs:
-
     def test_list_jobs_no_auth(self, api100):
         api100.get("/jobs").assert_error(401, "AuthenticationRequired")
 
     def test_list_jobs_basic(self, api100, requests_mock, backend1, backend2):
-        requests_mock.get(backend1 + "/jobs", json={"jobs": [
-            {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
-        ]})
-        requests_mock.get(backend2 + "/jobs", json={"jobs": [
-            {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
-        ]})
+        requests_mock.get(
+            backend1 + "/jobs",
+            json={
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/jobs",
+            json={
+                "jobs": [
+                    {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+                ]
+            },
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
         assert res == {
@@ -1353,9 +1393,10 @@ class TestBatchJobs:
     @pytest.mark.parametrize("b2_oidc_pid", ["egi", "aho"])
     def test_list_jobs_oidc_pid_mapping(self, requests_mock, backend1, backend2, b2_oidc_pid):
         # Override /credentials/oidc of backend2 before building flask app and ApiTester
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": b2_oidc_pid, "issuer": "https://egi.test", "title": "EGI"}
-        ]})
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={"providers": [{"id": b2_oidc_pid, "issuer": "https://egi.test", "title": "EGI"}]},
+        )
         api100 = get_api100(get_flask_app())
 
         # OIDC setup
@@ -1363,23 +1404,27 @@ class TestBatchJobs:
             assert request.headers["Authorization"] == "Bearer t0k3n"
             return {"sub": "john"}
 
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
         requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
 
         def b1_get_jobs(request, context):
             assert request.headers["Authorization"] == "Bearer oidc/egi/t0k3n"
-            return {"jobs": [
-                {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-                {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-            ]}
+            return {
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ]
+            }
 
         def b2_get_jobs(request, context):
             assert request.headers["Authorization"] == f"Bearer oidc/{b2_oidc_pid}/t0k3n"
-            return {"jobs": [
-                {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
-            ]}
+            return {
+                "jobs": [
+                    {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+                ]
+            }
 
         requests_mock.get(backend1 + "/jobs", json=b1_get_jobs)
         requests_mock.get(backend2 + "/jobs", json=b2_get_jobs)
@@ -1394,10 +1439,15 @@ class TestBatchJobs:
 
     @pytest.mark.parametrize("status_code", [204, 303, 404, 500])
     def test_list_jobs_failing_backend(self, api100, requests_mock, backend1, backend2, caplog, status_code):
-        requests_mock.get(backend1 + "/jobs", json={"jobs": [
-            {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-        ]})
+        requests_mock.get(
+            backend1 + "/jobs",
+            json={
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ]
+            },
+        )
         requests_mock.get(backend2 + "/jobs", status_code=status_code, json={"code": "nope", "message": "and nope"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs").assert_status_code(200).json
@@ -1414,10 +1464,15 @@ class TestBatchJobs:
         assert "Failed to get job listing from backend 'b2'" in warnings
 
     def test_list_jobs_offline_backend(self, api100, requests_mock, backend1, backend2, caplog):
-        requests_mock.get(backend1 + "/jobs", json={"jobs": [
-            {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
-            {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
-        ]})
+        requests_mock.get(
+            backend1 + "/jobs",
+            json={
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ]
+            },
+        )
         requests_mock.get(backend2 + "/", status_code=500, json={"code": "nope", "message": "completely down!"})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
@@ -1495,9 +1550,7 @@ class TestBatchJobs:
         res = api100.post("/jobs", json={"process": {"process_graph": pg}}).assert_status_code(201)
         assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
-        assert jobs == [
-            {"process": {"process_graph": pg}}
-        ]
+        assert jobs == [{"process": {"process_graph": pg}}]
 
     def test_create_job_options(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
@@ -1517,33 +1570,42 @@ class TestBatchJobs:
 
         pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        res = api100.post("/jobs", json={
-            "process": {"process_graph": pg},
-            "title": "da job",
-            "plan": "free-tier",
-            "job_options": {"side": "salad"},
-            "something else": "whatever",
-        }).assert_status_code(201)
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "title": "da job",
+                "plan": "free-tier",
+                "job_options": {"side": "salad"},
+                "something else": "whatever",
+            },
+        ).assert_status_code(201)
         assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
 
-    @pytest.mark.parametrize("body", [
-        {"foo": "meh"},
-        {"process": "meh"},
-    ])
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"foo": "meh"},
+            {"process": "meh"},
+        ],
+    )
     def test_create_job_pg_missing(self, api100, requests_mock, backend1, body):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs", json=body)
         res.assert_error(400, "ProcessGraphMissing")
 
-    @pytest.mark.parametrize("body", [
-        {"process": {"process_graph": "meh"}},
-        {"process": {"process_graph": {}}},
-        {"process": {"process_graph": {"foo": "meh"}}},
-        {"process": {"process_graph": {"foo": {"bar": "meh"}}}},
-        {"process": {"process_graph": {"foo": {"process_id": "meh"}}}},
-    ])
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"process": {"process_graph": "meh"}},
+            {"process": {"process_graph": {}}},
+            {"process": {"process_graph": {"foo": "meh"}}},
+            {"process": {"process_graph": {"foo": {"bar": "meh"}}}},
+            {"process": {"process_graph": {"foo": {"process_id": "meh"}}}},
+        ],
+    )
     def test_create_job_pg_invalid(self, api100, requests_mock, backend1, body):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.post(
@@ -1574,15 +1636,9 @@ class TestBatchJobs:
         ["force_backend", "expected"],
         [("b1", "b1"), ("b2", "b2"), (None, "b1")],
     )
-    def test_create_job_force_backend(
-        self, api100, requests_mock, backend1, backend2, force_backend, expected
-    ):
-        requests_mock.get(
-            backend1 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
-        requests_mock.get(
-            backend2 + "/collections", json={"collections": [{"id": "S2"}]}
-        )
+    def test_create_job_force_backend(self, api100, requests_mock, backend1, backend2, force_backend, expected):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
 
         jobs = []
 
@@ -1615,10 +1671,7 @@ class TestBatchJobs:
                 "job_options": job_options,
             },
         ).assert_status_code(201)
-        assert (
-            res.headers["Location"]
-            == f"http://oeoa.test/openeo/1.0.0/jobs/{expected}-th3j0b"
-        )
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected}-th3j0b"
         assert res.headers["OpenEO-Identifier"] == f"{expected}-th3j0b"
         assert jobs == [{"process": {"process_graph": pg}}]
 
@@ -1654,28 +1707,39 @@ class TestBatchJobs:
         assert validation_mock.call_count == 0
 
     def test_get_job_metadata(self, api100, requests_mock, backend1):
-        requests_mock.get(backend1 + "/jobs/th3j0b", json={
-            "id": "th3j0b",
-            "title": "The job", "description": "Just doing my job.",
-            "process": {"process_graph": {
-                "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
-            }},
-            "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
-            "usage": {
-                "cpu": {"value": 1000, "unit": "cpu-seconds"},
-                "memory": {"value": 2000, "unit": "mb-seconds"},
-                "duration": {"value": 3000, "unit": "seconds"},
+        requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "title": "The job",
+                "description": "Just doing my job.",
+                "process": {
+                    "process_graph": {
+                        "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
+                    }
+                },
+                "status": "running",
+                "progress": 42,
+                "created": "2017-01-01T09:32:12Z",
+                "usage": {
+                    "cpu": {"value": 1000, "unit": "cpu-seconds"},
+                    "memory": {"value": 2000, "unit": "mb-seconds"},
+                    "duration": {"value": 3000, "unit": "seconds"},
+                },
             },
-        })
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b").assert_status_code(200)
         assert res.json == {
             "id": "b1-th3j0b",
-            "title": "The job", "description": "Just doing my job.",
-            "process": {"process_graph": {
-                "lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
-            }},
-            "status": "running", "progress": 42, "created": "2017-01-01T09:32:12Z",
+            "title": "The job",
+            "description": "Just doing my job.",
+            "process": {
+                "process_graph": {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+            },
+            "status": "running",
+            "progress": 42,
+            "created": "2017-01-01T09:32:12Z",
             "usage": {
                 "cpu": {"value": 1000, "unit": "cpu-seconds"},
                 "memory": {"value": 2000, "unit": "mb-seconds"},
@@ -1687,7 +1751,8 @@ class TestBatchJobs:
     def test_get_job_metadata_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         requests_mock.get(
             backend1 + f"/jobs/{job_id}",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get(f"/jobs/b1-{job_id}")
@@ -1700,9 +1765,14 @@ class TestBatchJobs:
 
     def test_start_job(self, api100, requests_mock, backend1):
         m = requests_mock.post(backend1 + "/jobs/th3j0b/results", status_code=202)
-        requests_mock.get(backend1 + "/jobs/th3j0b", json={
-            "id": "th3j0b", "status": "created", "created": "2017-01-01T09:32:12Z",
-        })
+        requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "status": "created",
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         api100.post("/jobs/b1-th3j0b/results").assert_status_code(202)
         assert m.call_count == 1
@@ -1711,7 +1781,8 @@ class TestBatchJobs:
     def test_start_job_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         m = requests_mock.get(
             backend1 + f"/jobs/{job_id}",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post(f"/jobs/b1-{job_id}/results")
@@ -1733,7 +1804,8 @@ class TestBatchJobs:
     def test_cancel_job_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         m = requests_mock.delete(
             backend1 + f"/jobs/{job_id}/results",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.delete(f"/jobs/b1-{job_id}/results")
@@ -1755,7 +1827,8 @@ class TestBatchJobs:
     def test_delete_job_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         m = requests_mock.delete(
             backend1 + f"/jobs/{job_id}",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.delete(f"/jobs/b1-{job_id}")
@@ -1768,21 +1841,31 @@ class TestBatchJobs:
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
 
     def test_get_results(self, api100, requests_mock, backend1):
-        m1 = requests_mock.get(backend1 + "/jobs/th3j0b", json={
-            "id": "th3j0b",
-            "title": "The job", "description": "Just doing my job.",
-            "status": "finished", "progress": 100, "created": "2017-01-01T09:32:12Z",
-        })
-        m2 = requests_mock.get(backend1 + "/jobs/th3j0b/results", status_code=200, json={
-            "assets": {
-                "r1.tiff": {
-                    "href": "https//res.b1.test/123/r1.tiff",
-                    "title": "Result 1",
-                    "type": "image/tiff; application=geotiff",
-                    "roles": ["data", "testing"],
+        m1 = requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "title": "The job",
+                "description": "Just doing my job.",
+                "status": "finished",
+                "progress": 100,
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=200,
+            json={
+                "assets": {
+                    "r1.tiff": {
+                        "href": "https//res.b1.test/123/r1.tiff",
+                        "title": "Result 1",
+                        "type": "image/tiff; application=geotiff",
+                        "roles": ["data", "testing"],
+                    }
                 }
-            }
-        })
+            },
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
         assert m1.call_count == 1
@@ -1799,26 +1882,37 @@ class TestBatchJobs:
         assert res["type"] == "Feature"
         assert_dict_subset(
             {"title": "The job", "created": "2017-01-01T09:32:12Z", "description": "Just doing my job."},
-            res["properties"]
+            res["properties"],
         )
 
     @pytest.mark.parametrize("job_status", ["created", "running", "canceled", "error"])
     def test_get_results_not_finished(self, api100, requests_mock, backend1, job_status):
-        requests_mock.get(backend1 + "/jobs/th3j0b", json={
-            "id": "th3j0b", "status": job_status, "created": "2017-01-01T09:32:12Z",
-        })
+        requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "status": job_status,
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b/results")
         res.assert_error(JobNotFinishedException.status_code, "JobNotFinished")
 
     def test_get_results_finished_unreliable(self, api100, requests_mock, backend1):
         """Edge case: job status is 'finished', but results still return with 'JobNotFinished'."""
-        m1 = requests_mock.get(backend1 + "/jobs/th3j0b", json={
-            "id": "th3j0b", "status": "finished", "created": "2017-01-01T09:32:12Z",
-        })
+        m1 = requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "status": "finished",
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
         m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
-            status_code=JobNotFinishedException.status_code, json=JobNotFinishedException().to_dict()
+            status_code=JobNotFinishedException.status_code,
+            json=JobNotFinishedException().to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b/results")
@@ -1830,7 +1924,8 @@ class TestBatchJobs:
     def test_get_results_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         requests_mock.get(
             backend1 + f"/jobs/{job_id}",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get(f"/jobs/b1-{job_id}/results")
@@ -1923,10 +2018,12 @@ class TestBatchJobs:
     def test_get_logs(self, api100, requests_mock, backend1):
         def get_logs(request, context):
             offset = request.qs.get("offset", ["_"])[0]
-            return {"logs": [
-                {"id": offset + "1", "level": "info", "message": "hello"},
-                {"id": offset + "11", "level": "info", "message": "hello"},
-            ]}
+            return {
+                "logs": [
+                    {"id": offset + "1", "level": "info", "message": "hello"},
+                    {"id": offset + "11", "level": "info", "message": "hello"},
+                ]
+            }
 
         requests_mock.get(backend1 + "/jobs/th3j0b/logs", status_code=200, json=get_logs)
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -1936,7 +2033,7 @@ class TestBatchJobs:
                 {"id": "_1", "level": "info", "message": "hello"},
                 {"id": "_11", "level": "info", "message": "hello"},
             ],
-            "links": []
+            "links": [],
         }
 
         res = api100.get("/jobs/b1-th3j0b/logs?offset=3").assert_status_code(200).json
@@ -1945,14 +2042,15 @@ class TestBatchJobs:
                 {"id": "31", "level": "info", "message": "hello"},
                 {"id": "311", "level": "info", "message": "hello"},
             ],
-            "links": []
+            "links": [],
         }
 
     @pytest.mark.parametrize("job_id", ["th3j0b", "th-3j-0b", "th.3j.0b", "th~3j~0b"])
     def test_get_logs_not_found_on_backend(self, api100, requests_mock, backend1, job_id):
         requests_mock.get(
             backend1 + f"/jobs/{job_id}/logs",
-            status_code=JobNotFoundException.status_code, json=JobNotFoundException(job_id=job_id).to_dict()
+            status_code=JobNotFoundException.status_code,
+            json=JobNotFoundException(job_id=job_id).to_dict(),
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get(f"/jobs/b1-{job_id}/logs")
@@ -1985,20 +2083,23 @@ class TestBatchJobs:
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
 
         assert jobs == [
-            {"process": {"process_graph": {
-                "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
-            }}}
+            {
+                "process": {
+                    "process_graph": {
+                        "load": {"process_id": "load_result", "arguments": {"id": "b6tch-j08"}, "result": True}
+                    }
+                }
+            }
         ]
 
 
 class TestSecondaryServices:
-
     @pytest.fixture
     def service_metadata_wmts_foo(self):
         return ServiceMetadata(
             id="wmts-foo",
             process={"process_graph": {"foo": {"process_id": "foo", "arguments": {}}}},
-            url='https://oeo.net/wmts/foo',
+            url="https://oeo.net/wmts/foo",
             type="WMTS",
             enabled=True,
             configuration={"version": "0.5.8"},
@@ -2012,79 +2113,64 @@ class TestSecondaryServices:
             "configuration": {
                 "colormap": {
                     "default": "YlGn",
-                    "description":
-                    "The colormap to apply to single band layers",
-                    "type": "string"
+                    "description": "The colormap to apply to single band layers",
+                    "type": "string",
                 },
                 "version": {
                     "default": "1.0.0",
                     "description": "The WMTS version to use.",
                     "enum": ["1.0.0"],
-                    "type": "string"
-                }
+                    "type": "string",
+                },
             },
             "links": [],
             "process_parameters": [],
-            "title": "Web Map Tile Service"
+            "title": "Web Map Tile Service",
         }
     }
 
     def test_service_types_simple(self, api100, backend1, requests_mock, mbldr):
         """Given 2 backends but only 1 backend has a single service, then the aggregator
-            returns that 1 service's metadata.
+        returns that 1 service's metadata.
         """
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         # Only need a single service type.
         single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         requests_mock.get(backend1 + "/service_types", json=single_service_type)
 
-        resp = api100.get('/service_types').assert_status_code(200)
+        resp = api100.get("/service_types").assert_status_code(200)
         assert resp.json == single_service_type
 
-    def test_service_types_multiple_backends(
-        self, api100, backend1, backend2, requests_mock, mbldr
-    ):
+    def test_service_types_multiple_backends(self, api100, backend1, backend2, requests_mock, mbldr):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         service_type_1 = {
             "WMTS": {
                 "configuration": {
                     "colormap": {
                         "default": "YlGn",
-                        "description":
-                        "The colormap to apply to single band layers",
-                        "type": "string"
+                        "description": "The colormap to apply to single band layers",
+                        "type": "string",
                     },
                     "version": {
                         "default": "1.0.0",
                         "description": "The WMTS version to use.",
                         "enum": ["1.0.0"],
-                        "type": "string"
-                    }
+                        "type": "string",
+                    },
                 },
                 "links": [],
                 "process_parameters": [],
-                "title": "Web Map Tile Service"
+                "title": "Web Map Tile Service",
             }
         }
         service_type_2 = {
-            "WMS": {
-                "title": "OGC Web Map Service",
-                "configuration": {},
-                "process_parameters": [],
-                "links": []
-            }
+            "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
         }
         requests_mock.get(backend1 + "/service_types", json=service_type_1)
         requests_mock.get(backend2 + "/service_types", json=service_type_2)
@@ -2107,7 +2193,7 @@ class TestSecondaryServices:
             "enabled": "True",
             "configuration": {"version": "0.5.8"},
             "attributes": {},
-            "title": "Test WMTS service"
+            "title": "Test WMTS service",
         }
         requests_mock.get(backend1 + "/services/wmts-foo", json=json_wmts_foo)
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -2135,9 +2221,7 @@ class TestSecondaryServices:
         """
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -2166,9 +2250,7 @@ class TestSecondaryServices:
             "links": [],
         }
 
-    def test_list_services_no_supporting_backends(
-        self, api100, requests_mock, backend1, caplog
-    ):
+    def test_list_services_no_supporting_backends(self, api100, requests_mock, backend1, caplog):
         """None of the upstream backends supports secondary services"""
         caplog.set_level(logging.ERROR)
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -2198,20 +2280,14 @@ class TestSecondaryServices:
         # list of (logger_name, level, message) tuples.
         assert not caplog.messages
 
-    def test_list_services_basic(
-        self, api100, requests_mock, backend1, backend2, mbldr
-    ):
+    def test_list_services_basic(self, api100, requests_mock, backend1, backend2, mbldr):
         """
         Given 2 backends with each 1 service, then the aggregator lists both services.
         """
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -2269,20 +2345,14 @@ class TestSecondaryServices:
             "links": [],
         }
 
-    def test_list_services_extended(
-        self, api100, requests_mock, backend1, backend2, mbldr
-    ):
+    def test_list_services_extended(self, api100, requests_mock, backend1, backend2, mbldr):
         """
         Given multiple services across 2 backends, the aggregator lists all service types from all backends.
         """
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
-        requests_mock.get(
-            backend2 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(
             backend1 + "/services",
             json={
@@ -2306,9 +2376,7 @@ class TestSecondaryServices:
                                     "title": "openEO",
                                 }
                             ],
-                            "process_graph": {
-                                "foo": {"process_id": "foo", "arguments": {}}
-                            },
+                            "process_graph": {"foo": {"process_id": "foo", "arguments": {}}},
                         },
                         "configuration": {"version": "1.3.0"},
                         "attributes": {"layers": ["ndvi", "evi"]},
@@ -2354,8 +2422,7 @@ class TestSecondaryServices:
                     "url": "https://example.openeo.org/wms/wms-nvdi",
                     "configuration": {"version": "1.3.0"},
                     "created": "2017-01-01T09:32:12Z",
-                    "description": "Deriving minimum NDVI measurements over pixel "
-                    "time series of Sentinel 2",
+                    "description": "Deriving minimum NDVI measurements over pixel " "time series of Sentinel 2",
                     "enabled": True,
                     "title": "NDVI based on Sentinel 2",
                 },
@@ -2384,11 +2451,9 @@ class TestSecondaryServices:
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
 
-        backend_service_id = 'c63d6c27-c4c2-4160-b7bd-9e32f582daec'
+        backend_service_id = "c63d6c27-c4c2-4160-b7bd-9e32f582daec"
         expected_agg_id = f"b1-{backend_service_id}"
 
         # The aggregator MUST NOT point to the backend instance but to its own endpoint.
@@ -2399,25 +2464,19 @@ class TestSecondaryServices:
 
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         post_data = {
-            "type": 'WMTS',
-            "process": {
-                "process_graph": process_graph,
-                "id": "filter_temporal_wmts"
-            },
+            "type": "WMTS",
+            "process": {"process_graph": process_graph, "id": "filter_temporal_wmts"},
             "title": "My Service",
-            "description": "Service description"
+            "description": "Service description",
         }
         requests_mock.post(
             backend1 + "/services",
-            headers={
-                "OpenEO-Identifier": backend_service_id,
-                "Location": location_backend_1
-            },
-            status_code=201
+            headers={"OpenEO-Identifier": backend_service_id, "Location": location_backend_1},
+            status_code=201,
         )
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        resp = api100.post('/services', json=post_data).assert_status_code(201)
+        resp = api100.post("/services", json=post_data).assert_status_code(201)
 
         assert resp.headers["OpenEO-Identifier"] == expected_agg_id
         assert resp.headers["Location"] == expected_location
@@ -2431,22 +2490,16 @@ class TestSecondaryServices:
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         post_data = {
-            "type": 'WMTS',
-            "process": {
-                "process_graph": process_graph,
-                "id": "filter_temporal_wmts"
-            },
+            "type": "WMTS",
+            "process": {"process_graph": process_graph, "id": "filter_temporal_wmts"},
             "title": "My Service",
-            "description": "Service description"
+            "description": "Service description",
         }
         # TODO: In theory we should make the backend report a HTTP 400 status and then the aggregator
         # should also report HTTP 400. But in fact that comes back as HTTP 500.
-        requests_mock.post(
-            backend1 + "/services",
-            exc=exception_class("Testing exception handling")
-        )
+        requests_mock.post(backend1 + "/services", exc=exception_class("Testing exception handling"))
 
-        resp = api100.post('/services', json=post_data)
+        resp = api100.post("/services", json=post_data)
         assert resp.status_code == 400
 
     # OpenEoApiError, OpenEoRestError: more general errors we can expect to lead to a HTTP 500 server error.
@@ -2464,23 +2517,18 @@ class TestSecondaryServices:
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
 
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
-        requests_mock.get(
-            backend1 + "/", json=mbldr.capabilities(secondary_services=True)
-        )
+        requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         process_graph = {"foo": {"process_id": "foo", "arguments": {}}}
         post_data = {
-            "type": 'WMTS',
-            "process": {
-                "process_graph": process_graph,
-                "id": "filter_temporal_wmts"
-            },
+            "type": "WMTS",
+            "process": {"process_graph": process_graph, "id": "filter_temporal_wmts"},
             "title": "My Service",
-            "description": "Service description"
+            "description": "Service description",
         }
         requests_mock.post(backend1 + "/services", exc=exception_factory("Testing exception handling"))
         requests_mock.get(backend1 + "/service_types", json=self.SERVICE_TYPES_ONLT_WMTS)
 
-        resp = api100.post('/services', json=post_data)
+        resp = api100.post("/services", json=post_data)
         assert resp.status_code == 500
 
     def test_remove_service_succeeds(self, api100, requests_mock, backend1):
@@ -2525,9 +2573,7 @@ class TestSecondaryServices:
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         requests_mock.get(
-            backend1 + "/services/wmts-foo",
-            json=service_metadata_wmts_foo.prepare_for_json(),
-            status_code=200
+            backend1 + "/services/wmts-foo", json=service_metadata_wmts_foo.prepare_for_json(), status_code=200
         )
         mock_delete = requests_mock.delete(
             backend1 + "/services/wmts-foo",
@@ -2536,8 +2582,8 @@ class TestSecondaryServices:
                 "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
                 "code": "ErrorRemovingService",
                 "message": "Service 'wmts-foo' could not be removed.",
-                "url": "https://example.openeo.org/docs/errors/SampleError"
-            }
+                "url": "https://example.openeo.org/docs/errors/SampleError",
+            },
         )
 
         resp = api100.delete("/services/b1-wmts-foo")
@@ -2547,9 +2593,7 @@ class TestSecondaryServices:
         # so we can reasonably assume that is where the error came from.
         assert mock_delete.called
 
-    def test_update_service_service_succeeds(
-        self, api100, backend1, requests_mock, service_metadata_wmts_foo
-    ):
+    def test_update_service_service_succeeds(self, api100, backend1, requests_mock, service_metadata_wmts_foo):
         """When it receives an existing service ID and a correct payload, it updates the expected service."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
@@ -2576,16 +2620,14 @@ class TestSecondaryServices:
 
         assert resp.status_code == 404
 
-    def test_update_service_service_id_not_found(
-        self, api100, backend1, requests_mock, service_metadata_wmts_foo
-    ):
+    def test_update_service_service_id_not_found(self, api100, backend1, requests_mock, service_metadata_wmts_foo):
         """When the service ID does not exist for the specified backend, then the aggregator responds with HTTP 404, not found."""
 
         api100.set_auth_bearer_token(TEST_USER_BEARER_TOKEN)
         mock_patch = requests_mock.patch(
             backend1 + "/services/servicedoesnotexist",
             json=service_metadata_wmts_foo.prepare_for_json(),
-            status_code=404
+            status_code=404,
         )
         process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
         json_payload = {"process": {"process_graph": process_graph}}
@@ -2610,8 +2652,8 @@ class TestSecondaryServices:
                 "id": "936DA01F-9ABD-4D9D-80C7-02AF85C822A8",
                 "code": "ErrorUpdatingService",
                 "message": "Service 'wmts-foo' could not be updated.",
-                "url": "https://example.openeo.org/docs/errors/SampleError"
-            }
+                "url": "https://example.openeo.org/docs/errors/SampleError",
+            },
         )
         process_graph = {"bar": {"process_id": "bar", "arguments": {"new_arg": "somevalue"}}}
         json_payload = {"process": {"process_graph": process_graph}}
@@ -2737,7 +2779,6 @@ class TestUserDefinedProcesses:
 
 
 class TestResilience:
-
     @pytest.fixture
     def broken_backend2(self, requests_mock) -> Tuple[str, "requests_mock.adapter._Matcher"]:
         """Fixture to quickly set up a config with broken backend2"""
@@ -2776,9 +2817,10 @@ class TestResilience:
 
         # Backend 2 is up again, but cached is still active
         requests_mock.get(backend2 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI"}
-        ]})
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={"providers": [{"id": "egi", "issuer": "https://egi.test", "title": "EGI"}]},
+        )
         requests_mock.get(backend2 + "/health", text="ok again")
         assert api100.get("/health").assert_status_code(200).json["backend_status"] == {
             "b1": {"status_code": 200, "text": "OK", "response_time": pytest.approx(0.1, abs=0.1)},
@@ -2802,41 +2844,36 @@ class TestResilience:
             assert request.headers["Authorization"] == "Bearer t0k3n"
             return {"sub": "john"}
 
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "userinfo_endpoint": "https://egi.test/userinfo"
-        })
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
         requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
 
         # Job listings: backend1 works, backend2 is down
-        requests_mock.get(backend1 + "/jobs", json={"jobs": [
-            {"id": "j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}
-        ]})
+        requests_mock.get(
+            backend1 + "/jobs", json={"jobs": [{"id": "j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}]}
+        )
         requests_mock.get(backend2 + "/jobs", status_code=500, text="nope")
 
         api100.set_auth_bearer_token(token="oidc/egi/t0k3n")
         jobs = api100.get("/jobs").assert_status_code(200).json
-        assert jobs["jobs"] == [
-            {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}
-        ]
+        assert jobs["jobs"] == [{"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}]
 
         # Backend2 is up again (but still cached as down)
         requests_mock.get(backend2 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(backend2 + "/credentials/oidc", json={"providers": [
-            {"id": b2_oidc_provider_id, "issuer": "https://egi.test", "title": "EGI"}
-        ]})
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={"providers": [{"id": b2_oidc_provider_id, "issuer": "https://egi.test", "title": "EGI"}]},
+        )
 
         def get_jobs(request, context):
             assert request.headers["Authorization"] == f"Bearer oidc/{b2_oidc_provider_id}/t0k3n"
-            return {"jobs": [
-                {"id": "j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"}
-            ]}
+            return {"jobs": [{"id": "j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"}]}
 
         requests_mock.get(backend2 + "/jobs", json=get_jobs)
 
         jobs = api100.get("/jobs").assert_status_code(200).json
-        assert jobs["jobs"] == [
-            {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}
-        ]
+        assert jobs["jobs"] == [{"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}]
 
         # Skip time so that connection cache is cleared
         with clock_mock(offset=1000):

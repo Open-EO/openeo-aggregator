@@ -49,30 +49,27 @@ def dummy2(backend2, requests_mock, test_user) -> DummyBackend:
 
 
 class TestPartitionedJobTracker:
-
     def test_create(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, john):
         pjob_id = zk_tracker.create(pjob=pjob, user_id=john, flask_request=flask_request)
 
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "created",
-            "message": approx_str_contains("{'created': 2}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "created",
+                "message": approx_str_contains("{'created': 2}"),
+            }
+        )
         subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
         for sjob_id in subjobs:
-            assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({
-                "status": "created",
-                "message": approx_str_prefix("Created in 0:00"),
-            })
-        assert dummy1.jobs[john, "1-jb-0"].create == {
-            "process": P12,
-            "title": approx_str_contains("part 0000 (1/2)")
-        }
+            assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet(
+                {
+                    "status": "created",
+                    "message": approx_str_prefix("Created in 0:00"),
+                }
+            )
+        assert dummy1.jobs[john, "1-jb-0"].create == {"process": P12, "title": approx_str_contains("part 0000 (1/2)")}
         assert dummy1.jobs[john, "1-jb-0"].history == ["created"]
-        assert dummy2.jobs[john, "2-jb-0"].create == {
-            "process": P23,
-            "title": approx_str_contains("part 0001 (2/2)")
-        }
+        assert dummy2.jobs[john, "2-jb-0"].create == {"process": P23, "title": approx_str_contains("part 0001 (2/2)")}
         assert dummy2.jobs[john, "2-jb-0"].history == ["created"]
 
     def test_create_error(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, requests_mock, john):
@@ -103,24 +100,30 @@ class TestPartitionedJobTracker:
     def test_start(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, john):
         # Create
         pjob_id = zk_tracker.create(pjob=pjob, user_id=john, flask_request=flask_request)
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "created",
-            "message": approx_str_contains("{'created': 2}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "created",
+                "message": approx_str_contains("{'created': 2}"),
+            }
+        )
 
         # Start
         zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "running",
-            "message": approx_str_contains("{'running': 2}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "running",
+                "message": approx_str_contains("{'running': 2}"),
+            }
+        )
         subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
         for sjob_id in subjobs:
-            assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet({
-                "status": "running",
-                "message": approx_str_prefix("Started in 0:00"),
-            })
+            assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id=sjob_id) == DictSubSet(
+                {
+                    "status": "running",
+                    "message": approx_str_prefix("Started in 0:00"),
+                }
+            )
 
         assert dummy1.jobs[john, "1-jb-0"].history == ["created", "running"]
         assert dummy2.jobs[john, "2-jb-0"].history == ["created", "running"]
@@ -128,10 +131,12 @@ class TestPartitionedJobTracker:
     def test_start_wrong_user(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, john):
         # Create
         pjob_id = zk_tracker.create(pjob=pjob, user_id=john, flask_request=flask_request)
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "created",
-            "message": approx_str_contains("{'created': 2}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "created",
+                "message": approx_str_contains("{'created': 2}"),
+            }
+        )
 
         with pytest.raises(JobNotFoundException):
             zk_tracker.start_sjobs(pjob_id=pjob_id, user_id="notjohn", flask_request=flask_request)
@@ -285,10 +290,12 @@ class TestPartitionedJobTracker:
         dummy2.set_job_status(john, "2-jb-0", "error")
         zk_tracker.sync(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
 
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "running",
-            "message": approx_str_contains("{'running': 1, 'error': 1}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "running",
+                "message": approx_str_contains("{'running': 1, 'error': 1}"),
+            }
+        )
         subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "running"})
@@ -299,10 +306,12 @@ class TestPartitionedJobTracker:
         dummy2.set_job_status(john, "2-jb-0", "running")
         zk_tracker.sync(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
 
-        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({
-            "status": "running",
-            "message": approx_str_contains("{'running': 2}"),
-        })
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "running",
+                "message": approx_str_contains("{'running': 2}"),
+            }
+        )
         subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
         assert set(subjobs.keys()) == {"0000", "0001"}
         assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "running"})
@@ -325,7 +334,6 @@ class TestPartitionedJobTracker:
 
 
 class TestPartitionedJobConnection:
-
     def test_authenticated_from_request(self, zk_tracker):
         con = PartitionedJobConnection(partitioned_job_tracker=zk_tracker)
         assert con._flask_request is None

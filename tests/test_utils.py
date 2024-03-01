@@ -20,7 +20,6 @@ from openeo_aggregator.utils import (
 
 
 class TestMultiDictGetter:
-
     def test_basic(self):
         getter = MultiDictGetter([{"a": 1, "b": 2}, {"b": 222, "c": 333}])
         assert list(getter.get("a")) == [1]
@@ -45,32 +44,36 @@ class TestMultiDictGetter:
         assert getter.available_keys(["a", "c", "d"]) == ["a", "c"]
 
     def test_concat(self):
-        getter = MultiDictGetter([
-            {"a": [1, 11], "b": [2, 22], "c": [33]},
-            {"b": [222, 2222], "c": (33, 3333)}
-        ])
+        getter = MultiDictGetter([{"a": [1, 11], "b": [2, 22], "c": [33]}, {"b": [222, 2222], "c": (33, 3333)}])
         assert getter.concat("a") == [1, 11]
         assert getter.concat("b") == [2, 22, 222, 2222]
         assert getter.concat("c") == [33, 33, 3333]
         assert getter.concat("c", skip_duplicates=True) == [33, 3333]
         assert getter.concat("d") == []
 
-    @pytest.mark.parametrize(["data", "expected", "expect_warning"], [
-        ([4, 5], [1, 2, 3, 4, 5, 100], False),
-        ((4, 5), [1, 2, 3, 4, 5, 100], False),
-        (45, [1, 2, 3, 100], True),
-        ("45", [1, 2, 3, 100], True),
-        ({4: "foo", 5: "bar"}, [1, 2, 3, 100], True),
-        ({"foo": 4, "bar": 5}, [1, 2, 3, 100], True),
-        (range(4, 6), [1, 2, 3, 100], True),
-        ((x for x in [4, 5]), [1, 2, 3, 100], True),
-    ])
+    @pytest.mark.parametrize(
+        ["data", "expected", "expect_warning"],
+        [
+            ([4, 5], [1, 2, 3, 4, 5, 100], False),
+            ((4, 5), [1, 2, 3, 4, 5, 100], False),
+            (45, [1, 2, 3, 100], True),
+            ("45", [1, 2, 3, 100], True),
+            ({4: "foo", 5: "bar"}, [1, 2, 3, 100], True),
+            ({"foo": 4, "bar": 5}, [1, 2, 3, 100], True),
+            (range(4, 6), [1, 2, 3, 100], True),
+            ((x for x in [4, 5]), [1, 2, 3, 100], True),
+        ],
+    )
     def test_concat_type_handling(self, data, expected, expect_warning, caplog):
-        getter = MultiDictGetter([
-            {"a": [1, 2, 3], },
-            {"a": data},
-            {"a": [100]},
-        ])
+        getter = MultiDictGetter(
+            [
+                {
+                    "a": [1, 2, 3],
+                },
+                {"a": data},
+                {"a": [100]},
+            ]
+        )
         assert getter.concat("a") == expected
 
         if expect_warning:
@@ -87,10 +90,12 @@ class TestMultiDictGetter:
         assert getter.first("d", default=666) == 666
 
     def test_select(self):
-        getter = MultiDictGetter([
-            {"a": {"aa": {"aaa": 1, "aab": 2}, "ab": 3}, "b": {"ba": 4, "bb": {"bba": 5}}},
-            {"a": {"aa": {"aaa": 10, "aac": 12}, "ac": 13}, "b": {"ba": 14, "bc": {"bbc": 15}}},
-        ])
+        getter = MultiDictGetter(
+            [
+                {"a": {"aa": {"aaa": 1, "aab": 2}, "ab": 3}, "b": {"ba": 4, "bb": {"bba": 5}}},
+                {"a": {"aa": {"aaa": 10, "aac": 12}, "ac": 13}, "b": {"ba": 14, "bc": {"bbc": 15}}},
+            ]
+        )
         assert list(getter.select("a").get("aa")) == [{"aaa": 1, "aab": 2}, {"aaa": 10, "aac": 12}]
         assert list(getter.select("a").get("ab")) == [3]
         assert list(getter.select("b").get("a")) == []
@@ -133,7 +138,6 @@ def test_dict_merge():
 
 
 class TestEventHandler:
-
     def test_empty(self):
         handler = EventHandler("event")
         handler.trigger()
@@ -161,7 +165,6 @@ class TestEventHandler:
 
 
 class TestBoundingBox:
-
     def test_basic(self):
         bbox = BoundingBox(1, 2, 3, 4)
         assert bbox.west == 1
@@ -269,9 +272,11 @@ def test_common_prefix_multiple():
 def test_drop_dict_keys():
     assert drop_dict_keys({}, keys=["foo"]) == {}
     assert drop_dict_keys({"foo": 2, "bar": 3}, keys=["foo"]) == {"bar": 3}
-    assert drop_dict_keys(
-        [{"foo": 2, "bar": 3}, {"baz": 5}, {"meh": 8}], keys=["foo", "baz"]
-    ) == [{"bar": 3}, {}, {"meh": 8}]
+    assert drop_dict_keys([{"foo": 2, "bar": 3}, {"baz": 5}, {"meh": 8}], keys=["foo", "baz"]) == [
+        {"bar": 3},
+        {},
+        {"meh": 8},
+    ]
     assert drop_dict_keys(
         {
             "foo": {1: 1, 2: 2, 3: 3},

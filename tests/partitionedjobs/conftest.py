@@ -14,15 +14,9 @@ from openeo_aggregator.utils import Clock, timestamp_to_rfc3339
 TEST_USER = "tstsr"
 TEST_USER_BEARER_TOKEN = "basic//" + HttpAuthHandler.build_basic_access_token(user_id=TEST_USER)
 
-PG12 = {
-    "add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}
-}
-PG23 = {
-    "add": {"process_id": "add", "arguments": {"X": 2, "y": 3}, "result": True}
-}
-PG35 = {
-    "add": {"process_id": "add", "arguments": {"X": 3, "y": 5}, "result": True}
-}
+PG12 = {"add": {"process_id": "add", "arguments": {"X": 1, "y": 2}, "result": True}}
+PG23 = {"add": {"process_id": "add", "arguments": {"X": 2, "y": 3}, "result": True}}
+PG35 = {"add": {"process_id": "add", "arguments": {"X": 3, "y": 5}, "result": True}}
 P12 = {"process_graph": PG12}
 P23 = {"process_graph": PG23}
 P35 = {"process_graph": PG35}
@@ -110,22 +104,21 @@ class DummyBackend:
         return self.get_job_data(user_id, job_id).history[-1]
 
     def setup_assets(self, job_id: str, assets: List[str] = None):
-        """Mock `GET /jobs/{}/results` response with fake assets """
+        """Mock `GET /jobs/{}/results` response with fake assets"""
         if assets is None:
             assets = ["preview.png", "result.tif"]
-        results = {"assets": {
-            a: {"href": self.backend_url + f"/jobs/{job_id}/results/{a}"}
-            for a in assets
-        }}
+        results = {"assets": {a: {"href": self.backend_url + f"/jobs/{job_id}/results/{a}"} for a in assets}}
         self.requests_mock.get(self.backend_url + f"/jobs/{job_id}/results", json=results)
 
     def _handle_get_jobs(self, request: requests.Request, context):
         user_id = self.get_user_id(request)
-        return {"jobs": [
-            {"id": job_id, "created": timestamp_to_rfc3339(job_data.created), "status": job_data.history[-1]}
-            for (u, job_id), job_data in self.jobs.items()
-            if u == user_id
-        ]}
+        return {
+            "jobs": [
+                {"id": job_id, "created": timestamp_to_rfc3339(job_data.created), "status": job_data.history[-1]}
+                for (u, job_id), job_data in self.jobs.items()
+                if u == user_id
+            ]
+        }
 
     def _handle_post_jobs(self, request: requests.Request, context):
         """`POST /jobs` handler (create job)"""

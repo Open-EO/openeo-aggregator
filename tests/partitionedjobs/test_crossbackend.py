@@ -21,9 +21,7 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 
 class TestCrossBackendSplitter:
     def test_split_simple(self):
-        process_graph = {
-            "add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}
-        }
+        process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
         splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
         res = splitter.split({"process_graph": process_graph})
 
@@ -54,9 +52,7 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
-            backend_for_collection=lambda cid: cid.split("_")[0]
-        )
+        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {
@@ -277,20 +273,12 @@ class _FakeAggregator:
         requests_mock.get(f"{self.url}/", json={"api_version": "1.1.0"})
         requests_mock.post(f"{self.url}/jobs", text=self._handle_job_create)
         requests_mock.get(re.compile("/jobs/([^/]*)$"), json=self._handle_job_status)
-        requests_mock.post(
-            re.compile("/jobs/([^/]*)/results$"), text=self._handle_job_start
-        )
+        requests_mock.post(re.compile("/jobs/([^/]*)/results$"), text=self._handle_job_start)
 
     def _handle_job_create(self, request: requests.Request, context):
         pg = request.json()["process"]["process_graph"]
         # Determine job id based on used collection id
-        cids = "-".join(
-            sorted(
-                n["arguments"]["id"]
-                for n in pg.values()
-                if n["process_id"] == "load_collection"
-            )
-        )
+        cids = "-".join(sorted(n["arguments"]["id"] for n in pg.values() if n["process_id"] == "load_collection"))
         assert cids
         job_id = f"job-{cids}".lower()
         if job_id in self.jobs:
@@ -383,9 +371,7 @@ class TestRunPartitionedJobs:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
-            backend_for_collection=lambda cid: cid.split("_")[0]
-        )
+        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
 
         connection = openeo.Connection(aggregator.url)

@@ -18,7 +18,6 @@ TEST_USER = "tstsr"
 
 @clock_mock("2022-01-17T17:48:00Z")
 class TestZooKeeperPartitionedJobDB:
-
     def test_connect_context_manager_basic(self):
         client = mock.Mock()
         zk_db = ZooKeeperPartitionedJobDB(client=client)
@@ -73,7 +72,7 @@ class TestZooKeeperPartitionedJobDB:
             "/o-a/tstsr/pj-20220117-174800/sjobs/0000": {
                 "process_graph": PG12,
                 "backend_id": "b1",
-                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)",
             },
             "/o-a/tstsr/pj-20220117-174800/sjobs/0000/status": {
                 "status": "inserted",
@@ -83,7 +82,7 @@ class TestZooKeeperPartitionedJobDB:
             "/o-a/tstsr/pj-20220117-174800/sjobs/0001": {
                 "process_graph": PG23,
                 "backend_id": "b2",
-                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)",
             },
             "/o-a/tstsr/pj-20220117-174800/sjobs/0001/status": {
                 "status": "inserted",
@@ -127,12 +126,12 @@ class TestZooKeeperPartitionedJobDB:
             "0000": {
                 "process_graph": PG12,
                 "backend_id": "b1",
-                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0000 (1/2)",
             },
             "0001": {
                 "process_graph": PG23,
                 "backend_id": "b2",
-                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)"
+                "title": "Partitioned job pj-20220117-174800 part 0001 (2/2)",
             },
         }
 
@@ -160,8 +159,7 @@ class TestZooKeeperPartitionedJobDB:
         assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now(), "progress": None}
 
         zk_db.set_pjob_status(
-            user_id=TEST_USER, pjob_id="pj-20220117-174800", status="running", message="goin' on",
-            progress=45
+            user_id=TEST_USER, pjob_id="pj-20220117-174800", status="running", message="goin' on", progress=45
         )
         status = zk_db.get_pjob_status(user_id=TEST_USER, pjob_id="pj-20220117-174800")
         assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now(), "progress": 45}
@@ -176,8 +174,7 @@ class TestZooKeeperPartitionedJobDB:
         assert status == {"status": "inserted", "message": None, "timestamp": approx_now()}
 
         zk_db.set_sjob_status(
-            user_id=TEST_USER, pjob_id="pj-20220117-174800", sjob_id="0000", status="running",
-            message="goin' on"
+            user_id=TEST_USER, pjob_id="pj-20220117-174800", sjob_id="0000", status="running", message="goin' on"
         )
         status = zk_db.get_sjob_status(user_id=TEST_USER, pjob_id="pj-20220117-174800", sjob_id="0000")
         assert status == {"status": "running", "message": "goin' on", "timestamp": approx_now()}

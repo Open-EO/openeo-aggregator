@@ -23,12 +23,11 @@ from openeo_aggregator.testing import clock_mock, config_overrides
 
 
 class TestBackendConnection:
-
     def test_plain_basic_auth_fails(self, requests_mock):
-        requests_mock.get("https://foo.test/", json={
-            "api_version": "1.0.0",
-            "endpoints": [{"path": "/credentials/basic", "methods": ["GET"]}]
-        })
+        requests_mock.get(
+            "https://foo.test/",
+            json={"api_version": "1.0.0", "endpoints": [{"path": "/credentials/basic", "methods": ["GET"]}]},
+        )
         requests_mock.get("https://foo.test/credentials/basic", json={"access_token": "3nt3r"})
         con = BackendConnection(id="foo", url="https://foo.test", configured_oidc_providers=[])
         with pytest.raises(LockedAuthException):
@@ -79,13 +78,21 @@ class TestBackendConnection:
 
     def test_plain_oidc_auth_fails(self, requests_mock):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
-        requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
-        ]})
-        requests_mock.get("https://egi.test/.well-known/openid-configuration", json={
-            "token_endpoint": "https://egi.test/token",
-            "userinfo_endpoint": "https://egi.test/userinfo",
-        })
+        requests_mock.get(
+            "https://foo.test/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
+                ]
+            },
+        )
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration",
+            json={
+                "token_endpoint": "https://egi.test/token",
+                "userinfo_endpoint": "https://egi.test/userinfo",
+            },
+        )
         requests_mock.post("https://egi.test/token", json={"access_token": "3nt3r"})
         con = BackendConnection(id="foo", url="https://foo.test")
         with pytest.raises(LockedAuthException):
@@ -94,9 +101,14 @@ class TestBackendConnection:
     @pytest.mark.parametrize("backend_pid", ["egi", "aho"])
     def test_oidc_auth_from_request(self, requests_mock, backend_pid):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
-        requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
-            {"id": backend_pid, "issuer": "https://egi.test", "title": "EGI"},
-        ]})
+        requests_mock.get(
+            "https://foo.test/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": backend_pid, "issuer": "https://egi.test", "title": "EGI"},
+                ]
+            },
+        )
 
         def get_me(request: requests.Request, context):
             if request.headers.get("Authorization") == f"Bearer oidc/{backend_pid}/l3tm31n":
@@ -128,9 +140,14 @@ class TestBackendConnection:
     )
     def test_oidc_auth_from_request_failure(self, requests_mock, exception):
         requests_mock.get("https://foo.test/", json={"api_version": "1.0.0"})
-        requests_mock.get("https://foo.test/credentials/oidc", json={"providers": [
-            {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
-        ]})
+        requests_mock.get(
+            "https://foo.test/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "egi", "issuer": "https://egi.test", "title": "EGI"},
+                ]
+            },
+        )
 
         con = BackendConnection(id="foo", url="https://foo.test")
         request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/egi/l3tm31n"})
@@ -185,7 +202,6 @@ class TestBackendConnection:
             con.get("/")
 
     def test_init_vs_default_timeout(self, requests_mock):
-
         def get_handler(expected_timeout: int):
             def capabilities(request, context):
                 assert request.timeout == expected_timeout
@@ -196,8 +212,7 @@ class TestBackendConnection:
         # Capabilities request during init
         m = requests_mock.get("https://foo.test/", json=get_handler(expected_timeout=5))
         con = BackendConnection(
-            id="foo", url="https://foo.test", configured_oidc_providers=[],
-            default_timeout=20, init_timeout=5
+            id="foo", url="https://foo.test", configured_oidc_providers=[], default_timeout=20, init_timeout=5
         )
         assert m.call_count == 1
 
@@ -207,14 +222,19 @@ class TestBackendConnection:
         assert m.call_count == 1
 
     def test_version_discovery_timeout(self, requests_mock):
-        well_known = requests_mock.get("https://foo.test/.well-known/openeo", status_code=200, json={
-            "versions": [{"api_version": "1.0.0", "url": "https://oeo.test/v1/"}, ],
-        })
+        well_known = requests_mock.get(
+            "https://foo.test/.well-known/openeo",
+            status_code=200,
+            json={
+                "versions": [
+                    {"api_version": "1.0.0", "url": "https://oeo.test/v1/"},
+                ],
+            },
+        )
         requests_mock.get("https://oeo.test/v1/", status_code=200, json={"api_version": "1.0.0"})
 
         _ = BackendConnection(
-            id="foo", url="https://foo.test", configured_oidc_providers=[],
-            default_timeout=20, init_timeout=5
+            id="foo", url="https://foo.test", configured_oidc_providers=[], default_timeout=20, init_timeout=5
         )
         assert well_known.call_count == 1
         assert well_known.request_history[-1].timeout == 5
@@ -228,11 +248,7 @@ class TestMultiBackendConnection:
         backends = MultiBackendConnection.from_config()
         assert set(c.id for c in backends.get_connections()) == {"b1", "b2"}
 
-
-    @pytest.mark.parametrize(["bid1", "bid2"], [
-        ("b1", "b1-dev"), ("b1", "b1.dev"), ("b1", "b1:dev"),
-        ("AA", "BB")
-    ])
+    @pytest.mark.parametrize(["bid1", "bid2"], [("b1", "b1-dev"), ("b1", "b1.dev"), ("b1", "b1:dev"), ("AA", "BB")])
     def test_backend_id_format_invalid(self, backend1, backend2, bid1, bid2):
         with pytest.raises(ValueError, match="should be alphanumeric only"):
             _ = MultiBackendConnection({bid1: backend1, bid2: backend2}, configured_oidc_providers=[])
@@ -356,7 +372,8 @@ class TestMultiBackendConnection:
             configured_oidc_providers=[
                 OidcProvider(id=pid, issuer=issuer, title=title),
                 OidcProvider(id="egi-dev", issuer="https://egi-dev.test", title="EGI dev"),
-            ])
+            ],
+        )
 
         for con in multi_backend_connection:
             assert con.get_oidc_provider_map() == {pid: "egi"}
@@ -395,7 +412,8 @@ class TestMultiBackendConnection:
                 OidcProvider("xa", "https://x.test", "A-X"),
                 OidcProvider("ya", "https://y.test", "A-Y"),
                 OidcProvider("za", "https://z.test", "A-Z"),
-            ])
+            ],
+        )
 
         assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
             {"xa": "x1", "ya": "y1"},
@@ -425,7 +443,8 @@ class TestMultiBackendConnection:
             configured_oidc_providers=[
                 OidcProvider("ya", "https://y.test", "A-Y"),
                 OidcProvider("za", "https://z.test", "A-Z"),
-            ])
+            ],
+        )
 
         assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
             {},
@@ -466,42 +485,59 @@ class TestMultiBackendConnection:
                 OidcProvider("a-a", "https://a.test", "A-A"),
                 OidcProvider("a-d", "https://d.test", "A-D"),
                 OidcProvider("a-c", "https://c.test/", "A-C"),
-            ])
+            ],
+        )
 
         assert [con.get_oidc_provider_map() for con in multi_backend_connection] == [
-            {'a-a': 'a1', 'a-b': 'b1', 'a-c': 'c1', 'a-d': 'd1', 'a-e': 'e1'},
-            {'a-a': 'a2', 'a-b': 'b2', 'a-c': 'c2', 'a-d': 'd2', 'a-e': 'e2'},
+            {"a-a": "a1", "a-b": "b1", "a-c": "c1", "a-d": "d1", "a-e": "e1"},
+            {"a-a": "a2", "a-b": "b2", "a-c": "c2", "a-d": "d2", "a-e": "e2"},
         ]
 
     def test_oidc_provider_mapping(self, requests_mock):
         domain1 = "https://b1.test/v1"
         requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
-            {"id": "a1", "issuer": "https://a.test/", "title": "A1"},
-            {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
-            {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
-        ]})
+        requests_mock.get(
+            domain1 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "a1", "issuer": "https://a.test/", "title": "A1"},
+                    {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
+                    {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
+                ]
+            },
+        )
         domain2 = "https://b2.test/v1"
         requests_mock.get(domain2 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(domain2 + "/credentials/oidc", json={"providers": [
-            {"id": "b2", "issuer": "https://b.test", "title": "B2"},
-            {"id": "x2", "issuer": "https://x.test", "title": "X2"},
-            {"id": "y2", "issuer": "https://y.test", "title": "Y2"},
-        ]})
+        requests_mock.get(
+            domain2 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "b2", "issuer": "https://b.test", "title": "B2"},
+                    {"id": "x2", "issuer": "https://x.test", "title": "X2"},
+                    {"id": "y2", "issuer": "https://y.test", "title": "Y2"},
+                ]
+            },
+        )
         domain3 = "https://b3.test/v1"
         requests_mock.get(domain3 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(domain3 + "/credentials/oidc", json={"providers": [
-            {"id": "c3", "issuer": "https://c.test/", "title": "C3"},
-            {"id": "x3", "issuer": "https://x.test", "title": "X3"},
-            {"id": "y3", "issuer": "https://y.test/", "title": "Y3"},
-        ]})
+        requests_mock.get(
+            domain3 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "c3", "issuer": "https://c.test/", "title": "C3"},
+                    {"id": "x3", "issuer": "https://x.test", "title": "X3"},
+                    {"id": "y3", "issuer": "https://y.test/", "title": "Y3"},
+                ]
+            },
+        )
 
         multi_backend_connection = MultiBackendConnection(
             backends={"b1": domain1, "b2": domain2, "b3": domain3},
             configured_oidc_providers=[
                 OidcProvider("ax", "https://x.test", "A-X"),
                 OidcProvider("ay", "https://y.test", "A-Y"),
-            ])
+            ],
+        )
 
         def get_me(request: requests.Request, context):
             auth = request.headers.get("Authorization")
@@ -529,9 +565,14 @@ class TestMultiBackendConnection:
     def test_oidc_provider_mapping_changes(self, requests_mock, caplog):
         domain1 = "https://b1.test/v1"
         requests_mock.get(domain1 + "/", json={"api_version": "1.0.0"})
-        requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
-            {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
-        ]})
+        requests_mock.get(
+            domain1 + "/credentials/oidc",
+            json={
+                "providers": [
+                    {"id": "x1", "issuer": "https://x.test/", "title": "X1"},
+                ]
+            },
+        )
 
         def get_me(request: requests.Request, context):
             auth = request.headers.get("Authorization")
@@ -545,8 +586,7 @@ class TestMultiBackendConnection:
         ]
 
         multi_backend_connection = MultiBackendConnection(
-            backends={"b1": domain1},
-            configured_oidc_providers=configured_oidc_providers
+            backends={"b1": domain1}, configured_oidc_providers=configured_oidc_providers
         )
 
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING)
@@ -559,9 +599,14 @@ class TestMultiBackendConnection:
 
         # Change backend's oidc config, wait for connections cache to expire
         with clock_mock(offset=1000):
-            requests_mock.get(domain1 + "/credentials/oidc", json={"providers": [
-                {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
-            ]})
+            requests_mock.get(
+                domain1 + "/credentials/oidc",
+                json={
+                    "providers": [
+                        {"id": "y1", "issuer": "https://y.test/", "title": "Y1"},
+                    ]
+                },
+            )
             # Try old auth headers
             request = flask.Request(environ={"HTTP_AUTHORIZATION": "Bearer oidc/ax/yadayadayada"})
             with pytest.raises(OpenEOApiException, match="Back-end 'b1' does not support OIDC provider 'ax'"):
@@ -576,10 +621,7 @@ class TestMultiBackendConnection:
                 assert con.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}
 
     def test_connection_invalidate(self, backend1):
-        multi_backend_connection = MultiBackendConnection(
-            backends={"b1": backend1},
-            configured_oidc_providers=[]
-        )
+        multi_backend_connection = MultiBackendConnection(backends={"b1": backend1}, configured_oidc_providers=[])
 
         con1 = multi_backend_connection.get_connection("b1")
         assert con1.get("/").json() == DictSubSet({"api_version": "1.1.0"})
@@ -594,8 +636,7 @@ class TestMultiBackendConnection:
 
     def test_get_connections(self, requests_mock, backend1, backend2):
         multi_backend_connection = MultiBackendConnection(
-            backends={"b1": backend1, "b2": backend2},
-            configured_oidc_providers=[]
+            backends={"b1": backend1, "b2": backend2}, configured_oidc_providers=[]
         )
 
         assert set(b.id for b in multi_backend_connection.get_connections()) == {"b1", "b2"}

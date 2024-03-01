@@ -37,7 +37,6 @@ class FakeClock:
 
 
 class TestTtlCache:
-
     def test_basic(self):
         cache = TtlCache()
         cache.set("foo", "bar")
@@ -138,7 +137,6 @@ class _TestMemoizer:
 
 
 class TestNullMemoizer(_TestMemoizer):
-
     def test_basic(self):
         cache = NullMemoizer()
         callback = self._build_callback()
@@ -147,11 +145,13 @@ class TestNullMemoizer(_TestMemoizer):
 
 
 class TestJsonSerde:
-
-    @pytest.mark.parametrize(["value", "serialized"], [
-        ({"foo": 123}, b'{"foo":123}'),
-        ({"foo": [1, 2, 3]}, b'{"foo":[1,2,3]}'),
-    ])
+    @pytest.mark.parametrize(
+        ["value", "serialized"],
+        [
+            ({"foo": 123}, b'{"foo":123}'),
+            ({"foo": [1, 2, 3]}, b'{"foo":[1,2,3]}'),
+        ],
+    )
     def test_default(self, value, serialized):
         serde = JsonSerDe()
         assert serde.serialize(value) == serialized
@@ -186,10 +186,7 @@ class TestJsonSerde:
     def test_global_json_serde(self):
         icm = _InternalCollectionMetadata()
         icm.set_backends_for_collection(cid="S2", backends=["b5", "b9"])
-        data = {
-            "color": "green",
-            "icm": icm
-        }
+        data = {"color": "green", "icm": icm}
 
         serialized = json_serde.serialize(data)
         assert isinstance(serialized, bytes)
@@ -271,14 +268,13 @@ class TestDictMemoizer(_TestMemoizer):
 
 
 class TestJsonDictMemoizer(TestDictMemoizer):
-
     def test_json_coercion(self):
         cache = JsonDictMemoizer()
         callback = lambda: {"ids": [1, 2, 3], "size": (4, 5, 6)}
 
-        assert cache.get_or_call(key="data", callback=callback) == {'ids': [1, 2, 3], 'size': (4, 5, 6)}
+        assert cache.get_or_call(key="data", callback=callback) == {"ids": [1, 2, 3], "size": (4, 5, 6)}
         # This is expected: tuple is not supported in JSON and silently converted to list
-        assert cache.get_or_call(key="data", callback=callback) == {'ids': [1, 2, 3], 'size': [4, 5, 6]}
+        assert cache.get_or_call(key="data", callback=callback) == {"ids": [1, 2, 3], "size": [4, 5, 6]}
 
     def test_json_encode_error(self, caplog):
         caplog.set_level(logging.ERROR)
@@ -301,7 +297,6 @@ class TestJsonDictMemoizer(TestDictMemoizer):
 
 
 class TestChainedMemoizer(_TestMemoizer):
-
     def test_empty(self):
         cache = ChainedMemoizer(memoizers=[])
         callback = self._build_callback()
@@ -409,9 +404,7 @@ class TestChainedMemoizer(_TestMemoizer):
             assert dm2.get_or_call(key="count", callback=callback) == 1003
 
 
-
 class TestZkMemoizer(_TestMemoizer):
-
     @pytest.fixture
     def zk_client(self) -> mock.Mock:
         """Simple ad-hoc ZooKeeper client fixture using a dictionary for storage."""
@@ -463,26 +456,35 @@ class TestZkMemoizer(_TestMemoizer):
         callback = self._build_callback()
         zk_client.get.assert_not_called()
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
-        zk_client.get.assert_called_once_with(path='/test/count')
+        zk_client.get.assert_called_once_with(path="/test/count")
 
-    @pytest.mark.parametrize(["side_effects", "expected_error"], [
-        ({"start": RuntimeError}, "failed to start connection"),
-        ({"start": kazoo.exceptions.KazooException}, "failed to start connection"),
-        ({"get": RuntimeError}, "unexpected get failure"),
-        ({"get": kazoo.exceptions.KazooException}, "unexpected get failure"),
-        ({"create": RuntimeError}, "failed to create path '/test/count'"),
-        ({"create": kazoo.exceptions.KazooException}, "failed to create path '/test/count'"),
-        ({
-             "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
-             "set": RuntimeError,
-         }, "failed to set path '/test/count'"),
-        ({
-             "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
-             "set": kazoo.exceptions.KazooException,
-         }, "failed to set path '/test/count'"),
-        ({"stop": RuntimeError}, "failed to stop connection"),
-        ({"stop": kazoo.exceptions.KazooException}, "failed to stop connection"),
-    ])
+    @pytest.mark.parametrize(
+        ["side_effects", "expected_error"],
+        [
+            ({"start": RuntimeError}, "failed to start connection"),
+            ({"start": kazoo.exceptions.KazooException}, "failed to start connection"),
+            ({"get": RuntimeError}, "unexpected get failure"),
+            ({"get": kazoo.exceptions.KazooException}, "unexpected get failure"),
+            ({"create": RuntimeError}, "failed to create path '/test/count'"),
+            ({"create": kazoo.exceptions.KazooException}, "failed to create path '/test/count'"),
+            (
+                {
+                    "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
+                    "set": RuntimeError,
+                },
+                "failed to set path '/test/count'",
+            ),
+            (
+                {
+                    "get": (lambda *arg, **kwargs: ('{"foo":"bar"}', DummyZnodeStat(last_modified=123))),
+                    "set": kazoo.exceptions.KazooException,
+                },
+                "failed to set path '/test/count'",
+            ),
+            ({"stop": RuntimeError}, "failed to stop connection"),
+            ({"stop": kazoo.exceptions.KazooException}, "failed to stop connection"),
+        ],
+    )
     def test_broken_client(self, caplog, side_effects, expected_error):
         """Test that callback keeps working if ZooKeeper client is broken"""
         caplog.set_level(logging.ERROR)
@@ -561,15 +563,18 @@ class TestZkMemoizer(_TestMemoizer):
         with clock_mock(3000):
             assert zk_cache.get_or_call(key="count", callback=callback) == 102
 
-    @pytest.mark.parametrize(["prefix", "key", "path"], [
-        ("test", "count", "/test/count"),
-        ("/test/", "/count/", "/test/count"),
-        ("test/v1", "user/count/", "/test/v1/user/count"),
-        ("test", ("count",), "/test/count"),
-        ("test", ("user", "count"), "/test/user/count"),
-        ("test", ("v1", "user", "count", "today"), "/test/v1/user/count/today"),
-        ("test", ["v1", "user", "count", "today"], "/test/v1/user/count/today"),
-    ])
+    @pytest.mark.parametrize(
+        ["prefix", "key", "path"],
+        [
+            ("test", "count", "/test/count"),
+            ("/test/", "/count/", "/test/count"),
+            ("test/v1", "user/count/", "/test/v1/user/count"),
+            ("test", ("count",), "/test/count"),
+            ("test", ("user", "count"), "/test/user/count"),
+            ("test", ("v1", "user", "count", "today"), "/test/v1/user/count/today"),
+            ("test", ["v1", "user", "count", "today"], "/test/v1/user/count/today"),
+        ],
+    )
     def test_key_to_path(self, zk_client, prefix, key, path):
         zk_cache = ZkMemoizer(client=zk_client, path_prefix=prefix)
         callback = self._build_callback()
@@ -599,13 +604,16 @@ class TestZkMemoizer(_TestMemoizer):
         assert zk_cache.get_or_call(key="count", callback=callback) == 100
         assert "failed to create node '/test/count': already exists." in caplog.text
 
-    @pytest.mark.parametrize(["data", "expected_prefix"], [
-        (1234, b"1234"),
-        ("just a string", b'"just'),
-        ({"color": "green", "sizes": [1, 2, 3]}, b'{"color":"green'),
-        ([{"id": 3}, {"id": 99}], b'[{"id":'),
-        ([123, None, False, True, "foo"], b'[123'),
-    ])
+    @pytest.mark.parametrize(
+        ["data", "expected_prefix"],
+        [
+            (1234, b"1234"),
+            ("just a string", b'"just'),
+            ({"color": "green", "sizes": [1, 2, 3]}, b'{"color":"green'),
+            ([{"id": 3}, {"id": 99}], b'[{"id":'),
+            ([123, None, False, True, "foo"], b"[123"),
+        ],
+    )
     def test_serializing(self, zk_client, data, expected_prefix):
         zk_cache = ZkMemoizer(client=zk_client, path_prefix="test")
 
@@ -696,7 +704,6 @@ class TestZkMemoizer(_TestMemoizer):
 
 
 class TestMemoizerFromConfig:
-
     def test_null_memoizer(self):
         with config_overrides(memoizer={"type": "null"}):
             memoizer = memoizer_from_config(namespace="test")
