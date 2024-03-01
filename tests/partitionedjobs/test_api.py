@@ -9,7 +9,12 @@ from openeo_aggregator.backend import (
     AggregatorBatchJobs,
 )
 from openeo_aggregator.partitionedjobs.zookeeper import ZooKeeperPartitionedJobDB
-from openeo_aggregator.testing import approx_str_contains, approx_str_prefix, clock_mock
+from openeo_aggregator.testing import (
+    approx_str_contains,
+    approx_str_prefix,
+    clock_mock,
+    config_overrides,
+)
 from openeo_aggregator.utils import BoundingBox
 
 from .conftest import (
@@ -62,6 +67,11 @@ def dummy2(backend2, requests_mock) -> DummyBackend:
 
 class TestFlimsyBatchJobSplitting:
     now = _Now("2022-01-19T12:34:56Z")
+
+    @pytest.fixture(autouse=True)
+    def _partitioned_job_tracking(self, zk_client):
+        with config_overrides(partitioned_job_tracking={"zk_client": zk_client}):
+            yield
 
     @now.mock
     def test_create_job_basic(self, api100, zk_db, dummy1):
@@ -454,6 +464,12 @@ class TestTileGridBatchJobSplitting:
         }
     }
 
+
+    @pytest.fixture(autouse=True)
+    def _partitioned_job_tracking(self, zk_client):
+        with config_overrides(partitioned_job_tracking={"zk_client": zk_client}):
+            yield
+
     @now.mock
     def test_create_job_basic(self, flask_app, api100, zk_db, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
@@ -625,6 +641,11 @@ class TestTileGridBatchJobSplitting:
 @pytest.mark.usefixtures("dummy1", "dummy2")
 class TestCrossBackendSplitting:
     now = _Now("2022-01-19T12:34:56Z")
+
+    @pytest.fixture(autouse=True)
+    def _partitioned_job_tracking(self, zk_client):
+        with config_overrides(partitioned_job_tracking={"zk_client": zk_client}):
+            yield
 
     @now.mock
     def test_create_job_simple(self, flask_app, api100, zk_db, dummy1):

@@ -92,11 +92,6 @@ def base_config(zk_client, memoizer_config) -> AggregatorConfig:
 
     conf.memoizer = memoizer_config
 
-    conf.partitioned_job_tracking = {
-        "zk_client": zk_client,
-    }
-
-
     return conf
 
 

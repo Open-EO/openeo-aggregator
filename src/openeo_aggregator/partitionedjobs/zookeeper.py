@@ -43,16 +43,17 @@ class ZooKeeperPartitionedJobDB:
     @classmethod
     def from_config(cls, config: AggregatorConfig) -> "ZooKeeperPartitionedJobDB":
         # Get ZooKeeper client
-        if config.partitioned_job_tracking.get("zk_client"):
-            zk_client = config.partitioned_job_tracking["zk_client"]
-        elif config.partitioned_job_tracking.get("zk_hosts"):
-            zk_client = KazooClient(config.partitioned_job_tracking.get("zk_hosts"))
+        pjt_config = get_backend_config().partitioned_job_tracking or config.partitioned_job_tracking
+        if pjt_config.get("zk_client"):
+            zk_client = pjt_config["zk_client"]
+        elif pjt_config.get("zk_hosts"):
+            zk_client = KazooClient(pjt_config.get("zk_hosts"))
         else:
             raise ConfigException("Failed to construct zk_client")
         # Determine ZooKeeper prefix
         base_prefix = get_backend_config().zookeeper_prefix or config.zookeeper_prefix
         assert len(base_prefix.replace("/", "")) >= 3
-        partitioned_jobs_prefix = config.partitioned_job_tracking.get("zookeeper_prefix", cls.NAMESPACE)
+        partitioned_jobs_prefix = pjt_config.get("zookeeper_prefix", cls.NAMESPACE)
         prefix = strip_join("/", base_prefix, partitioned_jobs_prefix)
         return cls(client=zk_client, prefix=prefix)
 

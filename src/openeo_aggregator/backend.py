@@ -1295,7 +1295,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             config=config,
         )
 
-        if config.partitioned_job_tracking:
+        if get_backend_config().partitioned_job_tracking or config.partitioned_job_tracking:
             partitioned_job_tracker = PartitionedJobTracker.from_config(config=config, backends=self._backends)
         else:
             partitioned_job_tracker = None
