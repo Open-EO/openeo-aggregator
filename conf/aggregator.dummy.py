@@ -5,11 +5,6 @@ from openeo_driver.users.oidc import OidcProvider
 
 from openeo_aggregator.config import AggregatorBackendConfig, AggregatorConfig
 
-aggregator_config = AggregatorConfig(
-    config_source=__file__,
-)
-
-
 config = AggregatorBackendConfig(
     id="aggregator-dummy",
     capabilities_title="openEO Aggregator Dummy",

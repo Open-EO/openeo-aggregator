@@ -35,10 +35,6 @@ oidc_providers = [
 
 ZK_HOSTS = "epod-master1.vgt.vito.be:2181,epod-master2.vgt.vito.be:2181,epod-master3.vgt.vito.be:2181"
 
-aggregator_config = AggregatorConfig(
-    config_source=__file__,
-)
-
 
 config = AggregatorBackendConfig(
     id="openeo-platform-aggregator-prod",
