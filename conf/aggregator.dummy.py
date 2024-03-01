@@ -1,9 +1,10 @@
 """
 Dummy/example config
 """
+
 from openeo_driver.users.oidc import OidcProvider
 
-from openeo_aggregator.config import AggregatorBackendConfig, AggregatorConfig
+from openeo_aggregator.config import AggregatorBackendConfig
 
 config = AggregatorBackendConfig(
     id="aggregator-dummy",
