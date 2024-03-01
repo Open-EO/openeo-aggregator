@@ -1306,7 +1306,6 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             batch_jobs=batch_jobs,
             user_defined_processes=user_defined_processes,
         )
-        # TODO #112 once `AggregatorConfig.configured_oidc_providers` is eliminated, this `_configured_oidc_providers` is not necessary anymore.
         self._configured_oidc_providers: List[OidcProvider] = get_backend_config().oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = get_backend_config().auth_entitlement_check
 
@@ -1319,7 +1318,9 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         )
 
     def oidc_providers(self) -> List[OidcProvider]:
-        # TODO #112 once `AggregatorConfig.configured_oidc_providers` is eliminated, this method override is not necessary anymore
+        # Technically, this implementation is redundant given the parent implementation
+        # But keeping it allows for some additional tests
+        # (until https://github.com/Open-EO/openeo-python-driver/issues/265 is resolved)
         return self._configured_oidc_providers
 
     def file_formats(self) -> dict:

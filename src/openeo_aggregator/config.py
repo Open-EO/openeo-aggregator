@@ -33,22 +33,14 @@ class ConfigException(ValueError):
 
 
 class AggregatorConfig(dict):
-    """
-    Simple dictionary based configuration for aggregator backend
-    """
-
-    # TODO #112 migrate everything to AggregatorBackendConfig (attrs based instead of dictionary based)
-
+    # TODO #112 Remove this empty shell
     config_source = dict_item()
 
-    # Just a config field for test purposes (while were stripping down this config class)
-    test_dummy = dict_item(default="alice")
 
 
 
 @attrs.frozen(kw_only=True)
 class AggregatorBackendConfig(OpenEoBackendConfig):
-    # TODO #112 migrate everything from AggregatorConfig to this class
 
     capabilities_backend_version: str = openeo_aggregator.about.__version__
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
