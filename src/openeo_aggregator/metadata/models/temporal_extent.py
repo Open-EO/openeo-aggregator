@@ -35,8 +35,9 @@ class TemporalExtent:
             for interval_item_data in self.interval:
                 interval_item = []
                 for interval_item_item_data in interval_item_data:
-                    interval_item_item = interval_item_item_data.isoformat().replace("+00:00", "Z") \
-                        if interval_item_item_data else None
+                    interval_item_item = (
+                        interval_item_item_data.isoformat().replace("+00:00", "Z") if interval_item_item_data else None
+                    )
                     interval_item.append(interval_item_item)
 
                 interval.append(interval_item)

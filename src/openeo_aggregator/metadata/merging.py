@@ -3,6 +3,7 @@
 Functionality and tools for openEO collection/process metadata processing, normalizing, merging ...
 
 """
+
 import difflib
 import functools
 import json

@@ -1,6 +1,7 @@
 """
 openeo-aggregator Flask app
 """
+
 import logging
 import os
 from pathlib import Path

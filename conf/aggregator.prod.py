@@ -13,7 +13,7 @@ _DEFAULT_OIDC_CLIENT_EGI = {
         "https://editor.openeo.cloud",
         "http://localhost:1410/",
         "https://editor.openeo.org",
-    ]
+    ],
 }
 
 _DEFAULT_EGI_SCOPES = [
@@ -56,18 +56,15 @@ config = AggregatorBackendConfig(
         "type": "chained",
         "config": {
             "parts": [
-                {
-                    "type": "dict",
-                    "config": {"default_ttl": 5 * 60}
-                },
+                {"type": "dict", "config": {"default_ttl": 5 * 60}},
                 {
                     "type": "zookeeper",
                     "config": {
                         "zk_hosts": ZK_HOSTS,
                         "default_ttl": 24 * 60 * 60,
-                    }
-                }
+                    },
+                },
             ]
-        }
+        },
     },
 )

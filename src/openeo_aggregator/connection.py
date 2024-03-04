@@ -258,7 +258,7 @@ class MultiBackendConnection:
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
         """Create new backend connections."""
-        for (bid, url) in self._backend_urls.items():
+        for bid, url in self._backend_urls.items():
             try:
                 _log.info(f"Create backend {bid!r} connection to {url!r}")
                 # TODO: Creating connection usually involves version discovery and request of capability doc.

@@ -62,9 +62,7 @@ def main():
         metadata = connection.describe_collection(collection_id)
         return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][0]
 
-    splitter = CrossBackendSplitter(
-        backend_for_collection=backend_for_collection, always_split=True
-    )
+    splitter = CrossBackendSplitter(backend_for_collection=backend_for_collection, always_split=True)
     pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
     _log.info(f"Partitioned job: {pjob!r}")
 

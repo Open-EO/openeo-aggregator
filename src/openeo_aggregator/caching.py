@@ -123,12 +123,10 @@ class Memoizer(metaclass=abc.ABCMeta):
         self._namespace = namespace
 
     @abc.abstractmethod
-    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any:
-        ...
+    def get_or_call(self, key: CacheKey, callback: Callable[[], Any], ttl: Optional[float] = None) -> Any: ...
 
     @abc.abstractmethod
-    def invalidate(self):
-        ...
+    def invalidate(self): ...
 
     def wrap(self, key: CacheKey, ttl: Optional[float] = None):
         """Wrapper to use memoizer as function/method decorator."""
