@@ -663,7 +663,9 @@ class AggregatorBatchJobs(BatchJobs):
 
     def create_job(
         self,
+        *,
         user_id: str,
+        user: User,
         process: dict,
         api_version: str,
         metadata: dict,
