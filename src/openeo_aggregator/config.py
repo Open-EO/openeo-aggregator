@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Protocol, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
@@ -28,6 +28,14 @@ STREAM_CHUNK_SIZE_DEFAULT = 10 * 1024
 
 class ConfigException(ValueError):
     pass
+
+
+class JobOptionsUpdater(Protocol):
+    """API for `job_options_update` config (callable)"""
+
+    def __call__(self, job_options: dict, backend_id: str) -> dict:
+        """Return updated job options dict"""
+        ...
 
 
 @attrs.frozen(kw_only=True)
@@ -59,6 +67,8 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     memoizer: Dict = attrs.Factory(lambda: {"type": "dict"})
 
     zk_memoizer_tracking: bool = smart_bool(os.environ.get("OPENEO_AGGREGATOR_ZK_MEMOIZER_TRACKING"))
+
+    job_options_update: Optional[JobOptionsUpdater] = None
 
 
 # Internal singleton

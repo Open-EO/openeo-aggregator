@@ -717,10 +717,15 @@ class AggregatorBatchJobs(BatchJobs):
             job_options=job_options,
         )
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
+
         if job_options:
             additional = {k: v for k, v in job_options.items() if not k.startswith("_agg_")}
         else:
             additional = None
+
+        if get_backend_config().job_options_update:
+            # Allow fine-tuning job options through config
+            additional = get_backend_config().job_options_update(job_options=additional, backend_id=backend_id)
 
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), con.override(
