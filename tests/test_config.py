@@ -1,20 +1,6 @@
-import textwrap
-
 import pytest
 
 from openeo_aggregator.config import AggregatorBackendConfig
-
-
-def _get_config_content(config_var_name: str = "config"):
-    return textwrap.dedent(
-        f"""
-        from openeo_aggregator.config import AggregatorConfig
-        {config_var_name} = AggregatorConfig(
-            config_source=__file__,
-            test_dummy="bob",
-        )
-        """
-    )
 
 
 def test_config_defaults():

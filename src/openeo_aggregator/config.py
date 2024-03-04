@@ -1,15 +1,13 @@
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig
 from openeo_driver.config.load import ConfigGetter
 from openeo_driver.server import build_backend_deploy_metadata
-from openeo_driver.users.oidc import OidcProvider
-from openeo_driver.utils import dict_item, smart_bool
+from openeo_driver.utils import smart_bool
 
 import openeo_aggregator.about
 
@@ -30,11 +28,6 @@ STREAM_CHUNK_SIZE_DEFAULT = 10 * 1024
 
 class ConfigException(ValueError):
     pass
-
-
-class AggregatorConfig(dict):
-    # TODO #112 Remove this empty shell
-    config_source = dict_item()
 
 
 @attrs.frozen(kw_only=True)
