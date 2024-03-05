@@ -16,7 +16,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Remove deprecated `AggregatorConfig` fields: `aggregator_backends`, `partitioned_job_tracking`,
   `zookeeper_prefix`, `memoizer` ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
-- Remove `AggregatorConfig` usage (both in `src` and `tests`) ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
+- Remove `AggregatorConfig` usage (both in `src` and `tests`). Remove support for `OPENEO_AGGREGATOR_CONFIG` based configuration ([#112](https://github.com/Open-EO/openeo-aggregator/issues/112))
 
 ## [0.26.0]
 

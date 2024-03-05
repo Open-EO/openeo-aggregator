@@ -65,10 +65,11 @@ The production docker based run for examples uses
 ### Application/Flask config
 
 The openEO-Aggregator specific configuration,
-is grouped by a `AggregatorConfig` container object.
+is grouped by an `AggregatorBackendConfig` container object
+(subclass of `OpenEoBackendConfig` as defined in the `openeo-python-driver` framework project).
 The most important config value is `aggregator_backends`, which
 defines the backends to "aggregate".
-See `config.py` for more details and other available configuration options.
+See `src/openeo_aggregator/config.py` for more details and other available configuration options.
 
 The `conf` folder contains config files for the dev and production
 variant of this application config:
@@ -76,12 +77,12 @@ variant of this application config:
 - `conf/aggregator.dev.py`
 - `conf/aggregator.prod.py`
 
-Use the env var `OPENEO_AGGREGATOR_CONFIG` to point to the desired config path.
+Use the env var `OPENEO_BACKEND_CONFIG` to point to the desired config path.
 By default, `conf/aggregator.dummy.py` is loaded.
 
 For example, when using the Docker image, add something like this
 
-    -e OPENEO_AGGREGATOR_CONFIG=/home/openeo/aggregator/conf/aggregator.dev.py
+    -e OPENEO_BACKEND_CONFIG=/home/openeo/aggregator/conf/aggregator.dev.py
 
 Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
 at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
