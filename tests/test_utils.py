@@ -13,6 +13,7 @@ from openeo_aggregator.utils import (
     drop_dict_keys,
     is_whitelisted,
     normalize_issuer_url,
+    string_or_regex_match,
     strip_join,
     subdict,
     timestamp_to_rfc3339,
@@ -343,3 +344,22 @@ class TestAttrStatsProxy:
         assert foo.meh(6) == 12
 
         assert foo.stats == {"bar": 1}
+
+
+def test_string_or_regex_match_str():
+    assert string_or_regex_match("foo", "foo") is True
+    assert string_or_regex_match("foo", "bar") is False
+
+
+def test_string_or_regex_match_regex():
+    assert string_or_regex_match(re.compile("(foo|bar)"), "foo") is True
+    assert string_or_regex_match(re.compile("(foo|ba+r)"), "baaar") is True
+    assert string_or_regex_match(re.compile("(foo|bar)"), "meh") is False
+    assert string_or_regex_match(re.compile("(foo|bar)"), "foobar") is False
+    assert string_or_regex_match(re.compile("(foo|bar).*"), "foozuu") is True
+    assert string_or_regex_match(re.compile(".*(foo|bar)"), "meebar") is True
+
+
+def test_string_or_regex_match_invalid():
+    with pytest.raises(TypeError, match=re.escape("Invalid pattern [1, 2, 3]")):
+        string_or_regex_match([1, 2, 3], "foo")

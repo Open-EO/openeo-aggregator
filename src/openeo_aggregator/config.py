@@ -59,7 +59,22 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     connections_cache_ttl: float = 5 * 60.0
 
     # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
+    # TODO: remove this deprecated field
     collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
+
+    # Allow list for collection ids to cover with the aggregator.
+    # By default (value `None`): support union of all upstream collections.
+    # To enable a real allow list, use a list of items as illustrated:
+    #       [
+    #           # Regular string: match exactly
+    #           "COPERNICUS_30",
+    #           # Regex pattern object: match collection id with regex (`fullmatch` mode)
+    #           re.compile(r"CGLS_.*"),
+    #           # Dict: match collection id (again as string or with regex pattern)
+    #           # and additionally only consider specific backends by id (per `aggregator_backends` config)
+    #           {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["b2"]},
+    #       ]
+    collection_allow_list: Optional[List[Union[str, re.Pattern, dict]]] = None
 
     zookeeper_prefix: str = "/openeo-aggregator/"
 

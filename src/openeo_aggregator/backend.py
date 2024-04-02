@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import contextlib
+import dataclasses
 import datetime
 import functools
 import logging
@@ -106,6 +109,7 @@ from openeo_aggregator.utils import (
     dict_merge,
     is_whitelisted,
     normalize_issuer_url,
+    string_or_regex_match,
     subdict,
 )
 
@@ -139,6 +143,54 @@ class _InternalCollectionMetadata:
         return cls(data=data)
 
 
+@dataclasses.dataclass(frozen=True)
+class CollectionAllowItem:
+    """
+    Item in the collection allow list.
+    At least contains a collection id (string or regex pattern)
+    and optionally a list of allowed backends.
+    """
+
+    collection_id: Union[str, re.Pattern]
+    allowed_backends: Optional[List[str]] = None
+    # TODO: support deny list too?
+
+    @staticmethod
+    def parse(item: Union[str, re.Pattern, dict]) -> CollectionAllowItem:
+        """Parse given item data"""
+        if isinstance(item, (str, re.Pattern)):
+            return CollectionAllowItem(collection_id=item)
+        elif isinstance(item, dict):
+            return CollectionAllowItem(**item)
+        else:
+            raise TypeError(f"Invalid item type {type(item)}")
+
+    def match(self, collection_id: str, backend_id: str) -> bool:
+        """Check if given collection/backend pair matches this item"""
+        collection_ok = string_or_regex_match(pattern=self.collection_id, value=collection_id)
+        backend_ok = self.allowed_backends is None or backend_id in self.allowed_backends
+        return collection_ok and backend_ok
+
+
+class CollectionAllowList:
+    """Allow list for collections, where filtering is based on collection id and (optionally) backend id."""
+
+    def __init__(self, items: List[Union[str, re.Pattern, dict]]):
+        """
+        :param items: list of allow list items, where each item can be:
+            - string (collection id)
+            - regex pattern for collection id
+            - dict with:
+                - required key "collection_id" (string or regex)
+                - optional "allowed_backends": list of backends to consider for this collection
+        """
+        self.items: List[CollectionAllowItem] = [CollectionAllowItem.parse(item) for item in items]
+
+    def is_allowed(self, collection_id: str, backend_id: str) -> bool:
+        """Check if given collection is allowed"""
+        return any(item.match(collection_id=collection_id, backend_id=backend_id) for item in self.items)
+
+
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
@@ -161,7 +213,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         """
         # Group collection metadata by hierarchically: collection id -> backend id -> metadata
         grouped = defaultdict(dict)
-        collection_whitelist: Optional[List[Union[str, re.Pattern]]] = get_backend_config().collection_whitelist
+        # TODO: remove deprecated collection_whitelist usage
+        collection_allow_list = get_backend_config().collection_allow_list or get_backend_config().collection_whitelist
+        if collection_allow_list:
+            collection_allow_list = CollectionAllowList(collection_allow_list)
 
         with TimingLogger(title="Collect collection metadata from all backends", logger=_log):
             for con in self.backends:
@@ -175,8 +230,8 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 for collection_metadata in backend_collections:
                     if "id" in collection_metadata:
                         collection_id = collection_metadata["id"]
-                        if collection_whitelist:
-                            if is_whitelisted(collection_id, whitelist=collection_whitelist, on_empty=True):
+                        if collection_allow_list:
+                            if collection_allow_list.is_allowed(collection_id=collection_id, backend_id=con.id):
                                 _log.debug(f"Preserving whitelisted {collection_id=} from {con.id=}")
                             else:
                                 _log.debug(f"Skipping non-whitelisted {collection_id=} from {con.id=}")

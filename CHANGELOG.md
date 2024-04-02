@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.30.0]
+
+- Add backend-aware collection allow-list option ([#139](https://github.com/Open-EO/openeo-aggregator/issues/139))
+
 ## [0.29.0]
 
 - Add config option to inject job options before sending a job to upstream back-end ([#135](https://github.com/Open-EO/openeo-aggregator/issues/135))

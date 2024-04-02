@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import re
 
 import pytest
 from openeo.rest import OpenEoApiError, OpenEoApiPlainError, OpenEoRestError
@@ -22,6 +23,7 @@ from openeo_aggregator.backend import (
     AggregatorCollectionCatalog,
     AggregatorProcessing,
     AggregatorSecondaryServices,
+    CollectionAllowList,
     JobIdMapping,
     _InternalCollectionMetadata,
 )
@@ -864,6 +866,36 @@ class TestInternalCollectionMetadata:
             ("S1", ["b1", "b2"]),
             ("S2", ["b1", "b3"]),
         ]
+
+
+class TestCollectionAllowList:
+    def test_basic(self):
+        allow_list = CollectionAllowList(
+            [
+                "foo",
+                re.compile("ba+r"),
+            ]
+        )
+        assert allow_list.is_allowed("foo", "b1") is True
+        assert allow_list.is_allowed("bar", "b1") is True
+        assert allow_list.is_allowed("baaaaar", "b1") is True
+        assert allow_list.is_allowed("br", "b1") is False
+
+    def test_allowed_backends(self):
+        allow_list = CollectionAllowList(
+            [
+                "foo",
+                {"collection_id": "S2", "allowed_backends": ["b1"]},
+            ]
+        )
+        assert allow_list.is_allowed("foo", "b1") is True
+        assert allow_list.is_allowed("foo", "b2") is True
+        assert allow_list.is_allowed("S2", "b1") is True
+        assert allow_list.is_allowed("S2", "b2") is False
+
+    def test_allowed_backends_field_typo(self):
+        with pytest.raises(TypeError, match="unexpected keyword argument 'backends'"):
+            _ = CollectionAllowList([{"collection_id": "S2", "backends": ["b1"]}])
 
 
 @pytest.mark.usefixtures("flask_app")  # Automatically enter flask app context for `url_for` to work

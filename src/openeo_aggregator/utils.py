@@ -314,3 +314,17 @@ class AttrStatsProxy:
         if name in self.to_track:
             self.stats[name] = self.stats.get(name, 0) + 1
         return getattr(self.target, name)
+
+
+def string_or_regex_match(pattern: Union[str, re.Pattern], value: str) -> bool:
+    """
+    Check if given value matches given pattern.
+    If pattern is given as string, it must be an exact match.
+    If pattern is given as regex, it must match the full value.
+    """
+    if isinstance(pattern, str):
+        return pattern == value
+    elif isinstance(pattern, re.Pattern):
+        return bool(pattern.fullmatch(value))
+    else:
+        raise TypeError(f"Invalid pattern {pattern}")

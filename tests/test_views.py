@@ -292,7 +292,9 @@ class TestCatalog:
             ([re.compile(r".*2")], {"S2"}),
         ],
     )
-    def test_collections_whitelist(self, api100, requests_mock, backend1, backend2, collection_whitelist, expected):
+    def test_collections_whitelist_legacy(
+        self, api100, requests_mock, backend1, backend2, collection_whitelist, expected
+    ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}, {"id": "S3"}]})
         for cid in ["S1", "S2", "S3"]:
             requests_mock.get(backend1 + f"/collections/{cid}", json={"id": cid, "title": f"b1 {cid}"})
@@ -318,6 +320,119 @@ class TestCatalog:
 
             res = api100.get("/collections/S999")
             res.assert_error(404, "CollectionNotFound")
+
+    @pytest.mark.parametrize(
+        ["collection_allow_list", "expected"],
+        [
+            (None, {"S1", "S2", "S3", "S4"}),
+            ([], {"S1", "S2", "S3", "S4"}),
+            (["S2"], {"S2"}),
+            (["S4"], {"S4"}),
+            (["S2", "S3"], {"S2", "S3"}),
+            (["S2", "S999"], {"S2"}),
+            (["S999"], set()),
+            ([re.compile(r"S[23]")], {"S2", "S3"}),
+            ([re.compile(r"S")], set()),
+            ([re.compile(r"S.*")], {"S1", "S2", "S3", "S4"}),
+            ([re.compile(r"S2.*")], {"S2"}),
+            ([re.compile(r".*2")], {"S2"}),
+        ],
+    )
+    def test_collections_allow_list_simple(
+        self, api100, requests_mock, backend1, backend2, collection_allow_list, expected
+    ):
+        for backend, cids in {
+            backend1: ["S1", "S2", "S3"],
+            backend2: ["S3", "S4"],
+        }.items():
+            requests_mock.get(backend + "/collections", json={"collections": [{"id": cid} for cid in cids]})
+            for cid in cids:
+                requests_mock.get(backend + f"/collections/{cid}", json={"id": cid, "title": f"{backend} {cid}"})
+
+        with config_overrides(collection_allow_list=collection_allow_list):
+            res = api100.get("/collections").assert_status_code(200).json
+            assert set(c["id"] for c in res["collections"]) == expected
+
+            res = api100.get("/collections/S2")
+            if "S2" in expected:
+                assert res.assert_status_code(200).json == DictSubSet(
+                    {
+                        "id": "S2",
+                        "title": f"{backend1} S2",
+                        "summaries": DictSubSet({"federation:backends": ["b1"]}),
+                    }
+                )
+            else:
+                res.assert_error(404, "CollectionNotFound")
+
+            res = api100.get("/collections/S3")
+            if "S3" in expected:
+                assert res.assert_status_code(200).json == DictSubSet(
+                    {
+                        "id": "S3",
+                        "title": f"{backend1} S3",
+                        "summaries": DictSubSet({"federation:backends": ["b1", "b2"]}),
+                    }
+                )
+            else:
+                res.assert_error(404, "CollectionNotFound")
+
+            res = api100.get("/collections/S999")
+            res.assert_error(404, "CollectionNotFound")
+
+    @pytest.mark.parametrize(
+        ["collection_allow_list", "expected"],
+        [
+            (
+                ["S2"],
+                {"S2": {"id": "S2", "summaries": DictSubSet({"federation:backends": ["b1", "b2"]})}},
+            ),
+            (
+                ["S2", {"collection_id": "S3"}],
+                {
+                    "S2": {"id": "S2", "summaries": DictSubSet({"federation:backends": ["b1", "b2"]})},
+                    "S3": {"id": "S3", "summaries": DictSubSet({"federation:backends": ["b1", "b2"]})},
+                },
+            ),
+            (
+                ["S2", {"collection_id": "S3", "allowed_backends": ["b2"]}],
+                {
+                    "S2": {"id": "S2", "summaries": DictSubSet({"federation:backends": ["b1", "b2"]})},
+                    "S3": {"id": "S3", "summaries": DictSubSet({"federation:backends": ["b2"]})},
+                },
+            ),
+            (
+                [
+                    {"collection_id": "S3", "allowed_backends": ["b999"]},
+                    {"collection_id": "S3", "allowed_backends": ["b2"]},
+                ],
+                {
+                    "S3": {"id": "S3", "summaries": DictSubSet({"federation:backends": ["b2"]})},
+                },
+            ),
+        ],
+    )
+    def test_collections_allow_list_allowed_backend(
+        self, api100, requests_mock, backend1, backend2, collection_allow_list, expected
+    ):
+        for backend, cids in {
+            backend1: ["S1", "S2", "S3"],
+            backend2: ["S2", "S3", "S4"],
+        }.items():
+            requests_mock.get(backend + "/collections", json={"collections": [{"id": cid} for cid in cids]})
+            for cid in cids:
+                requests_mock.get(backend + f"/collections/{cid}", json={"id": cid})
+
+        with config_overrides(collection_allow_list=collection_allow_list):
+            res = api100.get("/collections").assert_status_code(200).json
+            assert set(c["id"] for c in res["collections"]) == set(expected.keys())
+
+            for cid in ["S1", "S2", "S3", "S4", "S999"]:
+                res = api100.get(f"/collections/{cid}")
+                if cid in expected:
+                    assert res.assert_status_code(200).json == DictSubSet(expected[cid])
+                else:
+                    res.assert_error(404, "CollectionNotFound")
 
 
 class TestAuthentication:
