@@ -58,10 +58,6 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     # TTL for connection caching.
     connections_cache_ttl: float = 5 * 60.0
 
-    # List of collection ids to cover with the aggregator (when None: support union of all upstream collections)
-    # TODO: remove this deprecated field
-    collection_whitelist: Optional[List[Union[str, re.Pattern]]] = None
-
     # Allow list for collection ids to cover with the aggregator.
     # By default (value `None`): support union of all upstream collections.
     # To enable a real allow list, use a list of items as illustrated:

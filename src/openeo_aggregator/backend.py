@@ -213,8 +213,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         """
         # Group collection metadata by hierarchically: collection id -> backend id -> metadata
         grouped = defaultdict(dict)
-        # TODO: remove deprecated collection_whitelist usage
-        collection_allow_list = get_backend_config().collection_allow_list or get_backend_config().collection_whitelist
+        collection_allow_list = get_backend_config().collection_allow_list
         if collection_allow_list:
             collection_allow_list = CollectionAllowList(collection_allow_list)
 
