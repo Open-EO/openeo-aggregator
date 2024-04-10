@@ -3,6 +3,7 @@ import logging
 import re
 
 import pytest
+from dirty_equals import IsPartialDict
 from openeo.rest import OpenEoApiError, OpenEoApiPlainError, OpenEoRestError
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
@@ -28,6 +29,7 @@ from openeo_aggregator.backend import (
     _InternalCollectionMetadata,
 )
 from openeo_aggregator.caching import DictMemoizer
+from openeo_aggregator.config import ProcessAllowed
 from openeo_aggregator.testing import clock_mock, config_overrides
 
 # TODO: "backend.py" should not really be authentication-aware, can we eliminate these constants
@@ -1817,7 +1819,7 @@ class TestServiceIdMapping:
 
 
 class TestAggregatorProcessing:
-    def test_get_process_registry(
+    def test_get_process_registry_basic(
         self,
         catalog,
         multi_backend_connection,
@@ -2027,4 +2029,89 @@ class TestAggregatorProcessing:
                 "examples": [],
                 "links": [],
             },
+        ]
+
+    def test_get_process_registry_allow_list_deny_experimental(
+        self,
+        catalog,
+        multi_backend_connection,
+        backend1,
+        backend2,
+        requests_mock,
+    ):
+        requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {"id": "mean", "parameters": []},
+                    {"id": "avg", "parameters": [], "experimental": True},
+                    {"id": "average", "parameters": []},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {"id": "mean", "parameters": []},
+                    {"id": "avg", "parameters": [], "experimental": True},
+                    {"id": "average", "parameters": [], "experimental": True},
+                ]
+            },
+        )
+
+        process_allowed: ProcessAllowed = lambda process_id, backend_id, experimental: not experimental
+        with config_overrides(process_allowed=process_allowed):
+            processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+            registry = processing.get_process_registry(api_version="1.0.0")
+
+        assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
+            IsPartialDict(**{"id": "average", "experimental": False, "federation:backends": ["b1"]}),
+            IsPartialDict(**{"id": "mean", "experimental": False, "federation:backends": ["b1", "b2"]}),
+        ]
+
+    def test_get_process_registry_allow_list_deny_by_backend(
+        self,
+        catalog,
+        multi_backend_connection,
+        backend1,
+        backend2,
+        requests_mock,
+    ):
+        requests_mock.get(
+            backend1 + "/processes",
+            json={
+                "processes": [
+                    {"id": "mean", "parameters": []},
+                    {"id": "avg", "parameters": []},
+                    {"id": "average", "parameters": []},
+                ]
+            },
+        )
+        requests_mock.get(
+            backend2 + "/processes",
+            json={
+                "processes": [
+                    {"id": "mean", "parameters": []},
+                    {"id": "avg", "parameters": []},
+                    {"id": "_experimental_foo", "parameters": []},
+                ]
+            },
+        )
+
+        def process_allowed(process_id: str, backend_id: str, experimental) -> bool:
+            return not any(
+                [
+                    (backend_id == "b1" and process_id.startswith("av")),
+                    (backend_id == "b2" and process_id.startswith("_")),
+                ]
+            )
+
+        with config_overrides(process_allowed=process_allowed):
+            processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
+            registry = processing.get_process_registry(api_version="1.0.0")
+
+        assert sorted(registry.get_specs(), key=lambda p: p["id"]) == [
+            IsPartialDict(**{"id": "avg", "federation:backends": ["b2"]}),
+            IsPartialDict(**{"id": "mean", "federation:backends": ["b1", "b2"]}),
         ]

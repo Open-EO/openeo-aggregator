@@ -38,6 +38,14 @@ class JobOptionsUpdater(Protocol):
         ...
 
 
+class ProcessAllowed(Protocol):
+    """API for a process allow/deny list, implemented as callable, based on process id, backend, experimental flag"""
+
+    def __call__(self, process_id: str, backend_id: str, experimental: bool) -> bool:
+        """Allow given process id (for given backend id, or experimental flag)?"""
+        ...
+
+
 @attrs.frozen(kw_only=True)
 class AggregatorBackendConfig(OpenEoBackendConfig):
 
@@ -71,6 +79,9 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     #           {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["b2"]},
     #       ]
     collection_allow_list: Optional[List[Union[str, re.Pattern, dict]]] = None
+
+    # Process allow list (as callable) for process ids to cover with the aggregator. Accept all by default.
+    process_allowed: ProcessAllowed = lambda process_id, backend_id, experimental: True
 
     zookeeper_prefix: str = "/openeo-aggregator/"
 

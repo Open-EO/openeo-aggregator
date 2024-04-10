@@ -73,6 +73,7 @@ from openeo_aggregator.config import (
     CONNECTION_TIMEOUT_JOB_LOGS,
     CONNECTION_TIMEOUT_JOB_START,
     CONNECTION_TIMEOUT_RESULT,
+    ProcessAllowed,
     get_backend_config,
 )
 from openeo_aggregator.connection import (
@@ -418,9 +419,14 @@ class AggregatorProcessing(Processing):
 
     def _get_merged_process_metadata(self) -> dict:
         processes_per_backend = {}
+        process_allowed: ProcessAllowed = get_backend_config().process_allowed
         for con in self.backends:
             try:
-                processes_per_backend[con.id] = {p["id"]: p for p in con.list_processes()}
+                processes_per_backend[con.id] = {
+                    p["id"]: p
+                    for p in con.list_processes()
+                    if process_allowed(process_id=p["id"], backend_id=con.id, experimental=p.get("experimental", False))
+                }
             except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
