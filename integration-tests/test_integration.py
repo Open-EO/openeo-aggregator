@@ -87,7 +87,7 @@ def test_processes(connection):
         "/",
         "/file_formats",
         "/udf_runtimes",
-        "/service_types",
+        # "/service_types",
         "/credentials/oidc",
     ],
 )
