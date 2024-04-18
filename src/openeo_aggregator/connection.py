@@ -125,6 +125,7 @@ class BackendConnection(Connection):
                 targets = [bp.id for bp in backend_providers if bp.get_issuer() == agg_provider.get_issuer()]
                 if targets:
                     pid_map[agg_provider.id] = targets[0]
+        _log.debug(f"_build_oidc_provider_map {pid_map=}")
         return pid_map
 
     def get_oidc_provider_map(self) -> Dict[str, str]:
