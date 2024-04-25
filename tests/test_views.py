@@ -1704,7 +1704,7 @@ class TestBatchJobs:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
 
         def post_jobs(request: requests.Request, context):
-            assert request.json() == {"process": {"process_graph": pg}} | expected
+            assert request.json() == {"process": {"process_graph": pg}, **expected}
             context.headers["Location"] = backend1 + "/jobs/th3j0b"
             context.headers["OpenEO-Identifier"] = "th3j0b"
             context.status_code = 201
