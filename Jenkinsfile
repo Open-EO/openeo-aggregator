@@ -5,7 +5,7 @@ pythonPipeline {
   package_name = 'openeo-aggregator'
   test_module_name = 'openeo_aggregator'
   wipeout_workspace = true
-  python_version = ["3.10"]
+  python_version = ["3.8"]
   extras_require = 'dev'
   wheel_repo = 'python-openeo'
   upload_dev_wheels = false
