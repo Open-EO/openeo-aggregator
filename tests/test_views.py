@@ -1690,6 +1690,38 @@ class TestBatchJobs:
         assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
 
     @pytest.mark.parametrize(
+        ["job_options_update", "expected"],
+        [
+            (None, {}),
+            (
+                lambda job_options, backend_id: {**(job_options or {}), **{"beverage": f"fizzy{backend_id}"}},
+                {"job_options": {"beverage": "fizzyb1"}},
+            ),
+        ],
+    )
+    def test_create_job_options_update_start_empty(self, api100, requests_mock, backend1, job_options_update, expected):
+        """Test job_options_update handling when there are no job options yet"""
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+
+        def post_jobs(request: requests.Request, context):
+            assert request.json() == {"process": {"process_graph": pg}} | expected
+            context.headers["Location"] = backend1 + "/jobs/th3j0b"
+            context.headers["OpenEO-Identifier"] = "th3j0b"
+            context.status_code = 201
+
+        requests_mock.post(backend1 + "/jobs", text=post_jobs)
+
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        with config_overrides(job_options_update=job_options_update):
+            res = api100.post(
+                "/jobs",
+                json={"process": {"process_graph": pg}},
+            ).assert_status_code(201)
+        assert res.headers["Location"] == "http://oeoa.test/openeo/1.0.0/jobs/b1-th3j0b"
+        assert res.headers["OpenEO-Identifier"] == "b1-th3j0b"
+
+    @pytest.mark.parametrize(
         "body",
         [
             {"foo": "meh"},

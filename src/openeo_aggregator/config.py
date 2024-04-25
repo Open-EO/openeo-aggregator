@@ -33,7 +33,7 @@ class ConfigException(ValueError):
 class JobOptionsUpdater(Protocol):
     """API for `job_options_update` config (callable)"""
 
-    def __call__(self, job_options: dict, backend_id: str) -> dict:
+    def __call__(self, job_options: Union[dict, None], backend_id: str) -> Union[dict, None]:
         """Return updated job options dict"""
         ...
 

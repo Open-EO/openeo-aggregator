@@ -18,7 +18,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [0.29.0]
 
-- Add config option to inject job options before sending a job to upstream back-end ([#135](https://github.com/Open-EO/openeo-aggregator/issues/135))
+- Add config option `job_options_update` to inject job options before sending a job to upstream back-end ([#135](https://github.com/Open-EO/openeo-aggregator/issues/135))
 
 ## [0.28.0]
 
