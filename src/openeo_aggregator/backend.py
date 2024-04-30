@@ -25,6 +25,8 @@ from typing import (
 
 import flask
 import openeo
+import openeo.rest
+import openeo_driver.errors
 import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import (
@@ -388,6 +390,30 @@ class JobIdMapping:
         raise JobNotFoundException(job_id=aggregator_job_id)
 
 
+def pass_through_api_error(error: openeo.rest.OpenEoApiError) -> openeo_driver.errors.OpenEOApiException:
+    """
+    Pass through an openEO API error from the upstream back-end to the end user.
+
+    Converts:
+    - from a given `openeo.rest.OpenEoApiError` exception, coming from upstream back-end,
+      and received by aggregator (acting as openEO client).
+    - to an `openeo_driver.errors.OpenEOApiException` to be thrown from aggregator (web app) logic,
+      which will automatically be delivered by openeo_driver to end-user as openEO compliant error response.
+    """
+    message = error.message
+    if error.id:
+        # The current (aggregator) request's id will automatically be added as reference/id in error response,
+        # but we don't want to lose original upstream reference, so we add it to the message.
+        message += f" (Upstream ref: {error.id!r})"
+
+    return openeo_driver.errors.OpenEOApiException(
+        message=message,
+        code=error.code,
+        status_code=error.http_status_code,
+        url=error.url,
+    )
+
+
 class AggregatorProcessing(Processing):
     def __init__(
         self,
@@ -568,9 +594,14 @@ class AggregatorProcessing(Processing):
                     timeout=CONNECTION_TIMEOUT_RESULT,
                     expected_status=200,
                 )
+            except openeo.rest.OpenEoApiError as e:
+                _log.error(f"Sync processing on {con.id!r} failed with API error {e!r}", exc_info=True)
+                raise pass_through_api_error(e)
             except Exception as e:
-                _log.error(f"Failed to process synchronously on backend {con.id}: {e!r}", exc_info=True)
-                raise OpenEOApiException(message=f"Failed to process synchronously on backend {con.id}: {e!r}")
+                _log.error(f"Sync processing on {con.id!r} failed with unexpected error {e=}", exc_info=True)
+                raise openeo_driver.errors.OpenEOApiException(
+                    code="Internal", message=f"Synchronous processing failed on {con.id!r} with {e!r}"
+                )
 
         return streaming_flask_response(backend_response, chunk_size=get_backend_config().streaming_chunk_size)
 
@@ -905,12 +936,11 @@ class AggregatorBatchJobs(BatchJobs):
         """Context manager to translate job related errors, where necessary"""
         try:
             yield
-        except OpenEoApiError as e:
+        except openeo.rest.OpenEoApiError as e:
             if e.code == JobNotFoundException.code:
                 raise JobNotFoundException(job_id=job_id)
-            elif e.code == JobNotFinishedException.code:
-                raise JobNotFinishedException(message=e.message)
-            raise
+            # By default, pass through API errors.
+            raise pass_through_api_error(e)
 
     def get_job_info(self, job_id: str, user_id: str) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)

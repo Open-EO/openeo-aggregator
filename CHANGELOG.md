@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+
+## 0.33.0
+
+- Pass through original API errors on synchronous or batch processing ([#121](https://github.com/Open-EO/openeo-aggregator/issues/121))
+
 ## 0.32.0
 
 - Add config option `process_allowed` to include/exclude processes ([#137](https://github.com/Open-EO/openeo-aggregator/issues/137))

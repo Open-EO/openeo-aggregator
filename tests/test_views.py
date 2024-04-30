@@ -2,6 +2,7 @@ import logging
 import re
 from typing import List, Tuple
 
+import dirty_equals
 import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
@@ -11,6 +12,7 @@ from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
     JobNotFinishedException,
     JobNotFoundException,
+    PaymentRequiredException,
     ProcessGraphInvalidException,
     ProcessGraphMissingException,
     ProcessGraphNotFoundException,
@@ -842,13 +844,33 @@ class TestProcessing:
         assert res.json == 8
 
     @pytest.mark.parametrize("status_code", [201, 302, 404, 500])
-    def test_result_basic_math_error(self, api100, requests_mock, backend1, backend2, status_code):
+    def test_result_basic_math_raw_error(self, api100, requests_mock, backend1, backend2, status_code):
         requests_mock.post(backend1 + "/result", status_code=status_code, text="nope")
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         pg = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
         request = {"process": {"process_graph": pg}}
         res = api100.post("/result", json=request)
-        res.assert_error(500, "Internal", message="Failed to process synchronously on backend b1")
+        res.assert_error(500, "Internal", message="Synchronous processing failed on 'b1'")
+
+    def test_result_basic_math_pass_through_api_error(self, api100, requests_mock, backend1, backend2):
+        requests_mock.post(
+            backend1 + "/result",
+            status_code=PaymentRequiredException.status_code,
+            json=PaymentRequiredException(
+                message="You do not have sufficient credits.", id="b1r-123", url="https://payhere.test/"
+            ).to_dict(),
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        pg = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+        request = {"process": {"process_graph": pg}}
+        res = api100.post("/result", json=request)
+        res.assert_error(
+            status_code=402,
+            error_code="PaymentRequired",
+            message="You do not have sufficient credits. (Upstream ref: 'b1r-123')",
+        )
+        assert res.json["id"] == dirty_equals.IsStr(regex=f"^r-[0-9a-f]+$")
+        assert res.json["url"] == "https://payhere.test/"
 
     @pytest.mark.parametrize(["chunk_size"], [(16,), (128,)])
     def test_result_large_response_streaming(self, chunk_size, requests_mock, backend1, backend2):
@@ -1931,6 +1953,24 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post("/jobs/nope-and-nope/results")
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
+
+    def test_start_job_error_pass_through_api_error(self, api100, requests_mock, backend1):
+        job_id = "job123"
+        m = requests_mock.get(
+            backend1 + f"/jobs/{job_id}",
+            status_code=PaymentRequiredException.status_code,
+            json=PaymentRequiredException(
+                message="You do not have sufficient credits.", id="b1r-123", url="https://payhere.test/"
+            ).to_dict(),
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.post(f"/jobs/b1-{job_id}/results")
+        res.assert_error(
+            402, "PaymentRequired", message="You do not have sufficient credits. (Upstream ref: 'b1r-123')"
+        )
+        assert res.json["id"] == dirty_equals.IsStr(regex=f"^r-[0-9a-f]+$")
+        assert res.json["url"] == "https://payhere.test/"
+        assert m.call_count == 1
 
     def test_cancel_job(self, api100, requests_mock, backend1):
         m = requests_mock.delete(backend1 + "/jobs/th3j0b/results", status_code=204)
