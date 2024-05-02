@@ -1416,6 +1416,80 @@ class TestProcessing:
         }
         assert validation_mock.call_count == 1
 
+    @pytest.mark.parametrize(
+        ["orig_post_data", "job_options_update", "expected_post_data"],
+        [
+            # No job options in original and none added
+            (
+                {"process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}}},
+                None,
+                {"process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}}},
+            ),
+            # No job options in original, but some added
+            (
+                {"process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}}},
+                lambda job_options, backend_id: {**(job_options or {}), **{"beverage": f"fizzy{backend_id}"}},
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "job_options": {"beverage": "fizzyb1"},
+                },
+            ),
+            # Merge original and extra job options
+            (
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "job_options": {"side": "salad", "color": "green"},
+                },
+                lambda job_options, backend_id: {
+                    **(job_options or {}),
+                    **{"beverage": f"fizzy{backend_id}", "color": "blue"},
+                },
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "job_options": {"side": "salad", "beverage": "fizzyb1", "color": "blue"},
+                },
+            ),
+            # Handling of job options at top level
+            # TODO: keep at top level?
+            (
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "_x_preferred_speed": "slow",
+                },
+                None,
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "job_options": {"_x_preferred_speed": "slow"},
+                },
+            ),
+            (
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "_x_preferred_speed": "slow",
+                },
+                lambda job_options, backend_id: {**(job_options or {}), **{"beverage": f"fizzy{backend_id}"}},
+                {
+                    "process": {"process_graph": {"fo": {"process_id": "fo", "arguments": {}, "result": True}}},
+                    "job_options": {"_x_preferred_speed": "slow", "beverage": "fizzyb1"},
+                },
+            ),
+        ],
+    )
+    def test_sync_processing_with_job_options(
+        self, api100, requests_mock, backend1, backend2, orig_post_data, job_options_update, expected_post_data
+    ):
+        def post_result(request: requests.Request, context):
+            post_data = request.json()
+            assert post_data == expected_post_data
+            context.headers["Content-Type"] = "application/json"
+            return 123
+
+        requests_mock.post(backend1 + "/result", json=post_result)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        with config_overrides(job_options_update=job_options_update):
+            res = api100.post("/result", json=orig_post_data).assert_status_code(200)
+        assert res.json == 123
+
 
 class TestBatchJobs:
     def test_list_jobs_no_auth(self, api100):

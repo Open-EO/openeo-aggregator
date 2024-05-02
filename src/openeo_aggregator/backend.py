@@ -583,13 +583,26 @@ class AggregatorProcessing(Processing):
 
         # Send process graph to backend
         con = self.backends.get_connection(backend_id=backend_id)
-        request_pg = {"process": {"process_graph": process_graph}}
+        post_data = {"process": {"process_graph": process_graph}}
+
+        # TODO: assumption here that job_options for sync requests are available through EvalEnv. Better options?
+        job_options = env.get("job_options")
+        if get_backend_config().job_options_update:
+            # Allow fine-tuning job options through config
+            job_options = get_backend_config().job_options_update(job_options=job_options, backend_id=backend_id)
+
+        if job_options:
+            # TODO: this (re)groups job options under "job_options" key, while original options might have been at root level.
+            #       How should this be handled?
+            post_data["job_options"] = job_options
+
+        # TODO: inject job options here as well
         timing_logger = TimingLogger(title=f"Evaluate process graph on backend {backend_id}", logger=_log.info)
         with con.authenticated_from_request(flask.request), timing_logger:
             try:
                 backend_response = con.post(
                     path="/result",
-                    json=request_pg,
+                    json=post_data,
                     stream=True,
                     timeout=CONNECTION_TIMEOUT_RESULT,
                     expected_status=200,
