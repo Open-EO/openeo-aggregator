@@ -590,10 +590,12 @@ class AggregatorProcessing(Processing):
         if get_backend_config().job_options_update:
             # Allow fine-tuning job options through config
             job_options = get_backend_config().job_options_update(job_options=job_options, backend_id=backend_id)
+            _log.debug(f"AggregatorProcessing.evaluate: job_options_update produced {job_options=}")
 
         if job_options:
             # TODO: this (re)groups job options under "job_options" key, while original options might have been at root level.
             #       How should this be handled?
+            _log.info(f"AggregatorProcessing.evaluate: adding {job_options=} to sync processing request")
             post_data["job_options"] = job_options
 
         # TODO: inject job options here as well
