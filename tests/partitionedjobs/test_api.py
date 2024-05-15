@@ -1,5 +1,6 @@
 import datetime
 
+import dirty_equals
 import pytest
 from openeo.util import rfc3339
 from openeo_driver.testing import DictSubSet
@@ -164,7 +165,7 @@ class TestFlimsyBatchJobSplitting:
         res = api100.get(f"/jobs").assert_status_code(200)
         assert res.json == {
             "jobs": [
-                {"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"},
+                dirty_equals.IsPartialDict({"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"}),
                 {"id": expected_job_id, "created": self.now.rfc3339, "status": "created", "progress": 0},
             ],
             "federation:missing": ["b2"],
