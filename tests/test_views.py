@@ -424,7 +424,7 @@ class TestAuthEntitlementCheck:
             403, "PermissionsInsufficient", message="An EGI account is required for using openEO Platform."
         )
         warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
-        assert re.search(r"internal_auth_data.*authentication_method.*basic", warnings)
+        assert re.search(r"internal_auth_data.*authentication_method.*Basic", warnings)
 
     def test_oidc_no_entitlement_data(self, api100_with_entitlement_check, requests_mock, caplog):
         def get_userinfo(request: requests.Request, context):
