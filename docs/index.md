@@ -5,7 +5,21 @@ The openEO Aggregator is a software component to group multiple openEO back-ends
 into a unified, federated openEO processing platform.
 
 
-## Background: openEO
+```{mermaid}
+flowchart LR
+
+U("👤 User") --> A("openEO Aggregator")
+
+subgraph federation ["Federated openEO Processing"]
+
+    A --> B1("openEO Back-end 1")
+    A --> B2("openEO Back-end 2")
+    A --> B3("openEO Back-end 3")
+end
+```
+
+
+## Core openEO API
 
 The [openEO API](https://openeo.org/) is an open, standardized API for Earth Observation data processing,
 connecting openEO-capable clients at the user side with openEO-capable back-ends at the (cloud) processing side.
@@ -33,3 +47,12 @@ including, but not limited to:
 - unified listing of batch jobs of a user across multiple back-ends
 - dispatching of simple processing requests (both for synchronous processing and batch jobs) to the appropriate back-end
 - handling of more complex processing requests that require data from multiple back-ends
+
+
+
+```{toctree}
+:hidden:
+pages/installation.md
+pages/configuration.md
+pages/usage.md
+```
