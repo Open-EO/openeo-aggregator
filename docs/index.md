@@ -51,8 +51,16 @@ including, but not limited to:
 
 
 ```{toctree}
+:caption: Documentation
 :hidden:
 pages/installation.md
 pages/configuration.md
 pages/usage.md
+```
+
+```{toctree}
+:caption: Development
+:hidden:
+pages/changelog
+pages/license
 ```
