@@ -62,5 +62,7 @@ pages/usage.md
 :caption: Development
 :hidden:
 pages/changelog
+GitHub <https://github.com/Open-EO/openeo-aggregator>
+openEO.org <https://openeo.org/>
 pages/license
 ```
