@@ -6,6 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start changelog -->
 
+## 0.35.1
+
+- Add `aggregator.dummy.py` to wheel ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
+
 ## 0.35.0
 
 - Start with `openeo-aggregator` docs, hosted with GitHub Pages at https://open-eo.github.io/openeo-aggregator/ ([#142](https://github.com/Open-EO/openeo-aggregator/issues/142))

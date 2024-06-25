@@ -28,6 +28,7 @@ setup(
                 "CHANGELOG.md",
                 "conf/gunicorn.dev.py",
                 "conf/gunicorn.prod.py",
+                "conf/aggregator.dummy.py",
             ],
         ),
     ],
