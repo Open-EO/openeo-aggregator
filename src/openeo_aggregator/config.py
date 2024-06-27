@@ -78,6 +78,12 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
     #           # and additionally only consider specific backends by id (per `aggregator_backends` config)
     #           {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["b2"]},
     #       ]
+    # A collection+backend combo will be included if any item matches.
+    # This means that if you want to exclude one backend from a particular collection,
+    # while still keeping all other collections (like the default behavior),
+    # you need to add an item that matches everything but that collection, e.g.:
+    #     {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["b2"]},
+    #     re.compile("(?!SENTINEL2_L2A).*"),
     collection_allow_list: Optional[List[Union[str, re.Pattern, dict]]] = None
 
     # Process allow list (as callable) for process ids to cover with the aggregator. Accept all by default.

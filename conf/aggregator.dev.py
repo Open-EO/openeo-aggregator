@@ -1,3 +1,5 @@
+import re
+
 from openeo_driver.users.oidc import OidcProvider
 
 from openeo_aggregator.config import AggregatorBackendConfig
@@ -55,6 +57,12 @@ config = AggregatorBackendConfig(
         # Sentinel Hub OpenEO by Sinergise
         "sentinelhub": "https://openeo.sentinel-hub.com/production/",
     },
+    collection_allow_list=[
+        # Special case: only consider Terrascope for SENTINEL2_L2A
+        {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["vito"]},
+        # Still allow all other collections
+        re.compile("(?!SENTINEL2_L2A).*"),
+    ],
     zookeeper_prefix="/openeo/aggregator-dev/",
     partitioned_job_tracking={
         "zk_hosts": ZK_HOSTS,

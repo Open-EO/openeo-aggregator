@@ -178,6 +178,15 @@ class CollectionAllowItem:
 class CollectionAllowList:
     """Allow list for collections, where filtering is based on collection id and (optionally) backend id."""
 
+    # TODO: The use case where one wants to exclude one backend from a particular collection,
+    #       while still keeping all other collections like the default behaviour
+    #       is a bit cumbersome and error-prone, e.g.:
+    #           collection_allow_list=[
+    #               {"collection_id": "SENTINEL2_L2A", "allowed_backends": ["vito"]},
+    #               re.compile("(?!SENTINEL2_L2A).*"),
+    #           ],
+    #       That last "catch-all-but-one" rule is not very intuitive and easy to get wrong.
+
     def __init__(self, items: List[Union[str, re.Pattern, dict]]):
         """
         :param items: list of allow list items, where each item can be:

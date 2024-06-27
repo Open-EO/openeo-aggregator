@@ -390,6 +390,52 @@ class TestCatalog:
                 else:
                     res.assert_error(404, "CollectionNotFound")
 
+    def test_collections_allow_list_deny_on_one_keep_the_rest(
+        self,
+        api100,
+        requests_mock,
+        backend1,
+        backend2,
+    ):
+        """
+        exclude one backend for a particular collection and keep the rest
+        """
+        for backend, cids in {
+            backend1: ["S1", "S2", "S3"],
+            backend2: ["S2", "S3"],
+        }.items():
+            requests_mock.get(backend + "/collections", json={"collections": [{"id": cid} for cid in cids]})
+            for cid in cids:
+                requests_mock.get(backend + f"/collections/{cid}", json={"id": cid, "title": f"{backend} {cid}"})
+
+        collection_allow_list = [
+            re.compile("(?!S3).*"),
+            {"collection_id": "S3", "allowed_backends": ["b2"]},
+        ]
+
+        with config_overrides(collection_allow_list=collection_allow_list):
+            res = api100.get("/collections").assert_status_code(200).json
+            assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
+
+            assert api100.get("/collections/S1").assert_status_code(200).json == DictSubSet(
+                {
+                    "id": "S1",
+                    "summaries": DictSubSet({"federation:backends": ["b1"]}),
+                }
+            )
+            assert api100.get("/collections/S2").assert_status_code(200).json == DictSubSet(
+                {
+                    "id": "S2",
+                    "summaries": DictSubSet({"federation:backends": ["b1", "b2"]}),
+                }
+            )
+            assert api100.get("/collections/S3").assert_status_code(200).json == DictSubSet(
+                {
+                    "id": "S3",
+                    "summaries": DictSubSet({"federation:backends": ["b2"]}),
+                }
+            )
+
 
 class TestAuthentication:
     def test_credentials_oidc_default(self, api100, backend1, backend2):
