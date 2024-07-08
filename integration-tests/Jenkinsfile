@@ -2,7 +2,7 @@
 
 @Library('lib')_
 
-def node_label = 'devdmz'
+def node_label = 'default'
 def wipeout_workspace = true
 def python_version = "3.8"
 def docker_registry = globalDefaults.docker_registry_prod()
