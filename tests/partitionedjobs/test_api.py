@@ -109,7 +109,7 @@ class TestFlimsyBatchJobSplitting:
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": P35,
-            "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free"},
+            "metadata": {"title": "3+5", "description": "Addition of 3 and 5", "plan": "free", "log_level": "info"},
             "job_options": {"split_strategy": "flimsy"},
         }
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
@@ -528,6 +528,7 @@ class TestTileGridBatchJobSplitting:
                     "title": "Mol",
                     "plan": "free",
                     "_tiling_geometry": DictSubSet({"global_spatial_extent": DictSubSet({"west": 4.9})}),
+                    "log_level": "info",
                 },
                 "job_options": {"tile_grid": "utm-10km"},
             }
@@ -717,7 +718,7 @@ class TestCrossBackendSplitting:
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": {"process_graph": pg},
-            "metadata": {},
+            "metadata": {"log_level": "info"},
             "job_options": {"split_strategy": "crossbackend"},
             "result_jobs": ["main"],
         }
@@ -794,7 +795,7 @@ class TestCrossBackendSplitting:
             "user_id": TEST_USER,
             "created": self.now.epoch,
             "process": {"process_graph": pg},
-            "metadata": {},
+            "metadata": {"log_level": "info"},
             "job_options": {"split_strategy": "crossbackend"},
             "result_jobs": ["main"],
         }
