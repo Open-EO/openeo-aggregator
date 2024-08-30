@@ -69,7 +69,7 @@ is grouped by an `AggregatorBackendConfig` container object
 (subclass of `OpenEoBackendConfig` as defined in the `openeo-python-driver` framework project).
 The most important config value is `aggregator_backends`, which
 defines the backends to "aggregate".
-See `src/openeo_aggregator/config.py` for more details and other available configuration options.
+See `src/openeo_aggregator/config/config.py` for more details and other available configuration options.
 
 The `conf` folder contains config files for the dev and production
 variant of this application config:

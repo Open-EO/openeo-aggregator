@@ -321,6 +321,6 @@ def config_overrides(**kwargs):
         ... def test_stuff():
     """
     return openeo_driver.testing.config_overrides(
-        config_getter=openeo_aggregator.config._config_getter,
+        config_getter=openeo_aggregator.config.config._config_getter,
         **kwargs,
     )
