@@ -1,4 +1,5 @@
 # See https://docs.gunicorn.org/en/stable/settings.html
+# TODO #117 eliminate this file from this repository
 
 bind = ["0.0.0.0:8080"]
 

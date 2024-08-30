@@ -52,4 +52,5 @@ RUN pip install --upgrade pip && \
     pip install .
 
 
+# TODO #117/#143 eliminate conf/gunicorn.prod.py reference
 CMD ["gunicorn", "--config=conf/gunicorn.prod.py", "openeo_aggregator.app:create_app()"]
