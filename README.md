@@ -57,10 +57,10 @@ like command line options or env variables, as shown above.
 
 ### Gunicorn config
 
-For gunicorn there are also configuration files in the `conf` folder.
-The production docker based run for examples uses
+For gunicorn there is an example config at `src/openeo_aggregator/config/examples/gunicorn-config.py`,
+for example to be used like this:
 
-    gunicorn --config=conf/gunicorn.prod.py openeo_aggregator.app:create_app()
+    gunicorn --config=src/openeo_aggregator/config/examples/gunicorn-config.py openeo_aggregator.app:create_app()
 
 ### Application/Flask config
 
@@ -78,11 +78,9 @@ variant of this application config:
 - `conf/aggregator.prod.py`
 
 Use the env var `OPENEO_BACKEND_CONFIG` to point to the desired config path.
-By default, `conf/aggregator.dummy.py` is loaded.
+For example, using the example dummy config from the repo:
 
-For example, when using the Docker image, add something like this
-
-    -e OPENEO_BACKEND_CONFIG=/home/openeo/aggregator/conf/aggregator.dev.py
+    export OPENEO_BACKEND_CONFIG=src/openeo_aggregator/config/examples/aggregator.dummy.py
 
 Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
 at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))

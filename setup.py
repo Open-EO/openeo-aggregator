@@ -20,15 +20,17 @@ setup(
     url="https://github.com/Open-EO/openeo-aggregator",
     packages=find_packages(where="src", include=["openeo_aggregator", "openeo_aggregator.*"]),
     package_dir={"": "src"},
+    package_data={"openeo_aggregator": ["config/examples/*.py"]},
     include_package_data=True,
     data_files=[
         (
             "openeo-aggregator-data",
             [
                 "CHANGELOG.md",
+                # TODO #117 eliminate gunicorn.dev.py reference
                 "conf/gunicorn.dev.py",
+                # TODO #117 eliminate gunicorn.prod.py reference
                 "conf/gunicorn.prod.py",
-                "conf/aggregator.dummy.py",
             ],
         ),
     ],
