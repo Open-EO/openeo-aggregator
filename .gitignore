@@ -118,3 +118,4 @@ temp*
 pytest-tmp
 
 openeo_python.log*
+.envrc
