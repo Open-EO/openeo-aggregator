@@ -8,7 +8,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## 0.36.0
 
-- openeo.cloud configs: only consider "vito" for SENTINEL2_L2A collection ([#147](https://github.com/Open-EO/openeo-aggregator/issues/147))
+- openeo.cloud configs: only consider "vito" for SENTINEL2_L2A collection ([#139](https://github.com/Open-EO/openeo-aggregator/issues/139))
 
 ## 0.35.1
 
