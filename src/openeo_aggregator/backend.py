@@ -321,9 +321,16 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             if intersection:
                 backend_candidates = list(intersection)
             else:
+                # No single backend that provides each of requested collections
+                # Report collections that are only available on certain backends
                 union = functools.reduce(lambda a, b: set(a).union(b), backend_combos)
+                only_on = [
+                    f"{cid!r} only on {list(backends)}"
+                    for cid, backends in collection_backends_map.items()
+                    if union.difference(backends)
+                ]
                 raise BackendLookupFailureException(
-                    message=f"Collections across multiple backends ({union}): {collections}."
+                    message=f"Requested collections are not available on a single backend, but spread across separate ones: {', '.join(only_on)}."
                 )
 
         _log.info(f"Backend candidates {backend_candidates} for collections {collections}")

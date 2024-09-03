@@ -1077,7 +1077,10 @@ class TestAggregatorCollectionCatalog:
         assert catalog.get_backend_candidates_for_collections(["S3", "S4"]) == ["b1"]
         assert catalog.get_backend_candidates_for_collections(["S4", "S5"]) == ["b2"]
 
-        with pytest.raises(OpenEOApiException, match="Collections across multiple backends"):
+        with pytest.raises(
+            OpenEOApiException,
+            match=r"Requested collections are not available on a single backend, but spread across separate ones: 'S3' only on \['b1'\], 'S5' only on \['b2'\]\.",
+        ):
             catalog.get_backend_candidates_for_collections(["S3", "S4", "S5"])
 
     def test_get_collection_metadata_basic(self, catalog, backend1, backend2, requests_mock):

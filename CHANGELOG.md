@@ -6,6 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start changelog -->
 
+## 0.37.1
+
+- Better error message when requested collections are spread across separate backends ([#153](https://github.com/Open-EO/openeo-aggregator/issues/153))
+
 ## 0.37.0
 
 - move example configs inside package source tree ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
