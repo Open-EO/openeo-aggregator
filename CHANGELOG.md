@@ -6,6 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start changelog -->
 
+## 0.38.0
+
+- Add request timeout configs for listing user jobs (eu-cdse/openeo-cdse-infra#188)
+
 ## 0.37.1
 
 - Better error message when requested collections are spread across separate backends ([#153](https://github.com/Open-EO/openeo-aggregator/issues/153))

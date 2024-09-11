@@ -98,6 +98,9 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
 
     job_options_update: Optional[JobOptionsUpdater] = None
 
+    request_timeout_list_jobs: float = 10
+    request_timeout_list_jobs_overall: float = 20
+
 
 # Internal singleton
 _config_getter = ConfigGetter(expected_class=AggregatorBackendConfig)

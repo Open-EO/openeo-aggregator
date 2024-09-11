@@ -748,8 +748,15 @@ class AggregatorBatchJobs(BatchJobs):
         all_jobs = []
         federation_missing = set()
 
+        backend_config = get_backend_config()
+
         results = self.backends.request_parallel(
-            path="/jobs", method="GET", expected_status=[200], authenticated_from_request=flask.request
+            path="/jobs",
+            method="GET",
+            expected_status=[200],
+            authenticated_from_request=flask.request,
+            request_timeout=backend_config.request_timeout_list_jobs,
+            overall_timeout=backend_config.request_timeout_list_jobs_overall,
         )
         for backend_id, result in results.successes.items():
             try:
