@@ -814,7 +814,7 @@ class TestCrossBackendSplitting:
                 "backend_id": "b1",
                 "process_graph": {
                     "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-                    "sr1": {
+                    "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                         "result": True,
@@ -873,7 +873,7 @@ class TestCrossBackendSplitting:
         assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
         assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
             "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                 "result": True,

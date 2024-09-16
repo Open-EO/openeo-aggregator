@@ -50,7 +50,7 @@ class TestCrossBackendSplitter:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
@@ -77,7 +77,7 @@ class TestCrossBackendSplitter:
                             "cube2": {"from_node": "lc2"},
                         },
                     },
-                    "sr1": {
+                    "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                         "result": True,
@@ -91,7 +91,7 @@ class TestCrossBackendSplitter:
                         "process_id": "load_collection",
                         "arguments": {"id": "B2_FAPAR"},
                     },
-                    "sr1": {
+                    "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                         "result": True,
@@ -113,7 +113,7 @@ class TestCrossBackendSplitter:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
@@ -132,7 +132,7 @@ class TestCrossBackendSplitter:
                             "process_id": "load_collection",
                             "arguments": {"id": "B2_FAPAR"},
                         },
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                             "result": True,
@@ -152,7 +152,7 @@ class TestCrossBackendSplitter:
                             "process_id": "merge_cubes",
                             "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
                         },
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                             "result": True,
@@ -204,7 +204,7 @@ class TestCrossBackendSplitter:
                 SubJob(
                     process_graph={
                         "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                             "result": True,
@@ -219,7 +219,7 @@ class TestCrossBackendSplitter:
                 SubJob(
                     process_graph={
                         "lc3": {"process_id": "load_collection", "arguments": {"id": "B3_SCL"}},
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc3"}, "format": "GTiff"},
                             "result": True,
@@ -369,7 +369,7 @@ class TestRunPartitionedJobs:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
@@ -404,7 +404,7 @@ class TestRunPartitionedJobs:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
@@ -415,7 +415,7 @@ class TestRunPartitionedJobs:
                 "process_id": "load_collection",
                 "arguments": {"id": "B2_FAPAR"},
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                 "result": True,
