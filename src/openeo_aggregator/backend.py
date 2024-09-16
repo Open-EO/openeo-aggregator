@@ -100,7 +100,10 @@ from openeo_aggregator.metadata.merging import (
     single_backend_collection_post_processing,
 )
 from openeo_aggregator.partitionedjobs import PartitionedJob
-from openeo_aggregator.partitionedjobs.crossbackend import CrossBackendSplitter
+from openeo_aggregator.partitionedjobs.crossbackend import (
+    CrossBackendSplitter,
+    LoadCollectionGraphSplitter,
+)
 from openeo_aggregator.partitionedjobs.splitting import FlimsySplitter, TileGridSplitter
 from openeo_aggregator.partitionedjobs.tracking import (
     PartitionedJobConnection,
@@ -940,9 +943,11 @@ class AggregatorBatchJobs(BatchJobs):
             return self._catalog.get_backends_for_collection(cid=collection_id)[0]
 
         splitter = CrossBackendSplitter(
-            backend_for_collection=backend_for_collection,
-            # TODO: job option for `always_split` feature?
-            always_split=True,
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=backend_for_collection,
+                # TODO: job option for `always_split` feature?
+                always_split=True,
+            )
         )
 
         pjob_id = self.partitioned_job_tracker.create_crossbackend_pjob(

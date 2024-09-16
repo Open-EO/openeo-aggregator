@@ -16,6 +16,7 @@ from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
     CrossBackendSplitter,
     GraphSplitException,
+    LoadCollectionGraphSplitter,
     SubGraphId,
     _FrozenGraph,
     _FrozenNode,
@@ -26,7 +27,9 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 class TestCrossBackendSplitter:
     def test_split_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+        )
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {"main": SubJob(process_graph, backend_id=None)}
@@ -34,7 +37,9 @@ class TestCrossBackendSplitter:
 
     def test_split_streaming_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+        )
         res = splitter.split_streaming(process_graph)
         assert isinstance(res, types.GeneratorType)
         assert list(res) == [("main", SubJob(process_graph, backend_id=None), [])]
@@ -56,7 +61,9 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {
@@ -119,7 +126,9 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         result = splitter.split_streaming(process_graph)
         assert isinstance(result, types.GeneratorType)
 
@@ -179,7 +188,9 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
 
         batch_jobs = {}
 
@@ -375,7 +386,9 @@ class TestRunPartitionedJobs:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
 
         connection = openeo.Connection(aggregator.url)

@@ -8,6 +8,7 @@ from openeo_aggregator.metadata import STAC_PROPERTY_FEDERATION_BACKENDS
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
     CrossBackendSplitter,
+    LoadCollectionGraphSplitter,
     run_partitioned_job,
 )
 
@@ -62,7 +63,9 @@ def main():
         metadata = connection.describe_collection(collection_id)
         return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][0]
 
-    splitter = CrossBackendSplitter(backend_for_collection=backend_for_collection, always_split=True)
+    splitter = CrossBackendSplitter(
+        graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=backend_for_collection, always_split=True)
+    )
     pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
     _log.info(f"Partitioned job: {pjob!r}")
 
