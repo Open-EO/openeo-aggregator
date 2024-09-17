@@ -14,12 +14,15 @@ from openeo_driver.testing import DictSubSet
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
-    CrossBackendSplitter,
+    CrossBackendJobSplitter,
+    DeepGraphSplitter,
     GraphSplitException,
     LoadCollectionGraphSplitter,
     SubGraphId,
     _FrozenGraph,
     _FrozenNode,
+    _PGSplitResult,
+    _SubGraphData,
     run_partitioned_job,
 )
 
@@ -27,7 +30,7 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 class TestCrossBackendSplitter:
     def test_split_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
         )
         res = splitter.split({"process_graph": process_graph})
@@ -37,7 +40,7 @@ class TestCrossBackendSplitter:
 
     def test_split_streaming_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
         )
         res = splitter.split_streaming(process_graph)
@@ -61,7 +64,7 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         )
         res = splitter.split({"process_graph": process_graph})
@@ -126,7 +129,7 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         )
         result = splitter.split_streaming(process_graph)
@@ -188,7 +191,7 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         )
 
@@ -386,7 +389,7 @@ class TestRunPartitionedJobs:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(
+        splitter = CrossBackendJobSplitter(
             graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
         )
         pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
@@ -512,32 +515,47 @@ class TestFrozenGraph:
             [("a", "b"), ("b", "d"), ("c", "d")],
             backend_candidates_map={"a": ["b1"], "c": ["b2"]},
         )
-        assert graph.get_backend_candidates("a") == {"b1"}
-        assert graph.get_backend_candidates("b") == {"b1"}
-        assert graph.get_backend_candidates("c") == {"b2"}
-        assert graph.get_backend_candidates("d") == set()
+        assert graph.get_backend_candidates_for_node("a") == {"b1"}
+        assert graph.get_backend_candidates_for_node("b") == {"b1"}
+        assert graph.get_backend_candidates_for_node("c") == {"b2"}
+        assert graph.get_backend_candidates_for_node("d") == set()
+
+        assert graph.get_backend_candidates_for_node_set(["a"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["b"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["c"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["d"]) == set()
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "c"]) == set()
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "d"]) == set()
 
     def test_get_backend_candidates_none(self):
         graph = _FrozenGraph.from_edges(
             [("a", "b"), ("b", "d"), ("c", "d")],
             backend_candidates_map={},
         )
-        assert graph.get_backend_candidates("a") is None
-        assert graph.get_backend_candidates("b") is None
-        assert graph.get_backend_candidates("c") is None
-        assert graph.get_backend_candidates("d") is None
+        assert graph.get_backend_candidates_for_node("a") is None
+        assert graph.get_backend_candidates_for_node("b") is None
+        assert graph.get_backend_candidates_for_node("c") is None
+        assert graph.get_backend_candidates_for_node("d") is None
+
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) is None
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "c"]) is None
 
     def test_get_backend_candidates_intersection(self):
         graph = _FrozenGraph.from_edges(
             [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f")],
             backend_candidates_map={"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]},
         )
-        assert graph.get_backend_candidates("a") == {"b1", "b2"}
-        assert graph.get_backend_candidates("b") == {"b2", "b3"}
-        assert graph.get_backend_candidates("c") == {"b4"}
-        assert graph.get_backend_candidates("d") == {"b2"}
-        assert graph.get_backend_candidates("e") == set()
-        assert graph.get_backend_candidates("f") == set()
+        assert graph.get_backend_candidates_for_node("a") == {"b1", "b2"}
+        assert graph.get_backend_candidates_for_node("b") == {"b2", "b3"}
+        assert graph.get_backend_candidates_for_node("c") == {"b4"}
+        assert graph.get_backend_candidates_for_node("d") == {"b2"}
+        assert graph.get_backend_candidates_for_node("e") == set()
+        assert graph.get_backend_candidates_for_node("f") == set()
+
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "d"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["c", "d"]) == set()
 
     def test_find_forsaken_nodes(self):
         graph = _FrozenGraph.from_edges(
@@ -632,7 +650,7 @@ class TestFrozenGraph:
     def test_split_at_minimal(self):
         graph = _FrozenGraph.from_edges([("a", "b")], backend_candidates_map={"a": "A"})
         # Split at a
-        down, up = graph.split_at("a")
+        up, down = graph.split_at("a")
         assert sorted(up.iter_nodes()) == [
             ("a", _FrozenNode(frozenset(), frozenset(), backend_candidates=frozenset(["A"]))),
         ]
@@ -641,7 +659,7 @@ class TestFrozenGraph:
             ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
         ]
         # Split at b
-        down, up = graph.split_at("b")
+        up, down = graph.split_at("b")
         assert sorted(up.iter_nodes()) == [
             ("a", _FrozenNode(frozenset(), frozenset(["b"]), backend_candidates=frozenset(["A"]))),
             ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
@@ -652,7 +670,7 @@ class TestFrozenGraph:
 
     def test_split_at_basic(self):
         graph = _FrozenGraph.from_edges([("a", "b"), ("b", "c")], backend_candidates_map={"a": "A"})
-        down, up = graph.split_at("b")
+        up, down = graph.split_at("b")
         assert sorted(up.iter_nodes()) == [
             ("a", _FrozenNode(frozenset(), frozenset(["b"]), backend_candidates=frozenset(["A"]))),
             ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
@@ -666,7 +684,7 @@ class TestFrozenGraph:
         graph = _FrozenGraph.from_edges(
             [("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("c", "e"), ("e", "g"), ("f", "g"), ("X", "Y")]
         )
-        down, up = graph.split_at("e")
+        up, down = graph.split_at("e")
         assert sorted(up.iter_nodes()) == sorted(
             _FrozenGraph.from_edges([("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("c", "e")]).iter_nodes()
         )
@@ -680,7 +698,7 @@ class TestFrozenGraph:
             _ = graph.split_at("b")
 
         # These should still work
-        down, up = graph.split_at("a")
+        up, down = graph.split_at("a")
         assert sorted(up.iter_nodes()) == [
             ("a", _FrozenNode(frozenset(), frozenset(), backend_candidates=None)),
         ]
@@ -690,7 +708,7 @@ class TestFrozenGraph:
             ("c", _FrozenNode(frozenset(["a", "b"]), frozenset(), backend_candidates=None)),
         ]
 
-        down, up = graph.split_at("c")
+        up, down = graph.split_at("c")
         assert sorted(up.iter_nodes()) == [
             ("a", _FrozenNode(frozenset(), frozenset(["b", "c"]), backend_candidates=None)),
             ("b", _FrozenNode(frozenset(["a"]), frozenset(["c"]), backend_candidates=None)),
@@ -762,4 +780,95 @@ class TestFrozenGraph:
         assert list(graph.produce_split_locations(limit=4)) == dirty_equals.IsOneOf(
             [["mask1"], ["bands2"], ["lc1"], ["lc2"]],
             [["bands2"], ["mask1"], ["lc2"], ["lc1"]],
+        )
+
+
+class TestDeepGraphSplitter:
+    def test_simple_no_split(self):
+        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"]})
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "ndvi1"},
+            primary_backend_id="b1",
+            secondary_graphs=[],
+        )
+
+    def test_simple_split(self):
+        """
+        Most simple split use case: two load_collections from different backends, merged.
+        """
+        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == dirty_equals.IsOneOf(
+            _PGSplitResult(
+                primary_node_ids={"lc1", "lc2", "merge"},
+                primary_backend_id="b1",
+                secondary_graphs=[
+                    _SubGraphData(
+                        split_node="lc2",
+                        node_ids={"lc2"},
+                        backend_id="b2",
+                    )
+                ],
+            ),
+            _PGSplitResult(
+                primary_node_ids={"lc1", "lc2", "merge"},
+                primary_backend_id="b2",
+                secondary_graphs=[
+                    _SubGraphData(
+                        split_node="lc1",
+                        node_ids={"lc1"},
+                        backend_id="b1",
+                    )
+                ],
+            ),
+        )
+
+    def test_simple_deep_split(self):
+        """
+        Simple deep split use case:
+        two load_collections from different backends, with some additional filtering, merged.
+        """
+        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == dirty_equals.IsOneOf(
+            _PGSplitResult(
+                primary_node_ids={"bands1", "lc1", "temporal2", "merge"},
+                primary_backend_id="b1",
+                secondary_graphs=[
+                    _SubGraphData(split_node="temporal2", node_ids={"lc2", "temporal2"}, backend_id="b2")
+                ],
+            ),
+            _PGSplitResult(
+                primary_node_ids={"lc2", "temporal2", "bands1", "merge"},
+                primary_backend_id="b2",
+                secondary_graphs=[_SubGraphData(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
+            ),
         )

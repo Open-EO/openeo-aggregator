@@ -24,7 +24,7 @@ from openeo_aggregator.partitionedjobs import (
     SubJob,
 )
 from openeo_aggregator.partitionedjobs.crossbackend import (
-    CrossBackendSplitter,
+    CrossBackendJobSplitter,
     SubGraphId,
 )
 from openeo_aggregator.partitionedjobs.splitting import TileGridSplitter
@@ -71,7 +71,7 @@ class PartitionedJobTracker:
         process: PGWithMetadata,
         metadata: dict,
         job_options: Optional[dict] = None,
-        splitter: CrossBackendSplitter,
+        splitter: CrossBackendJobSplitter,
     ) -> str:
         """
         crossbackend partitioned job creation is different from original partitioned
