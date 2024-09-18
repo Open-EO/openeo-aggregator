@@ -743,7 +743,7 @@ class _GraphViewer:
 
         return up, down
 
-    def produce_split_locations(self, limit: int = 2) -> Iterator[List[NodeId]]:
+    def produce_split_locations(self, limit: int = 4) -> Iterator[List[NodeId]]:
         """
         Produce disjoint subgraphs that can be processed independently.
 
@@ -790,18 +790,16 @@ class _GraphViewer:
             for split_node_id in split_options[:limit]:
                 _log.debug(f"_GraphViewer.produce_split_locations: splitting at {split_node_id=}")
                 up, down = self.split_at(split_node_id)
+                # The upstream part should now be handled by a single backend
+                assert not up.find_forsaken_nodes()
+                # Recursively split downstream part if necessary
                 if down.find_forsaken_nodes():
                     down_splits = list(down.produce_split_locations(limit=max(limit - 1, 1)))
                 else:
                     down_splits = [[]]
-                if up.find_forsaken_nodes():
-                    # TODO: will this actually happen? the upstream sub-graph should be single-backend by design?
-                    up_splits = list(up.produce_split_locations(limit=max(limit - 1, 1)))
-                else:
-                    up_splits = [[]]
 
-                for down_split, up_split in itertools.product(down_splits, up_splits):
-                    yield [split_node_id] + down_split + up_split
+                for down_split in down_splits:
+                    yield [split_node_id] + down_split
 
         else:
             # All nodes can be handled as is, no need to split
