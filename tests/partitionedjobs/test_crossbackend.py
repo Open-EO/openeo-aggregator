@@ -4,7 +4,6 @@ import types
 from typing import Dict, List, Optional
 from unittest import mock
 
-import dirty_equals
 import openeo
 import pytest
 import requests
@@ -480,38 +479,38 @@ class TestFrozenGraph:
             (["c"], False, ["a"]),
             (["a", "c"], True, ["a", "c"]),
             (["a", "c"], False, []),
-            (["c", "a"], True, ["c", "a"]),
+            (["c", "a"], True, ["a", "c"]),
             (["c", "a"], False, []),
-            (
-                ["e"],
-                True,
-                dirty_equals.IsOneOf(
-                    ["e", "c", "d", "a", "b"],
-                    ["e", "d", "c", "b", "a"],
-                ),
-            ),
-            (
-                ["e"],
-                False,
-                dirty_equals.IsOneOf(
-                    ["c", "d", "a", "b"],
-                    ["d", "c", "b", "a"],
-                ),
-            ),
-            (["e", "d"], True, ["e", "d", "c", "b", "a"]),
+            (["e"], True, ["e", "c", "d", "a", "b"]),
+            (["e"], False, ["c", "d", "a", "b"]),
+            (["e", "d"], True, ["d", "e", "b", "c", "a"]),
             (["e", "d"], False, ["c", "b", "a"]),
             (["d", "e"], True, ["d", "e", "b", "c", "a"]),
             (["d", "e"], False, ["b", "c", "a"]),
-            (["f", "c"], True, ["f", "c", "e", "a", "d", "b"]),
+            (["f", "c"], True, ["c", "f", "a", "e", "d", "b"]),
             (["f", "c"], False, ["e", "a", "d", "b"]),
         ],
     )
     def test_walk_upstream_nodes(self, seed, include_seeds, expected):
-        graph = _FrozenGraph.from_edges([("a", "c"), ("b", "d"), ("c", "e"), ("d", "e"), ("e", "f")])
+        graph = _FrozenGraph.from_edges(
+            # a   b
+            # |   |
+            # c   d
+            #  \ /
+            #   e
+            #   |
+            #   f
+            [("a", "c"), ("b", "d"), ("c", "e"), ("d", "e"), ("e", "f")]
+        )
         assert list(graph.walk_upstream_nodes(seed, include_seeds)) == expected
 
     def test_get_backend_candidates_basic(self):
         graph = _FrozenGraph.from_edges(
+            # a
+            # |
+            # b   c
+            #  \ /
+            #   d
             [("a", "b"), ("b", "d"), ("c", "d")],
             backend_candidates_map={"a": ["b1"], "c": ["b2"]},
         )
@@ -530,6 +529,11 @@ class TestFrozenGraph:
 
     def test_get_backend_candidates_none(self):
         graph = _FrozenGraph.from_edges(
+            # a
+            # |
+            # b   c
+            #  \ /
+            #   d
             [("a", "b"), ("b", "d"), ("c", "d")],
             backend_candidates_map={},
         )
@@ -543,6 +547,11 @@ class TestFrozenGraph:
 
     def test_get_backend_candidates_intersection(self):
         graph = _FrozenGraph.from_edges(
+            # a   b   c
+            #  \ / \ /
+            #   d   e
+            #    \ /
+            #     f
             [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f")],
             backend_candidates_map={"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]},
         )
@@ -559,6 +568,13 @@ class TestFrozenGraph:
 
     def test_find_forsaken_nodes(self):
         graph = _FrozenGraph.from_edges(
+            # a   b   c
+            #  \ / \ /
+            #   d   e
+            #    \ /
+            #     f
+            #    / \
+            #   g   h
             [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f"), ("f", "g"), ("f", "h")],
             backend_candidates_map={"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]},
         )
@@ -721,6 +737,9 @@ class TestFrozenGraph:
     def test_produce_split_locations_simple(self):
         """Simple produce_split_locations use case: no need for splits"""
         flat = {
+            # lc1
+            #  |
+            # ndvi1
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
         }
@@ -733,6 +752,9 @@ class TestFrozenGraph:
         two load collections on different backends and a merge
         """
         flat = {
+            #  lc1   lc2
+            #     \ /
+            #    merge1
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
             "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "merge1": {
@@ -745,6 +767,11 @@ class TestFrozenGraph:
 
     def test_produce_split_locations_merge_longer(self):
         flat = {
+            #   lc1     lc2
+            #    |       |
+            #  bands1  bands2
+            #       \ /
+            #      merge1
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
             "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
             "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
@@ -756,13 +783,17 @@ class TestFrozenGraph:
         }
         graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
         assert sorted(graph.produce_split_locations(limit=2)) == [["bands1"], ["bands2"]]
-        assert list(graph.produce_split_locations(limit=4)) == dirty_equals.IsOneOf(
-            [["bands1"], ["bands2"], ["lc1"], ["lc2"]],
-            [["bands2"], ["bands1"], ["lc2"], ["lc1"]],
-        )
+        assert list(graph.produce_split_locations(limit=4)) == [["bands1"], ["bands2"], ["lc1"], ["lc2"]]
 
     def test_produce_split_locations_merge_longer_triangle(self):
         flat = {
+            #        lc1
+            #       /  |
+            #  bands1  |     lc2
+            #      \   |      |
+            #      mask1   bands2
+            #          \  /
+            #         merge1
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
             "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
             "mask1": {
@@ -777,10 +808,7 @@ class TestFrozenGraph:
             },
         }
         graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
-        assert list(graph.produce_split_locations(limit=4)) == dirty_equals.IsOneOf(
-            [["mask1"], ["bands2"], ["lc1"], ["lc2"]],
-            [["bands2"], ["mask1"], ["lc2"], ["lc1"]],
-        )
+        assert list(graph.produce_split_locations(limit=4)) == [["bands2"], ["mask1"], ["lc2"], ["lc1"]]
 
 
 class TestDeepGraphSplitter:
@@ -803,6 +831,9 @@ class TestDeepGraphSplitter:
         """
         splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
         flat = {
+            #   lc1   lc2
+            #      \ /
+            #     merge
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
             "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "merge": {
@@ -812,29 +843,16 @@ class TestDeepGraphSplitter:
             },
         }
         result = splitter.split(flat)
-        assert result == dirty_equals.IsOneOf(
-            _PGSplitResult(
-                primary_node_ids={"lc1", "lc2", "merge"},
-                primary_backend_id="b1",
-                secondary_graphs=[
-                    _SubGraphData(
-                        split_node="lc2",
-                        node_ids={"lc2"},
-                        backend_id="b2",
-                    )
-                ],
-            ),
-            _PGSplitResult(
-                primary_node_ids={"lc1", "lc2", "merge"},
-                primary_backend_id="b2",
-                secondary_graphs=[
-                    _SubGraphData(
-                        split_node="lc1",
-                        node_ids={"lc1"},
-                        backend_id="b1",
-                    )
-                ],
-            ),
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "lc2", "merge"},
+            primary_backend_id="b2",
+            secondary_graphs=[
+                _SubGraphData(
+                    split_node="lc1",
+                    node_ids={"lc1"},
+                    backend_id="b1",
+                )
+            ],
         )
 
     def test_simple_deep_split(self):
@@ -844,6 +862,11 @@ class TestDeepGraphSplitter:
         """
         splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
         flat = {
+            #   lc1      lc2
+            #    |        |
+            #  bands1  temporal2
+            #       \  /
+            #       merge
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
             "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
@@ -858,17 +881,78 @@ class TestDeepGraphSplitter:
             },
         }
         result = splitter.split(flat)
-        assert result == dirty_equals.IsOneOf(
-            _PGSplitResult(
-                primary_node_ids={"bands1", "lc1", "temporal2", "merge"},
-                primary_backend_id="b1",
-                secondary_graphs=[
-                    _SubGraphData(split_node="temporal2", node_ids={"lc2", "temporal2"}, backend_id="b2")
-                ],
-            ),
-            _PGSplitResult(
-                primary_node_ids={"lc2", "temporal2", "bands1", "merge"},
-                primary_backend_id="b2",
-                secondary_graphs=[_SubGraphData(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
-            ),
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc2", "temporal2", "bands1", "merge"},
+            primary_backend_id="b2",
+            secondary_graphs=[_SubGraphData(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
+        )
+
+    def test_shallow_triple_split(self):
+        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        flat = {
+            #   lc1   lc2   lc3
+            #      \ /      /
+            #     merge1   /
+            #        \    /
+            #        merge2
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc3": {"process_id": "load_collection", "arguments": {"id": "S3"}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+            },
+            "merge2": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "merge1"}, "cube2": {"from_node": "lc3"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "lc2", "lc3", "merge1", "merge2"},
+            primary_backend_id="b2",
+            secondary_graphs=[
+                _SubGraphData(split_node="lc1", node_ids={"lc1"}, backend_id="b1"),
+                _SubGraphData(split_node="lc3", node_ids={"lc3"}, backend_id="b3"),
+            ],
+        )
+
+    def test_triple_split(self):
+        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        flat = {
+            #   lc1      lc2        lc3
+            #    |        |          |
+            #  bands1  temporal2  spatial3
+            #       \  /          /
+            #       merge1       /
+            #            \      /
+            #             merge2
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc3": {"process_id": "load_collection", "arguments": {"id": "S3"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "spatial3": {"process_id": "filter_spatial", "arguments": {"data": {"from_node": "lc3"}, "extent": "EU"}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+            },
+            "merge2": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "merge1"}, "cube2": {"from_node": "spatial3"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"merge2", "merge1", "lc3", "spatial3"},
+            primary_backend_id="b3",
+            secondary_graphs=[
+                _SubGraphData(split_node="bands1", node_ids={"bands1", "lc1"}, backend_id="b1"),
+                _SubGraphData(split_node="merge1", node_ids={"bands1", "merge1", "temporal2", "lc2"}, backend_id="b2"),
+            ],
         )
