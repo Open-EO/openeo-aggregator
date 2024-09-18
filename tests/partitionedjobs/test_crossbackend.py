@@ -18,6 +18,7 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
     GraphSplitException,
     LoadCollectionGraphSplitter,
     SubGraphId,
+    SupportingBackendsMapper,
     _FrozenGraph,
     _FrozenNode,
     _PGSplitResult,
@@ -438,6 +439,36 @@ class TestRunPartitionedJobs:
         }
 
 
+class TestFrozenNode:
+    def test_default(self):
+        node = _FrozenNode()
+        assert node.depends_on == frozenset()
+        assert node.flows_to == frozenset()
+        assert node.backend_candidates is None
+
+    def test_basic(self):
+        node = _FrozenNode(depends_on=["a", "b"], flows_to=["c", "d"], backend_candidates="X")
+        assert node.depends_on == frozenset(["a", "b"])
+        assert node.flows_to == frozenset(["c", "d"])
+        assert node.backend_candidates == frozenset(["X"])
+
+    def test_eq(self):
+        assert _FrozenNode() == _FrozenNode()
+        assert _FrozenNode(
+            depends_on=["a", "b"],
+            flows_to=["c", "d"],
+            backend_candidates="X",
+        ) == _FrozenNode(
+            depends_on=("b", "a"),
+            flows_to={"d", "c"},
+            backend_candidates=["X"],
+        )
+
+
+def supporting_backends_from_node_id_dict(data: dict) -> SupportingBackendsMapper:
+    return lambda node_id, node: data.get(node_id)
+
+
 class TestFrozenGraph:
     def test_empty(self):
         graph = _FrozenGraph(graph={})
@@ -448,13 +479,12 @@ class TestFrozenGraph:
             "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
             "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"]})
+        graph = _FrozenGraph.from_flat_graph(
+            flat, supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"]})
+        )
         assert sorted(graph.iter_nodes()) == [
-            (
-                "lc1",
-                _FrozenNode(frozenset(), frozenset(["ndvi1"]), backend_candidates=frozenset(["b1"])),
-            ),
-            ("ndvi1", _FrozenNode(frozenset(["lc1"]), frozenset([]), backend_candidates=None)),
+            ("lc1", _FrozenNode(flows_to=["ndvi1"], backend_candidates="b1")),
+            ("ndvi1", _FrozenNode(depends_on=["lc1"])),
         ]
 
     # TODO: test from_flat_graph with more complex graphs
@@ -462,12 +492,12 @@ class TestFrozenGraph:
     def test_from_edges(self):
         graph = _FrozenGraph.from_edges([("a", "c"), ("b", "d"), ("c", "e"), ("d", "e"), ("e", "f")])
         assert sorted(graph.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["c"]), backend_candidates=None)),
-            ("b", _FrozenNode(frozenset(), frozenset(["d"]), backend_candidates=None)),
-            ("c", _FrozenNode(frozenset(["a"]), frozenset(["e"]), backend_candidates=None)),
-            ("d", _FrozenNode(frozenset(["b"]), frozenset(["e"]), backend_candidates=None)),
-            ("e", _FrozenNode(frozenset(["c", "d"]), frozenset("f"), backend_candidates=None)),
-            ("f", _FrozenNode(frozenset(["e"]), frozenset(), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["c"])),
+            ("b", _FrozenNode(flows_to=["d"])),
+            ("c", _FrozenNode(depends_on=["a"], flows_to=["e"])),
+            ("d", _FrozenNode(depends_on=["b"], flows_to=["e"])),
+            ("e", _FrozenNode(depends_on=["c", "d"], flows_to=["f"])),
+            ("f", _FrozenNode(depends_on=["e"])),
         ]
 
     @pytest.mark.parametrize(
@@ -512,7 +542,7 @@ class TestFrozenGraph:
             #  \ /
             #   d
             [("a", "b"), ("b", "d"), ("c", "d")],
-            backend_candidates_map={"a": ["b1"], "c": ["b2"]},
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": ["b1"], "c": ["b2"]}),
         )
         assert graph.get_backend_candidates_for_node("a") == {"b1"}
         assert graph.get_backend_candidates_for_node("b") == {"b1"}
@@ -535,7 +565,6 @@ class TestFrozenGraph:
             #  \ /
             #   d
             [("a", "b"), ("b", "d"), ("c", "d")],
-            backend_candidates_map={},
         )
         assert graph.get_backend_candidates_for_node("a") is None
         assert graph.get_backend_candidates_for_node("b") is None
@@ -553,7 +582,9 @@ class TestFrozenGraph:
             #    \ /
             #     f
             [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f")],
-            backend_candidates_map={"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]},
+            supporting_backends_mapper=supporting_backends_from_node_id_dict(
+                {"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]}
+            ),
         )
         assert graph.get_backend_candidates_for_node("a") == {"b1", "b2"}
         assert graph.get_backend_candidates_for_node("b") == {"b2", "b3"}
@@ -576,7 +607,9 @@ class TestFrozenGraph:
             #    / \
             #   g   h
             [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f"), ("f", "g"), ("f", "h")],
-            backend_candidates_map={"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]},
+            supporting_backends_mapper=supporting_backends_from_node_id_dict(
+                {"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]}
+            ),
         )
         assert graph.find_forsaken_nodes() == {"e", "f", "g", "h"}
 
@@ -585,7 +618,7 @@ class TestFrozenGraph:
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={})
+        graph = _FrozenGraph.from_flat_graph(flat)
         assert graph.find_articulation_points() == {"lc1", "ndvi1"}
 
     @pytest.mark.parametrize(
@@ -660,40 +693,45 @@ class TestFrozenGraph:
         ],
     )
     def test_find_articulation_points(self, flat, expected):
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={})
+        graph = _FrozenGraph.from_flat_graph(flat)
         assert graph.find_articulation_points() == expected
 
     def test_split_at_minimal(self):
-        graph = _FrozenGraph.from_edges([("a", "b")], backend_candidates_map={"a": "A"})
+        graph = _FrozenGraph.from_edges(
+            [("a", "b")], supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"})
+        )
         # Split at a
         up, down = graph.split_at("a")
         assert sorted(up.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(), backend_candidates=frozenset(["A"]))),
+            ("a", _FrozenNode(backend_candidates=["A"])),
         ]
         assert sorted(down.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["b"]), backend_candidates=None)),
-            ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["b"])),
+            ("b", _FrozenNode(depends_on=["a"])),
         ]
         # Split at b
         up, down = graph.split_at("b")
         assert sorted(up.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["b"]), backend_candidates=frozenset(["A"]))),
-            ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["b"], backend_candidates=["A"])),
+            ("b", _FrozenNode(depends_on=["a"])),
         ]
         assert sorted(down.iter_nodes()) == [
-            ("b", _FrozenNode(frozenset(), frozenset(), backend_candidates=None)),
+            ("b", _FrozenNode()),
         ]
 
     def test_split_at_basic(self):
-        graph = _FrozenGraph.from_edges([("a", "b"), ("b", "c")], backend_candidates_map={"a": "A"})
+        graph = _FrozenGraph.from_edges(
+            [("a", "b"), ("b", "c")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"}),
+        )
         up, down = graph.split_at("b")
         assert sorted(up.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["b"]), backend_candidates=frozenset(["A"]))),
-            ("b", _FrozenNode(frozenset(["a"]), frozenset([]), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["b"], backend_candidates=["A"])),
+            ("b", _FrozenNode(depends_on=["a"])),
         ]
         assert sorted(down.iter_nodes()) == [
-            ("b", _FrozenNode(frozenset(), frozenset(["c"]), backend_candidates=None)),
-            ("c", _FrozenNode(frozenset(["b"]), frozenset([]), backend_candidates=None)),
+            ("b", _FrozenNode(flows_to=["c"])),
+            ("c", _FrozenNode(depends_on=["b"])),
         ]
 
     def test_split_at_complex(self):
@@ -709,29 +747,37 @@ class TestFrozenGraph:
         )
 
     def test_split_at_non_articulation_point(self):
-        graph = _FrozenGraph.from_edges([("a", "b"), ("b", "c"), ("a", "c")])
+        graph = _FrozenGraph.from_edges(
+            #   a
+            #  /|
+            # b |
+            #  \|
+            #   c
+            [("a", "b"), ("b", "c"), ("a", "c")]
+        )
+
         with pytest.raises(GraphSplitException, match="not an articulation point"):
             _ = graph.split_at("b")
 
         # These should still work
         up, down = graph.split_at("a")
         assert sorted(up.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(), backend_candidates=None)),
+            ("a", _FrozenNode()),
         ]
         assert sorted(down.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["b", "c"]), backend_candidates=None)),
-            ("b", _FrozenNode(frozenset(["a"]), frozenset(["c"]), backend_candidates=None)),
-            ("c", _FrozenNode(frozenset(["a", "b"]), frozenset(), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["b", "c"])),
+            ("b", _FrozenNode(depends_on=["a"], flows_to=["c"])),
+            ("c", _FrozenNode(depends_on=["a", "b"])),
         ]
 
         up, down = graph.split_at("c")
         assert sorted(up.iter_nodes()) == [
-            ("a", _FrozenNode(frozenset(), frozenset(["b", "c"]), backend_candidates=None)),
-            ("b", _FrozenNode(frozenset(["a"]), frozenset(["c"]), backend_candidates=None)),
-            ("c", _FrozenNode(frozenset(["a", "b"]), frozenset(), backend_candidates=None)),
+            ("a", _FrozenNode(flows_to=["b", "c"])),
+            ("b", _FrozenNode(depends_on=["a"], flows_to=["c"])),
+            ("c", _FrozenNode(depends_on=["a", "b"])),
         ]
         assert sorted(down.iter_nodes()) == [
-            ("c", _FrozenNode(frozenset(), frozenset(), backend_candidates=None)),
+            ("c", _FrozenNode()),
         ]
 
     def test_produce_split_locations_simple(self):
@@ -743,7 +789,9 @@ class TestFrozenGraph:
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": "b1"})
+        graph = _FrozenGraph.from_flat_graph(
+            flat, supporting_backends=supporting_backends_from_node_id_dict({"lc1": "b1"})
+        )
         assert list(graph.produce_split_locations()) == [[]]
 
     def test_produce_split_locations_merge_basic(self):
@@ -762,7 +810,10 @@ class TestFrozenGraph:
                 "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
             },
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        graph = _FrozenGraph.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
         assert sorted(graph.produce_split_locations()) == [["lc1"], ["lc2"]]
 
     def test_produce_split_locations_merge_longer(self):
@@ -781,7 +832,10 @@ class TestFrozenGraph:
                 "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "bands2"}},
             },
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        graph = _FrozenGraph.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
         assert sorted(graph.produce_split_locations(limit=2)) == [["bands1"], ["bands2"]]
         assert list(graph.produce_split_locations(limit=4)) == [["bands1"], ["bands2"], ["lc1"], ["lc2"]]
 
@@ -807,13 +861,16 @@ class TestFrozenGraph:
                 "arguments": {"cube1": {"from_node": "mask1"}, "cube2": {"from_node": "bands2"}},
             },
         }
-        graph = _FrozenGraph.from_flat_graph(flat, backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        graph = _FrozenGraph.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
         assert list(graph.produce_split_locations(limit=4)) == [["bands2"], ["mask1"], ["lc2"], ["lc1"]]
 
 
 class TestDeepGraphSplitter:
     def test_simple_no_split(self):
-        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"]})
+        splitter = DeepGraphSplitter(supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"]}))
         flat = {
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
@@ -829,7 +886,9 @@ class TestDeepGraphSplitter:
         """
         Most simple split use case: two load_collections from different backends, merged.
         """
-        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]})
+        )
         flat = {
             #   lc1   lc2
             #      \ /
@@ -860,7 +919,9 @@ class TestDeepGraphSplitter:
         Simple deep split use case:
         two load_collections from different backends, with some additional filtering, merged.
         """
-        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"]})
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]})
+        )
         flat = {
             #   lc1      lc2
             #    |        |
@@ -888,7 +949,9 @@ class TestDeepGraphSplitter:
         )
 
     def test_shallow_triple_split(self):
-        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        )
         flat = {
             #   lc1   lc2   lc3
             #      \ /      /
@@ -919,7 +982,9 @@ class TestDeepGraphSplitter:
         )
 
     def test_triple_split(self):
-        splitter = DeepGraphSplitter(backend_candidates_map={"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        )
         flat = {
             #   lc1      lc2        lc3
             #    |        |          |
