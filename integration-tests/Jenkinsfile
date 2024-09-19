@@ -31,9 +31,7 @@ pipeline {
     EXTRAS_REQUIRE              = "${extras_require}"
     SYSTEM_SITE_PACKAGES        = "nope"
   }
-  parameters {
-    string(name: 'image_version', defaultValue: '')
-  }
+
   options {
     // Disable default checkout to have more control over checkout step
     skipDefaultCheckout(true)
