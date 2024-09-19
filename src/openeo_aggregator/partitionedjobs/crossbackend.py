@@ -743,7 +743,7 @@ class _GraphViewer:
 
         return up, down
 
-    def produce_split_locations(self, limit: int = 4) -> Iterator[List[NodeId]]:
+    def produce_split_locations(self, limit: int = 10) -> Iterator[List[NodeId]]:
         """
         Produce disjoint subgraphs that can be processed independently.
 
@@ -811,49 +811,55 @@ class DeepGraphSplitter(ProcessGraphSplitterInterface):
     More advanced graph splitting (compared to just splitting off `load_collection` nodes)
     """
 
-    def __init__(self, supporting_backends: SupportingBackendsMapper):
+    def __init__(self, supporting_backends: SupportingBackendsMapper, primary_backend: Optional[BackendId] = None):
         self._supporting_backends_mapper = supporting_backends
+        self._primary_backend = primary_backend
 
     def split(self, process_graph: FlatPG) -> _PGSplitResult:
         graph = _GraphViewer.from_flat_graph(
             flat_graph=process_graph, supporting_backends=self._supporting_backends_mapper
         )
 
-        # TODO: make picking "optimal" split location set a bit more deterministic (e.g. sort first)
-        (split_nodes,) = graph.produce_split_locations(limit=1)
-        _log.debug(f"DeepGraphSplitter.split: split nodes: {split_nodes=}")
+        for split_nodes in graph.produce_split_locations():
+            _log.debug(f"DeepGraphSplitter.split: evaluating split nodes: {split_nodes=}")
 
-        secondary_graphs: List[_SubGraphData] = []
-        graph_to_split = graph
-        for split_node_id in split_nodes:
-            up, down = graph_to_split.split_at(split_node_id=split_node_id)
-            # Use upstream graph as secondary graph
-            node_ids = set(nid for nid, _ in up.iter_nodes())
-            backend_candidates = up.get_backend_candidates_for_node_set(node_ids)
-            # TODO: better backend selection?
-            # TODO handle case where backend_candidates is None?
-            backend_id = sorted(backend_candidates)[0]
-            _log.debug(f"DeepGraphSplitter.split: secondary graph: from {split_node_id=}: {backend_id=} {node_ids=}")
-            secondary_graphs.append(
-                _SubGraphData(
-                    split_node=split_node_id,
-                    node_ids=node_ids,
-                    backend_id=backend_id,
+            secondary_graphs: List[_SubGraphData] = []
+            graph_to_split = graph
+            for split_node_id in split_nodes:
+                up, down = graph_to_split.split_at(split_node_id=split_node_id)
+                # Use upstream graph as secondary graph
+                node_ids = set(nid for nid, _ in up.iter_nodes())
+                backend_candidates = up.get_backend_candidates_for_node_set(node_ids)
+                # TODO: better backend selection?
+                # TODO handle case where backend_candidates is None?
+                backend_id = sorted(backend_candidates)[0]
+                _log.debug(
+                    f"DeepGraphSplitter.split: secondary graph: from {split_node_id=}: {backend_id=} {node_ids=}"
                 )
-            )
+                secondary_graphs.append(
+                    _SubGraphData(
+                        split_node=split_node_id,
+                        node_ids=node_ids,
+                        backend_id=backend_id,
+                    )
+                )
 
-            # Prepare for next split (if any)
-            graph_to_split = down
+                # Prepare for next split (if any)
+                graph_to_split = down
 
-        # Remaining graph is primary graph
-        primary_graph = graph_to_split
-        primary_node_ids = set(n for n, _ in primary_graph.iter_nodes())
-        backend_candidates = primary_graph.get_backend_candidates_for_node_set(primary_node_ids)
-        primary_backend_id = sorted(backend_candidates)[0]
-        _log.debug(f"DeepGraphSplitter.split: primary graph: {primary_backend_id=} {primary_node_ids=}")
+            # Remaining graph is primary graph
+            primary_graph = graph_to_split
+            primary_node_ids = set(n for n, _ in primary_graph.iter_nodes())
+            backend_candidates = primary_graph.get_backend_candidates_for_node_set(primary_node_ids)
+            primary_backend_id = sorted(backend_candidates)[0]
+            _log.debug(f"DeepGraphSplitter.split: primary graph: {primary_backend_id=} {primary_node_ids=}")
 
-        return _PGSplitResult(
-            primary_node_ids=primary_node_ids,
-            primary_backend_id=primary_backend_id,
-            secondary_graphs=secondary_graphs,
-        )
+            if self._primary_backend is None or primary_backend_id == self._primary_backend:
+                _log.debug(f"DeepGraphSplitter.split: current split matches constraints")
+                return _PGSplitResult(
+                    primary_node_ids=primary_node_ids,
+                    primary_backend_id=primary_backend_id,
+                    secondary_graphs=secondary_graphs,
+                )
+
+        raise GraphSplitException("DeepGraphSplitter.split: No matching split found.")

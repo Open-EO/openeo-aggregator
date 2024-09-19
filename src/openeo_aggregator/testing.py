@@ -66,13 +66,13 @@ class DummyKazooClient:
     def get(self, path):
         self._assert_open()
         if path not in self.data:
-            raise kazoo.exceptions.NoNodeError()
+            raise kazoo.exceptions.NoNodeError(path)
         return self.data[path]
 
     def get_children(self, path):
         self._assert_open()
         if path not in self.data:
-            raise kazoo.exceptions.NoNodeError()
+            raise kazoo.exceptions.NoNodeError(path)
         parent = path.split("/")
         return [p.split("/")[-1] for p in self.data if p.split("/")[:-1] == parent]
 
@@ -102,6 +102,8 @@ def approx_now(abs=10):
 
 class ApproxStr:
     """Pytest helper in style of `pytest.approx`, but for string checking, based on prefix, body and or suffix"""
+
+    # TODO: port to dirty_equals
 
     def __init__(
         self,

@@ -52,7 +52,7 @@ class _Now:
 def dummy1(backend1, requests_mock) -> DummyBackend:
     # TODO: rename this fixture to dummy_backed1 for clarity
     dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend1, job_id_template="1-jb-{i}")
-    dummy.setup_basic_requests_mocks()
+    dummy.setup_basic_requests_mocks(collections=["S1", "S2"])
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
     return dummy
 
@@ -61,7 +61,7 @@ def dummy1(backend1, requests_mock) -> DummyBackend:
 def dummy2(backend2, requests_mock) -> DummyBackend:
     # TODO: rename this fixture to dummy_backed2 for clarity
     dummy = DummyBackend(requests_mock=requests_mock, backend_url=backend2, job_id_template="2-jb-{i}")
-    dummy.setup_basic_requests_mocks(collections=["S22"])
+    dummy.setup_basic_requests_mocks(collections=["T11", "T22"])
     dummy.register_user(bearer_token=TEST_USER_BEARER_TOKEN, user_id=TEST_USER)
     return dummy
 
@@ -685,17 +685,28 @@ class TestCrossBackendSplitting:
             yield
 
     @now.mock
-    def test_create_job_simple(self, flask_app, api100, zk_db, dummy1):
+    @pytest.mark.parametrize(
+        "split_strategy",
+        [
+            "crossbackend",
+            {"crossbackend": {"method": "simple"}},
+            {"crossbackend": {"method": "deep"}},
+        ],
+    )
+    def test_create_job_simple(self, flask_app, api100, zk_db, dummy1, split_strategy):
         """Handling of single "load_collection" process graph"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        pg = {"lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        pg = {
+            # lc1 (that's it, that's the graph)
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
+        }
 
         res = api100.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
-                "job_options": {"split_strategy": "crossbackend"},
+                "job_options": {"split_strategy": split_strategy},
             },
         ).assert_status_code(201)
 
@@ -719,7 +730,7 @@ class TestCrossBackendSplitting:
             "created": self.now.epoch,
             "process": {"process_graph": pg},
             "metadata": {"log_level": "info"},
-            "job_options": {"split_strategy": "crossbackend"},
+            "job_options": {"split_strategy": split_strategy},
             "result_jobs": ["main"],
         }
 
@@ -753,12 +764,23 @@ class TestCrossBackendSplitting:
         assert pg == {"lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection", "result": True}}
 
     @now.mock
-    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1, requests_mock):
+    @pytest.mark.parametrize(
+        "split_strategy",
+        [
+            "crossbackend",
+            {"crossbackend": {"method": "simple"}},
+            {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
+        ],
+    )
+    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock, split_strategy):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
+            #  lc1   lc2
+            #    \   /
+            #    merge
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
             "merge": {
                 "process_id": "merge_cubes",
                 "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
@@ -767,13 +789,16 @@ class TestCrossBackendSplitting:
         }
 
         requests_mock.get(
-            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
-            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+            "https://b2.test/v1/jobs/2-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b2.test/123abc"}]},
         )
 
         res = api100.post(
             "/jobs",
-            json={"process": {"process_graph": pg}, "job_options": {"split_strategy": "crossbackend"}},
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": split_strategy},
+            },
         ).assert_status_code(201)
 
         pjob_id = "pj-20220119-123456"
@@ -796,7 +821,7 @@ class TestCrossBackendSplitting:
             "created": self.now.epoch,
             "process": {"process_graph": pg},
             "metadata": {"log_level": "info"},
-            "job_options": {"split_strategy": "crossbackend"},
+            "job_options": {"split_strategy": split_strategy},
             "result_jobs": ["main"],
         }
 
@@ -810,17 +835,17 @@ class TestCrossBackendSplitting:
         # Inspect stored subjob metadata
         subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
         assert subjobs == {
-            "b1:lc2": {
-                "backend_id": "b1",
+            "b2:lc2": {
+                "backend_id": "b2",
                 "process_graph": {
-                    "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
                     "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                         "result": True,
                     },
                 },
-                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='b1:lc2'",
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='b2:lc2'",
             },
             "main": {
                 "backend_id": "b1",
@@ -828,7 +853,7 @@ class TestCrossBackendSplitting:
                     "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
                     "lc2": {
                         "process_id": "load_stac",
-                        "arguments": {"url": "https://data.b1.test/123abc"},
+                        "arguments": {"url": "https://data.b2.test/123abc"},
                     },
                     "merge": {
                         "process_id": "merge_cubes",
@@ -841,7 +866,7 @@ class TestCrossBackendSplitting:
         }
 
         sjob_id = "main"
-        expected_job_id = "1-jb-1"
+        expected_job_id = "1-jb-0"
         assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
             "status": "created",
             "timestamp": self.now.epoch,
@@ -853,7 +878,7 @@ class TestCrossBackendSplitting:
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
             "lc2": {
                 "process_id": "load_stac",
-                "arguments": {"url": "https://data.b1.test/123abc"},
+                "arguments": {"url": "https://data.b2.test/123abc"},
             },
             "merge": {
                 "process_id": "merge_cubes",
@@ -862,17 +887,17 @@ class TestCrossBackendSplitting:
             },
         }
 
-        sjob_id = "b1:lc2"
-        expected_job_id = "1-jb-0"
+        sjob_id = "b2:lc2"
+        expected_job_id = "2-jb-0"
         assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
             "status": "created",
             "timestamp": self.now.epoch,
             "message": None,
         }
         assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == expected_job_id
-        assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
-        assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
-            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+        assert dummy2.get_job_status(TEST_USER, expected_job_id) == "created"
+        assert dummy2.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
             "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
@@ -881,13 +906,24 @@ class TestCrossBackendSplitting:
         }
 
     @now.mock
-    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1, requests_mock):
+    @pytest.mark.parametrize(
+        "split_strategy",
+        [
+            "crossbackend",
+            {"crossbackend": {"method": "simple"}},
+            {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
+        ],
+    )
+    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock, split_strategy):
         """Run the jobs and get results"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
+            #  lc1   lc2
+            #    \   /
+            #    merge
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
             "merge": {
                 "process_id": "merge_cubes",
                 "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
@@ -896,15 +932,15 @@ class TestCrossBackendSplitting:
         }
 
         requests_mock.get(
-            "https://b1.test/v1/jobs/1-jb-0/results?partial=true",
-            json={"links": [{"rel": "canonical", "href": "https://data.b1.test/123abc"}]},
+            "https://b2.test/v1/jobs/2-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b2.test/123abc"}]},
         )
 
         res = api100.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
-                "job_options": {"split_strategy": "crossbackend"},
+                "job_options": {"split_strategy": split_strategy},
             },
         ).assert_status_code(201)
 
@@ -923,21 +959,21 @@ class TestCrossBackendSplitting:
 
         # start job
         api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
-        dummy1.set_job_status(TEST_USER, "1-jb-0", status="running")
-        dummy1.set_job_status(TEST_USER, "1-jb-1", status="queued")
+        dummy2.set_job_status(TEST_USER, "2-jb-0", status="running")
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="queued")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # First job is ready
-        dummy1.set_job_status(TEST_USER, "1-jb-0", status="finished")
-        dummy1.setup_assets(job_id=f"1-jb-0", assets=["1-jb-0-result.tif"])
-        dummy1.set_job_status(TEST_USER, "1-jb-1", status="running")
+        dummy2.set_job_status(TEST_USER, "2-jb-0", status="finished")
+        dummy2.setup_assets(job_id=f"2-jb-0", assets=["2-jb-0-result.tif"])
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="running")
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 50})
 
         # Main job is ready too
-        dummy1.set_job_status(TEST_USER, "1-jb-1", status="finished")
-        dummy1.setup_assets(job_id=f"1-jb-1", assets=["1-jb-1-result.tif"])
+        dummy1.set_job_status(TEST_USER, "1-jb-0", status="finished")
+        dummy1.setup_assets(job_id=f"1-jb-0", assets=["1-jb-0-result.tif"])
         res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
@@ -947,10 +983,10 @@ class TestCrossBackendSplitting:
             {
                 "id": expected_job_id,
                 "assets": {
-                    "main-1-jb-1-result.tif": {
-                        "href": "https://b1.test/v1/jobs/1-jb-1/results/1-jb-1-result.tif",
+                    "main-1-jb-0-result.tif": {
+                        "href": "https://b1.test/v1/jobs/1-jb-0/results/1-jb-0-result.tif",
                         "roles": ["data"],
-                        "title": "main-1-jb-1-result.tif",
+                        "title": "main-1-jb-0-result.tif",
                         "type": "application/octet-stream",
                     },
                 },
@@ -958,14 +994,25 @@ class TestCrossBackendSplitting:
         )
 
     @now.mock
-    def test_failing_create(self, flask_app, api100, zk_db, dummy1):
+    @pytest.mark.parametrize(
+        "split_strategy",
+        [
+            "crossbackend",
+            {"crossbackend": {"method": "simple"}},
+            {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
+        ],
+    )
+    def test_failing_create(self, flask_app, api100, zk_db, dummy1, dummy2, split_strategy):
         """Run what happens when creation of sub batch job fails on upstream backend"""
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        dummy1.fail_create_job = True
+        dummy2.fail_create_job = True
 
         pg = {
+            #  lc1   lc2
+            #    \   /
+            #    merge
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
-            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
             "merge": {
                 "process_id": "merge_cubes",
                 "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
@@ -977,7 +1024,7 @@ class TestCrossBackendSplitting:
             "/jobs",
             json={
                 "process": {"process_graph": pg},
-                "job_options": {"split_strategy": "crossbackend"},
+                "job_options": {"split_strategy": split_strategy},
             },
         ).assert_status_code(201)
 
@@ -992,4 +1039,139 @@ class TestCrossBackendSplitting:
             "status": "error",
             "created": self.now.rfc3339,
             "progress": 0,
+        }
+
+    @now.mock
+    def test_create_job_deep_basic(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            #    lc1     lc2
+            #     |       |
+            #  bands1   temporal2
+            #       \   /
+            #       merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "T22"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}}},
+            "temporal2": {"process_id": "filter_temporal", "arguments": {"data": {"from_node": "lc2"}}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "result": True,
+            },
+        }
+
+        requests_mock.get(
+            "https://b2.test/v1/jobs/2-jb-0/results?partial=true",
+            json={"links": [{"rel": "canonical", "href": "https://data.b2.test/123abc"}]},
+        )
+
+        split_strategy = {"crossbackend": {"method": "deep", "primary_backend": "b1"}}
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": split_strategy},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == {
+            "id": expected_job_id,
+            "process": {"process_graph": pg},
+            "status": "created",
+            "created": self.now.rfc3339,
+            "progress": 0,
+        }
+
+        # Inspect stored parent job metadata
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "user_id": TEST_USER,
+            "created": self.now.epoch,
+            "process": {"process_graph": pg},
+            "metadata": {"log_level": "info"},
+            "job_options": {"split_strategy": split_strategy},
+            "result_jobs": ["main"],
+        }
+
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "status": "created",
+            "message": approx_str_contains("{'created': 2}"),
+            "timestamp": pytest.approx(self.now.epoch, abs=5),
+            "progress": 0,
+        }
+
+        # Inspect stored subjob metadata
+        subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
+        assert subjobs == {
+            "b2:temporal2": {
+                "backend_id": "b2",
+                "process_graph": {
+                    "lc2": {"arguments": {"id": "T22"}, "process_id": "load_collection"},
+                    "temporal2": {"arguments": {"data": {"from_node": "lc2"}}, "process_id": "filter_temporal"},
+                    "_agg_crossbackend_save_result": {
+                        "arguments": {"data": {"from_node": "temporal2"}, "format": "GTiff"},
+                        "process_id": "save_result",
+                        "result": True,
+                    },
+                },
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='b2:temporal2'",
+            },
+            "main": {
+                "backend_id": "b1",
+                "process_graph": {
+                    "lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection"},
+                    "bands1": {"arguments": {"data": {"from_node": "lc1"}}, "process_id": "filter_bands"},
+                    "temporal2": {"arguments": {"url": "https://data.b2.test/123abc"}, "process_id": "load_stac"},
+                    "merge": {
+                        "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                        "process_id": "merge_cubes",
+                        "result": True,
+                    },
+                },
+                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+            },
+        }
+        sjob_id = "main"
+        expected_job_id = "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": self.now.epoch,
+            "message": None,
+        }
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == expected_job_id
+        assert dummy1.get_job_status(TEST_USER, expected_job_id) == "created"
+        assert dummy1.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
+            "lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection"},
+            "bands1": {"arguments": {"data": {"from_node": "lc1"}}, "process_id": "filter_bands"},
+            "temporal2": {"arguments": {"url": "https://data.b2.test/123abc"}, "process_id": "load_stac"},
+            "merge": {
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "process_id": "merge_cubes",
+                "result": True,
+            },
+        }
+        sjob_id = "b2:temporal2"
+        expected_job_id = "2-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": self.now.epoch,
+            "message": None,
+        }
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == expected_job_id
+        assert dummy2.get_job_status(TEST_USER, expected_job_id) == "created"
+        assert dummy2.get_job_data(TEST_USER, expected_job_id).create["process"]["process_graph"] == {
+            "lc2": {"arguments": {"id": "T22"}, "process_id": "load_collection"},
+            "temporal2": {"arguments": {"data": {"from_node": "lc2"}}, "process_id": "filter_temporal"},
+            "_agg_crossbackend_save_result": {
+                "arguments": {"data": {"from_node": "temporal2"}, "format": "GTiff"},
+                "process_id": "save_result",
+                "result": True,
+            },
         }
