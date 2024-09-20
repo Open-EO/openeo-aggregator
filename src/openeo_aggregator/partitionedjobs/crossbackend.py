@@ -30,6 +30,7 @@ from typing import (
 
 import openeo
 from openeo import BatchJob
+from openeo.util import deep_get
 from openeo_driver.jobregistry import JOB_STATUS
 
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
@@ -51,6 +52,7 @@ CollectionId = str
 SubGraphId = str
 NodeId = str
 BackendId = str
+ProcessId = str
 
 
 # Annotation for a function that maps node information (id and its node dict)
@@ -750,9 +752,16 @@ class _GraphViewer:
 
         return up, down
 
-    def produce_split_locations(self, limit: int = 20) -> Iterator[List[NodeId]]:
+    def produce_split_locations(
+        self,
+        limit: int = 20,
+        allow_split: Callable[[NodeId], bool] = lambda n: True,
+    ) -> Iterator[List[NodeId]]:
         """
         Produce disjoint subgraphs that can be processed independently.
+
+        :param limit: maximum number of split locations to produce
+        :param allow_split: predicate to determine if a node can be split on (e.g. to deny splitting on certain nodes)
 
         :return: iterator of node listings.
             Each node listing encodes a graph split (nodes ids where to split).
@@ -765,6 +774,8 @@ class _GraphViewer:
               the previous split.
             - etc
         """
+        # TODO: allow_split: possible to make this backend-dependent in some way?
+
         # Find nodes that have empty set of backend_candidates
         forsaken_nodes = self.find_forsaken_nodes()
 
@@ -779,13 +790,11 @@ class _GraphViewer:
             articulation_points: Set[NodeId] = set(self.find_articulation_points())
             _log.debug(f"_GraphViewer.produce_split_locations: {articulation_points=}")
 
-            # TODO: allow/deny lists of what openEO processes can be split on? E.g. only split raster cube paths
-
             # Walk upstream from forsaken nodes to find articulation points, where we can cut
             split_options = [
                 n
                 for n in self.walk_upstream_nodes(seeds=forsaken_nodes, include_seeds=False)
-                if n in articulation_points
+                if n in articulation_points and allow_split(n)
             ]
             _log.debug(f"_GraphViewer.produce_split_locations: {split_options=}")
             if not split_options:
@@ -799,7 +808,7 @@ class _GraphViewer:
                 assert not up.find_forsaken_nodes()
                 # Recursively split downstream part if necessary
                 if down.find_forsaken_nodes():
-                    down_splits = list(down.produce_split_locations(limit=max(limit - 1, 1)))
+                    down_splits = list(down.produce_split_locations(limit=max(limit - 1, 1), allow_split=allow_split))
                 else:
                     down_splits = [[]]
 
@@ -834,11 +843,20 @@ class _GraphViewer:
 class DeepGraphSplitter(ProcessGraphSplitterInterface):
     """
     More advanced graph splitting (compared to just splitting off `load_collection` nodes)
+
+    :param split_deny_list: list of process ids that should not be split on
     """
 
-    def __init__(self, supporting_backends: SupportingBackendsMapper, primary_backend: Optional[BackendId] = None):
+    def __init__(
+        self,
+        supporting_backends: SupportingBackendsMapper,
+        primary_backend: Optional[BackendId] = None,
+        split_deny_list: Iterable[ProcessId] = (),
+    ):
         self._supporting_backends_mapper = supporting_backends
         self._primary_backend = primary_backend
+        # TODO also support other deny mechanisms, e.g. callable instead of a deny list?
+        self._split_deny_list = set(split_deny_list)
 
     def _pick_backend(self, backend_candidates: Union[frozenset[BackendId], None]) -> BackendId:
         if backend_candidates is None:
@@ -855,7 +873,11 @@ class DeepGraphSplitter(ProcessGraphSplitterInterface):
             flat_graph=process_graph, supporting_backends=self._supporting_backends_mapper
         )
 
-        for split_nodes in graph.produce_split_locations():
+        def allow_split(node_id: NodeId) -> bool:
+            process_id = deep_get(process_graph, node_id, "process_id", default=None)
+            return process_id not in self._split_deny_list
+
+        for split_nodes in graph.produce_split_locations(allow_split=allow_split):
             _log.debug(f"DeepGraphSplitter.split: evaluating split nodes: {split_nodes=}")
 
             split_views = graph.split_at_multiple(split_nodes=split_nodes)

@@ -962,9 +962,36 @@ class TestGraphViewer:
         )
         assert list(graph.produce_split_locations(limit=4)) == [["bands2"], ["mask1"], ["lc2"], ["lc1"]]
 
+    def test_produce_split_locations_allow_split(self):
+        """Usage of custom allow_list predicate"""
+        flat = {
+            #   lc1     lc2
+            #    |       |
+            #  bands1  bands2
+            #       \ /
+            #      merge1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands2": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc2"}, "bands": ["B02"]}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "bands2"}},
+            },
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
+        assert list(graph.produce_split_locations()) == [["bands1"], ["bands2"], ["lc1"], ["lc2"]]
+        assert list(graph.produce_split_locations(allow_split=lambda n: n not in {"bands1", "lc2"})) == [
+            ["bands2"],
+            ["lc1"],
+        ]
+
 
 class TestDeepGraphSplitter:
-    def test_simple_no_split(self):
+    def test_no_split(self):
         splitter = DeepGraphSplitter(supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"]}))
         flat = {
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
@@ -1149,4 +1176,47 @@ class TestDeepGraphSplitter:
             primary_node_ids={"lc1", "lc2", "merge"},
             primary_backend_id=primary_backend,
             secondary_graphs=[secondary_graph],
+        )
+
+    @pytest.mark.parametrize(
+        ["split_deny_list", "split_node", "primary_node_ids", "secondary_node_ids"],
+        [
+            ({}, "temporal2", {"lc1", "bands1", "temporal2", "merge"}, {"lc2", "temporal2"}),
+            ({"filter_bands", "filter_temporal"}, "lc2", {"lc1", "lc2", "bands1", "temporal2", "merge"}, {"lc2"}),
+        ],
+    )
+    def test_split_deny_list(self, split_deny_list, split_node, primary_node_ids, secondary_node_ids):
+        """
+        Simple deep split use case:
+        two load_collections from different backends, with some additional filtering, merged.
+        """
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+            primary_backend="b1",
+            split_deny_list=split_deny_list,
+        )
+        flat = {
+            #   lc1      lc2
+            #    |        |
+            #  bands1  temporal2
+            #       \  /
+            #       merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids=primary_node_ids,
+            primary_backend_id="b1",
+            secondary_graphs=[_PGSplitSubGraph(split_node=split_node, node_ids=secondary_node_ids, backend_id="b2")],
         )

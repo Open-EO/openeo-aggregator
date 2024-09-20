@@ -983,6 +983,9 @@ class AggregatorBatchJobs(BatchJobs):
             graph_splitter = DeepGraphSplitter(
                 supporting_backends=supporting_backends,
                 primary_backend=split_strategy.get("crossbackend", {}).get("primary_backend"),
+                # TODO: instead of this hardcoded deny-list, build it based on backend metadata inspection?
+                # TODO: make a config for this?
+                split_deny_list={"aggregate_spatial", "load_geojson", "load_url"},
             )
         else:
             raise ValueError(f"Invalid graph split strategy {graph_split_method!r}")
