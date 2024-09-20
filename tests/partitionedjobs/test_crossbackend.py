@@ -13,8 +13,16 @@ from openeo_driver.testing import DictSubSet
 
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
-    CrossBackendSplitter,
+    CrossBackendJobSplitter,
+    DeepGraphSplitter,
+    GraphSplitException,
+    LoadCollectionGraphSplitter,
     SubGraphId,
+    SupportingBackendsMapper,
+    _GraphViewer,
+    _GVNode,
+    _PGSplitResult,
+    _PGSplitSubGraph,
     run_partitioned_job,
 )
 
@@ -22,7 +30,9 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
 class TestCrossBackendSplitter:
     def test_split_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+        )
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {"main": SubJob(process_graph, backend_id=None)}
@@ -30,7 +40,9 @@ class TestCrossBackendSplitter:
 
     def test_split_streaming_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: "foo")
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+        )
         res = splitter.split_streaming(process_graph)
         assert isinstance(res, types.GeneratorType)
         assert list(res) == [("main", SubJob(process_graph, backend_id=None), [])]
@@ -46,13 +58,15 @@ class TestCrossBackendSplitter:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         res = splitter.split({"process_graph": process_graph})
 
         assert res.subjobs == {
@@ -73,7 +87,7 @@ class TestCrossBackendSplitter:
                             "cube2": {"from_node": "lc2"},
                         },
                     },
-                    "sr1": {
+                    "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                         "result": True,
@@ -87,7 +101,7 @@ class TestCrossBackendSplitter:
                         "process_id": "load_collection",
                         "arguments": {"id": "B2_FAPAR"},
                     },
-                    "sr1": {
+                    "_agg_crossbackend_save_result": {
                         "process_id": "save_result",
                         "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                         "result": True,
@@ -109,13 +123,15 @@ class TestCrossBackendSplitter:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         result = splitter.split_streaming(process_graph)
         assert isinstance(result, types.GeneratorType)
 
@@ -128,7 +144,7 @@ class TestCrossBackendSplitter:
                             "process_id": "load_collection",
                             "arguments": {"id": "B2_FAPAR"},
                         },
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                             "result": True,
@@ -148,7 +164,7 @@ class TestCrossBackendSplitter:
                             "process_id": "merge_cubes",
                             "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
                         },
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                             "result": True,
@@ -175,7 +191,9 @@ class TestCrossBackendSplitter:
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
 
         batch_jobs = {}
 
@@ -200,7 +218,7 @@ class TestCrossBackendSplitter:
                 SubJob(
                     process_graph={
                         "lc2": {"process_id": "load_collection", "arguments": {"id": "B2_FAPAR"}},
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                             "result": True,
@@ -215,7 +233,7 @@ class TestCrossBackendSplitter:
                 SubJob(
                     process_graph={
                         "lc3": {"process_id": "load_collection", "arguments": {"id": "B3_SCL"}},
-                        "sr1": {
+                        "_agg_crossbackend_save_result": {
                             "process_id": "save_result",
                             "arguments": {"data": {"from_node": "lc3"}, "format": "GTiff"},
                             "result": True,
@@ -365,13 +383,15 @@ class TestRunPartitionedJobs:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
             },
         }
-        splitter = CrossBackendSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        splitter = CrossBackendJobSplitter(
+            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+        )
         pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
 
         connection = openeo.Connection(aggregator.url)
@@ -400,7 +420,7 @@ class TestRunPartitionedJobs:
                     "cube2": {"from_node": "lc2"},
                 },
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "mc1"}, "format": "NetCDF"},
                 "result": True,
@@ -411,9 +431,792 @@ class TestRunPartitionedJobs:
                 "process_id": "load_collection",
                 "arguments": {"id": "B2_FAPAR"},
             },
-            "sr1": {
+            "_agg_crossbackend_save_result": {
                 "process_id": "save_result",
                 "arguments": {"data": {"from_node": "lc2"}, "format": "GTiff"},
                 "result": True,
             },
         }
+
+
+class TestGVNode:
+    def test_defaults(self):
+        node = _GVNode()
+        assert isinstance(node.depends_on, frozenset)
+        assert node.depends_on == frozenset()
+        assert isinstance(node.flows_to, frozenset)
+        assert node.flows_to == frozenset()
+        assert node.backend_candidates is None
+
+    def test_basic(self):
+        node = _GVNode(depends_on=["a", "b"], flows_to=["c", "d"], backend_candidates=["X"])
+        assert isinstance(node.depends_on, frozenset)
+        assert node.depends_on == frozenset(["a", "b"])
+        assert isinstance(node.flows_to, frozenset)
+        assert node.flows_to == frozenset(["c", "d"])
+        assert isinstance(node.backend_candidates, frozenset)
+        assert node.backend_candidates == frozenset(["X"])
+
+    def test_single_strings(self):
+        node = _GVNode(depends_on="apple", flows_to="banana", backend_candidates="coconut")
+        assert isinstance(node.depends_on, frozenset)
+        assert node.depends_on == frozenset(["apple"])
+        assert isinstance(node.flows_to, frozenset)
+        assert node.flows_to == frozenset(["banana"])
+        assert isinstance(node.backend_candidates, frozenset)
+        assert node.backend_candidates == frozenset(["coconut"])
+
+    def test_eq(self):
+        assert _GVNode() == _GVNode()
+        assert _GVNode(
+            depends_on=["a", "b"],
+            flows_to=["c", "d"],
+            backend_candidates="X",
+        ) == _GVNode(
+            depends_on=("b", "a"),
+            flows_to={"d", "c"},
+            backend_candidates=["X"],
+        )
+
+    def test_repr(self):
+        assert repr(_GVNode()) == "[_GVNode]"
+        assert repr(_GVNode(depends_on="a")) == "[_GVNode <a]"
+        assert repr(_GVNode(depends_on=["b", "a"])) == "[_GVNode <a,b]"
+        assert repr(_GVNode(depends_on="a", flows_to="b")) == "[_GVNode <a >b]"
+        assert repr(_GVNode(depends_on=["a", "b"], flows_to=["foo", "bar"])) == "[_GVNode <a,b >bar,foo]"
+        assert repr(_GVNode(depends_on="a", flows_to="b", backend_candidates=["x", "yy"])) == "[_GVNode <a >b @x,yy]"
+
+
+def supporting_backends_from_node_id_dict(data: dict) -> SupportingBackendsMapper:
+    return lambda node_id, node: data.get(node_id)
+
+
+class TestGraphViewer:
+    def test_empty(self):
+        graph = _GraphViewer(node_map={})
+        assert list(graph.iter_nodes()) == []
+
+    @pytest.mark.parametrize(
+        ["node_map", "expected_error"],
+        [
+            ({"a": _GVNode(flows_to="b")}, r"Inconsistent.*unknown=\{'b'\}"),
+            ({"b": _GVNode(depends_on="a")}, r"Inconsistent.*unknown=\{'a'\}"),
+            ({"a": _GVNode(flows_to="b"), "b": _GVNode()}, r"Inconsistent.*bad_links=\{\('a', 'b'\)\}"),
+            ({"b": _GVNode(depends_on="a"), "a": _GVNode()}, r"Inconsistent.*bad_links=\{\('a', 'b'\)\}"),
+        ],
+    )
+    def test_check_consistency(self, node_map, expected_error):
+        with pytest.raises(GraphSplitException, match=expected_error):
+            _ = _GraphViewer(node_map=node_map)
+
+    def test_immutability(self):
+        node_map = {"a": _GVNode(flows_to="b"), "b": _GVNode(depends_on="a")}
+        graph = _GraphViewer(node_map=node_map)
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
+
+        # Adding a node to the original map should not affect the graph
+        node_map["c"] = _GVNode()
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
+
+        # Trying to mess with internals shouldn't work either
+        with pytest.raises(Exception, match="does not support item assignment"):
+            graph._graph["c"] = _GVNode()
+
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
+
+    def test_from_flat_graph_basic(self):
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "B1_NDVI"}},
+            "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat, supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"]})
+        )
+        assert sorted(graph.iter_nodes()) == [
+            ("lc1", _GVNode(flows_to=["ndvi1"], backend_candidates="b1")),
+            ("ndvi1", _GVNode(depends_on=["lc1"])),
+        ]
+
+    # TODO: test from_flat_graph with more complex graphs
+
+    def test_from_edges(self):
+        graph = _GraphViewer.from_edges([("a", "c"), ("b", "d"), ("c", "e"), ("d", "e"), ("e", "f")])
+        assert sorted(graph.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["c"])),
+            ("b", _GVNode(flows_to=["d"])),
+            ("c", _GVNode(depends_on=["a"], flows_to=["e"])),
+            ("d", _GVNode(depends_on=["b"], flows_to=["e"])),
+            ("e", _GVNode(depends_on=["c", "d"], flows_to=["f"])),
+            ("f", _GVNode(depends_on=["e"])),
+        ]
+
+    @pytest.mark.parametrize(
+        ["seed", "include_seeds", "expected"],
+        [
+            (["a"], True, ["a"]),
+            (["a"], False, []),
+            (["c"], True, ["c", "a"]),
+            (["c"], False, ["a"]),
+            (["a", "c"], True, ["a", "c"]),
+            (["a", "c"], False, []),
+            (["c", "a"], True, ["a", "c"]),
+            (["c", "a"], False, []),
+            (["e"], True, ["e", "c", "d", "a", "b"]),
+            (["e"], False, ["c", "d", "a", "b"]),
+            (["e", "d"], True, ["d", "e", "b", "c", "a"]),
+            (["e", "d"], False, ["c", "b", "a"]),
+            (["d", "e"], True, ["d", "e", "b", "c", "a"]),
+            (["d", "e"], False, ["b", "c", "a"]),
+            (["f", "c"], True, ["c", "f", "a", "e", "d", "b"]),
+            (["f", "c"], False, ["e", "a", "d", "b"]),
+        ],
+    )
+    def test_walk_upstream_nodes(self, seed, include_seeds, expected):
+        graph = _GraphViewer.from_edges(
+            # a   b
+            # |   |
+            # c   d
+            #  \ /
+            #   e
+            #   |
+            #   f
+            [("a", "c"), ("b", "d"), ("c", "e"), ("d", "e"), ("e", "f")]
+        )
+        assert list(graph.walk_upstream_nodes(seed, include_seeds)) == expected
+
+    def test_get_backend_candidates_basic(self):
+        graph = _GraphViewer.from_edges(
+            # a
+            # |
+            # b   c
+            #  \ /
+            #   d
+            [("a", "b"), ("b", "d"), ("c", "d")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": ["b1"], "c": ["b2"]}),
+        )
+        assert graph.get_backend_candidates_for_node("a") == {"b1"}
+        assert graph.get_backend_candidates_for_node("b") == {"b1"}
+        assert graph.get_backend_candidates_for_node("c") == {"b2"}
+        assert graph.get_backend_candidates_for_node("d") == set()
+
+        assert graph.get_backend_candidates_for_node_set(["a"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["b"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["c"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["d"]) == set()
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) == {"b1"}
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "c"]) == set()
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "d"]) == set()
+
+    def test_get_backend_candidates_none(self):
+        graph = _GraphViewer.from_edges(
+            # a
+            # |
+            # b   c
+            #  \ /
+            #   d
+            [("a", "b"), ("b", "d"), ("c", "d")],
+        )
+        assert graph.get_backend_candidates_for_node("a") is None
+        assert graph.get_backend_candidates_for_node("b") is None
+        assert graph.get_backend_candidates_for_node("c") is None
+        assert graph.get_backend_candidates_for_node("d") is None
+
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) is None
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "c"]) is None
+
+    def test_get_backend_candidates_intersection(self):
+        graph = _GraphViewer.from_edges(
+            # a   b   c
+            #  \ / \ /
+            #   d   e
+            #    \ /
+            #     f
+            [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict(
+                {"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]}
+            ),
+        )
+        assert graph.get_backend_candidates_for_node("a") == {"b1", "b2"}
+        assert graph.get_backend_candidates_for_node("b") == {"b2", "b3"}
+        assert graph.get_backend_candidates_for_node("c") == {"b4"}
+        assert graph.get_backend_candidates_for_node("d") == {"b2"}
+        assert graph.get_backend_candidates_for_node("e") == set()
+        assert graph.get_backend_candidates_for_node("f") == set()
+
+        assert graph.get_backend_candidates_for_node_set(["a", "b"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["a", "b", "d"]) == {"b2"}
+        assert graph.get_backend_candidates_for_node_set(["c", "d"]) == set()
+
+    def test_find_forsaken_nodes(self):
+        graph = _GraphViewer.from_edges(
+            # a   b   c
+            #  \ / \ /
+            #   d   e
+            #    \ /
+            #     f
+            #    / \
+            #   g   h
+            [("a", "d"), ("b", "d"), ("b", "e"), ("c", "e"), ("d", "f"), ("e", "f"), ("f", "g"), ("f", "h")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict(
+                {"a": ["b1", "b2"], "b": ["b2", "b3"], "c": ["b4"]}
+            ),
+        )
+        assert graph.find_forsaken_nodes() == {"e", "f", "g", "h"}
+
+    def test_find_articulation_points_basic(self):
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
+        }
+        graph = _GraphViewer.from_flat_graph(flat)
+        assert graph.find_articulation_points() == {"lc1", "ndvi1"}
+
+    @pytest.mark.parametrize(
+        ["flat", "expected"],
+        [
+            (
+                {
+                    "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}},
+                },
+                {"lc1", "ndvi1"},
+            ),
+            (
+                {
+                    "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "bands1": {
+                        "process_id": "filter_bands",
+                        "arguments": {"data": {"from_node": "lc1"}, "bands": ["b1"]},
+                    },
+                    "bands2": {
+                        "process_id": "filter_bands",
+                        "arguments": {"data": {"from_node": "lc1"}, "bands": ["b2"]},
+                    },
+                    "merge1": {
+                        "process_id": "merge_cubes",
+                        "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "bands2"}},
+                    },
+                    "save1": {
+                        "process_id": "save_result",
+                        "arguments": {"data": {"from_node": "merge1"}, "format": "GTiff"},
+                    },
+                },
+                {"lc1", "merge1", "save1"},
+            ),
+            (
+                {
+                    "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "merge1": {
+                        "process_id": "merge_cubes",
+                        "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                    },
+                    "save1": {
+                        "process_id": "save_result",
+                        "arguments": {"data": {"from_node": "merge1"}, "format": "GTiff"},
+                    },
+                },
+                {"lc1", "lc2", "merge1", "save1"},
+            ),
+            (
+                {
+                    "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+                    "bands1": {
+                        "process_id": "filter_bands",
+                        "arguments": {"data": {"from_node": "lc1"}, "bands": ["b1"]},
+                    },
+                    "bbox1": {
+                        "process_id": "filter_spatial",
+                        "arguments": {"data": {"from_node": "bands1"}},
+                    },
+                    "merge1": {
+                        "process_id": "merge_cubes",
+                        "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "bbox1"}},
+                    },
+                    "save1": {
+                        "process_id": "save_result",
+                        "arguments": {"data": {"from_node": "merge1"}},
+                    },
+                },
+                {"lc1", "merge1", "save1"},
+            ),
+        ],
+    )
+    def test_find_articulation_points(self, flat, expected):
+        graph = _GraphViewer.from_flat_graph(flat)
+        assert graph.find_articulation_points() == expected
+
+    def test_split_at_minimal(self):
+        graph = _GraphViewer.from_edges(
+            [("a", "b")], supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"})
+        )
+        # Split at a
+        up, down = graph.split_at("a")
+        assert sorted(up.iter_nodes()) == [
+            ("a", _GVNode(backend_candidates=["A"])),
+        ]
+        assert sorted(down.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["b"])),
+            ("b", _GVNode(depends_on=["a"])),
+        ]
+        # Split at b
+        up, down = graph.split_at("b")
+        assert sorted(up.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["b"], backend_candidates=["A"])),
+            ("b", _GVNode(depends_on=["a"])),
+        ]
+        assert sorted(down.iter_nodes()) == [
+            ("b", _GVNode()),
+        ]
+
+    def test_split_at_basic(self):
+        graph = _GraphViewer.from_edges(
+            [("a", "b"), ("b", "c")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"}),
+        )
+        up, down = graph.split_at("b")
+        assert sorted(up.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["b"], backend_candidates=["A"])),
+            ("b", _GVNode(depends_on=["a"])),
+        ]
+        assert sorted(down.iter_nodes()) == [
+            ("b", _GVNode(flows_to=["c"])),
+            ("c", _GVNode(depends_on=["b"])),
+        ]
+
+    def test_split_at_complex(self):
+        graph = _GraphViewer.from_edges(
+            #   a
+            #  / \
+            # b   c           X
+            #  \ / \          |
+            #   d   e   f     Y
+            #        \ /
+            #         g
+            [("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("c", "e"), ("e", "g"), ("f", "g"), ("X", "Y")]
+        )
+        up, down = graph.split_at("e")
+        assert sorted(up.iter_nodes()) == sorted(
+            _GraphViewer.from_edges([("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("c", "e")]).iter_nodes()
+        )
+        assert sorted(down.iter_nodes()) == sorted(
+            _GraphViewer.from_edges([("e", "g"), ("f", "g"), ("X", "Y")]).iter_nodes()
+        )
+
+    def test_split_at_non_articulation_point(self):
+        graph = _GraphViewer.from_edges(
+            #   a
+            #  /|
+            # b |
+            #  \|
+            #   c
+            [("a", "b"), ("b", "c"), ("a", "c")]
+        )
+
+        with pytest.raises(GraphSplitException, match="not an articulation point"):
+            _ = graph.split_at("b")
+
+        # These should still work
+        up, down = graph.split_at("a")
+        assert sorted(up.iter_nodes()) == [
+            ("a", _GVNode()),
+        ]
+        assert sorted(down.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["b", "c"])),
+            ("b", _GVNode(depends_on=["a"], flows_to=["c"])),
+            ("c", _GVNode(depends_on=["a", "b"])),
+        ]
+
+        up, down = graph.split_at("c")
+        assert sorted(up.iter_nodes()) == [
+            ("a", _GVNode(flows_to=["b", "c"])),
+            ("b", _GVNode(depends_on=["a"], flows_to=["c"])),
+            ("c", _GVNode(depends_on=["a", "b"])),
+        ]
+        assert sorted(down.iter_nodes()) == [
+            ("c", _GVNode()),
+        ]
+
+    def test_split_at_multiple_empty(self):
+        graph = _GraphViewer.from_edges([("a", "b")])
+        result = graph.split_at_multiple([])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            None: [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))],
+        }
+
+    def test_split_at_multiple_single(self):
+        graph = _GraphViewer.from_edges([("a", "b"), ("b", "c")])
+        result = graph.split_at_multiple(["b"])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            "b": [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))],
+            None: [("b", _GVNode(flows_to="c")), ("c", _GVNode(depends_on="b"))],
+        }
+
+    def test_split_at_multiple_basic(self):
+        graph = _GraphViewer.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"}),
+        )
+        result = graph.split_at_multiple(["b", "c"])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            "b": [("a", _GVNode(flows_to="b", backend_candidates="A")), ("b", _GVNode(depends_on="a"))],
+            "c": [("b", _GVNode(flows_to="c")), ("c", _GVNode(depends_on="b"))],
+            None: [("c", _GVNode(flows_to="d")), ("d", _GVNode(depends_on="c"))],
+        }
+
+    def test_split_at_multiple_invalid(self):
+        """Split nodes should be in downstream order"""
+        graph = _GraphViewer.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d")],
+        )
+        # Downstream order: works
+        _ = graph.split_at_multiple(["b", "c"])
+        # Upstream order: fails
+        with pytest.raises(GraphSplitException, match="Invalid node id 'b'"):
+            _ = graph.split_at_multiple(["c", "b"])
+
+    def test_produce_split_locations_simple(self):
+        """Simple produce_split_locations use case: no need for splits"""
+        flat = {
+            # lc1
+            #  |
+            # ndvi1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat, supporting_backends=supporting_backends_from_node_id_dict({"lc1": "b1"})
+        )
+        assert list(graph.produce_split_locations()) == [[]]
+
+    def test_produce_split_locations_merge_basic(self):
+        """
+        Basic produce_split_locations use case:
+        two load collections on different backends and a merge
+        """
+        flat = {
+            #  lc1   lc2
+            #     \ /
+            #    merge1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+            },
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
+        assert sorted(graph.produce_split_locations()) == [["lc1"], ["lc2"]]
+
+    def test_produce_split_locations_merge_longer(self):
+        flat = {
+            #   lc1     lc2
+            #    |       |
+            #  bands1  bands2
+            #       \ /
+            #      merge1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands2": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc2"}, "bands": ["B02"]}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "bands2"}},
+            },
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
+        assert sorted(graph.produce_split_locations(limit=2)) == [["bands1"], ["bands2"]]
+        assert list(graph.produce_split_locations(limit=4)) == [["bands1"], ["bands2"], ["lc1"], ["lc2"]]
+
+    def test_produce_split_locations_merge_longer_triangle(self):
+        flat = {
+            #        lc1
+            #       /  |
+            #  bands1  |     lc2
+            #      \   |      |
+            #      mask1   bands2
+            #          \  /
+            #         merge1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "mask1": {
+                "process_id": "mask",
+                "arguments": {"data": {"from_node": "bands1"}, "mask": {"from_node": "lc1"}},
+            },
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands2": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc2"}, "bands": ["B02"]}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "mask1"}, "cube2": {"from_node": "bands2"}},
+            },
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
+        assert list(graph.produce_split_locations(limit=4)) == [["bands2"], ["mask1"], ["lc2"], ["lc1"]]
+
+    def test_produce_split_locations_allow_split(self):
+        """Usage of custom allow_list predicate"""
+        flat = {
+            #   lc1     lc2
+            #    |       |
+            #  bands1  bands2
+            #       \ /
+            #      merge1
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands2": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc2"}, "bands": ["B02"]}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "bands2"}},
+            },
+        }
+        graph = _GraphViewer.from_flat_graph(
+            flat,
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+        )
+        assert list(graph.produce_split_locations()) == [["bands1"], ["bands2"], ["lc1"], ["lc2"]]
+        assert list(graph.produce_split_locations(allow_split=lambda n: n not in {"bands1", "lc2"})) == [
+            ["bands2"],
+            ["lc1"],
+        ]
+
+
+class TestDeepGraphSplitter:
+    def test_no_split(self):
+        splitter = DeepGraphSplitter(supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"]}))
+        flat = {
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "ndvi1": {"process_id": "ndvi", "arguments": {"data": {"from_node": "lc1"}}, "result": True},
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "ndvi1"},
+            primary_backend_id="b1",
+            secondary_graphs=[],
+        )
+
+    def test_simple_split(self):
+        """
+        Most simple split use case: two load_collections from different backends, merged.
+        """
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]})
+        )
+        flat = {
+            #   lc1   lc2
+            #      \ /
+            #     merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "lc2", "merge"},
+            primary_backend_id="b2",
+            secondary_graphs=[
+                _PGSplitSubGraph(
+                    split_node="lc1",
+                    node_ids={"lc1"},
+                    backend_id="b1",
+                )
+            ],
+        )
+
+    def test_simple_deep_split(self):
+        """
+        Simple deep split use case:
+        two load_collections from different backends, with some additional filtering, merged.
+        """
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]})
+        )
+        flat = {
+            #   lc1      lc2
+            #    |        |
+            #  bands1  temporal2
+            #       \  /
+            #       merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc2", "temporal2", "bands1", "merge"},
+            primary_backend_id="b2",
+            secondary_graphs=[_PGSplitSubGraph(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
+        )
+
+    def test_shallow_triple_split(self):
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        )
+        flat = {
+            #   lc1   lc2   lc3
+            #      \ /      /
+            #     merge1   /
+            #        \    /
+            #        merge2
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc3": {"process_id": "load_collection", "arguments": {"id": "S3"}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+            },
+            "merge2": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "merge1"}, "cube2": {"from_node": "lc3"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "lc2", "lc3", "merge1", "merge2"},
+            primary_backend_id="b2",
+            secondary_graphs=[
+                _PGSplitSubGraph(split_node="lc1", node_ids={"lc1"}, backend_id="b1"),
+                _PGSplitSubGraph(split_node="lc3", node_ids={"lc3"}, backend_id="b3"),
+            ],
+        )
+
+    def test_triple_split(self):
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"], "lc3": ["b3"]})
+        )
+        flat = {
+            #   lc1      lc2        lc3
+            #    |        |          |
+            #  bands1  temporal2  spatial3
+            #       \  /          /
+            #       merge1       /
+            #            \      /
+            #             merge2
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "lc3": {"process_id": "load_collection", "arguments": {"id": "S3"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "spatial3": {"process_id": "filter_spatial", "arguments": {"data": {"from_node": "lc3"}, "extent": "EU"}},
+            "merge1": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+            },
+            "merge2": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "merge1"}, "cube2": {"from_node": "spatial3"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"merge2", "merge1", "lc3", "spatial3"},
+            primary_backend_id="b3",
+            secondary_graphs=[
+                _PGSplitSubGraph(split_node="bands1", node_ids={"bands1", "lc1"}, backend_id="b1"),
+                _PGSplitSubGraph(
+                    split_node="merge1", node_ids={"bands1", "merge1", "temporal2", "lc2"}, backend_id="b2"
+                ),
+            ],
+        )
+
+    @pytest.mark.parametrize(
+        ["primary_backend", "secondary_graph"],
+        [
+            ("b1", _PGSplitSubGraph(split_node="lc2", node_ids={"lc2"}, backend_id="b2")),
+            ("b2", _PGSplitSubGraph(split_node="lc1", node_ids={"lc1"}, backend_id="b1")),
+        ],
+    )
+    def test_split_with_primary_backend(self, primary_backend, secondary_graph):
+        """Test `primary_backend` argument of DeepGraphSplitter"""
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+            primary_backend=primary_backend,
+        )
+        flat = {
+            #   lc1   lc2
+            #      \ /
+            #     merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "lc1"}, "cube2": {"from_node": "lc2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids={"lc1", "lc2", "merge"},
+            primary_backend_id=primary_backend,
+            secondary_graphs=[secondary_graph],
+        )
+
+    @pytest.mark.parametrize(
+        ["split_deny_list", "split_node", "primary_node_ids", "secondary_node_ids"],
+        [
+            ({}, "temporal2", {"lc1", "bands1", "temporal2", "merge"}, {"lc2", "temporal2"}),
+            ({"filter_bands", "filter_temporal"}, "lc2", {"lc1", "lc2", "bands1", "temporal2", "merge"}, {"lc2"}),
+        ],
+    )
+    def test_split_deny_list(self, split_deny_list, split_node, primary_node_ids, secondary_node_ids):
+        """
+        Simple deep split use case:
+        two load_collections from different backends, with some additional filtering, merged.
+        """
+        splitter = DeepGraphSplitter(
+            supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
+            primary_backend="b1",
+            split_deny_list=split_deny_list,
+        )
+        flat = {
+            #   lc1      lc2
+            #    |        |
+            #  bands1  temporal2
+            #       \  /
+            #       merge
+            "lc1": {"process_id": "load_collection", "arguments": {"id": "S1"}},
+            "lc2": {"process_id": "load_collection", "arguments": {"id": "S2"}},
+            "bands1": {"process_id": "filter_bands", "arguments": {"data": {"from_node": "lc1"}, "bands": ["B01"]}},
+            "temporal2": {
+                "process_id": "filter_temporal",
+                "arguments": {"data": {"from_node": "lc2"}, "extent": ["2022", "2023"]},
+            },
+            "merge": {
+                "process_id": "merge_cubes",
+                "arguments": {"cube1": {"from_node": "bands1"}, "cube2": {"from_node": "temporal2"}},
+                "result": True,
+            },
+        }
+        result = splitter.split(flat)
+        assert result == _PGSplitResult(
+            primary_node_ids=primary_node_ids,
+            primary_backend_id="b1",
+            secondary_graphs=[_PGSplitSubGraph(split_node=split_node, node_ids=secondary_node_ids, backend_id="b2")],
+        )

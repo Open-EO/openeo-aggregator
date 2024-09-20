@@ -6,6 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start changelog -->
 
+## 0.39.0
+
+- More advanced process-graph splitting for cross-backend execution: not limited to splitting off `load_collection` nodes, but cut deeper into the graph. ([#150](https://github.com/Open-EO/openeo-aggregator/issues/150))
+
 ## 0.38.0
 
 - Add request timeout configs for listing user jobs (eu-cdse/openeo-cdse-infra#188)
