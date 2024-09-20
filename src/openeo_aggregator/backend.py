@@ -808,15 +808,16 @@ class AggregatorBatchJobs(BatchJobs):
         if "process_graph" not in process:
             raise ProcessGraphMissingException()
 
-        # Coverage of messy "split_strategy" job option https://github.com/Open-EO/openeo-aggregator/issues/156
-        # TODO: better, more generic/specific job_option(s)?
+        # Coverage of messy "split_strategy" job option
+        # Also see https://github.com/Open-EO/openeo-aggregator/issues/156
+        # TODO: more generic and future proof handling of split strategy related options?
         split_strategy = (job_options or {}).get(JOB_OPTION_SPLIT_STRATEGY)
-        # TODO: this job option "tile_grid" is quite generic and not very explicit about being a job splitting approach
         tile_grid = (job_options or {}).get(JOB_OPTION_TILE_GRID)
-
-        crossbackend_mode = (
-            split_strategy == "crossbackend" or isinstance(split_strategy, dict) and "crossbackend" in split_strategy
+        crossbackend_mode = split_strategy == "crossbackend" or (
+            isinstance(split_strategy, dict) and "crossbackend" in split_strategy
         )
+        # TODO: the legacy job option "tile_grid" is quite generic and not very explicit
+        #       about being a job splitting approach. Can we deprecate this in a way?
         spatial_split_mode = tile_grid or split_strategy == "flimsy"
 
         if crossbackend_mode:
@@ -951,6 +952,7 @@ class AggregatorBatchJobs(BatchJobs):
 
         split_strategy = (job_options or {}).get(JOB_OPTION_SPLIT_STRATEGY)
         if split_strategy == "crossbackend":
+            # Legacy job option format
             graph_split_method = CROSSBACKEND_GRAPH_SPLIT_METHOD.SIMPLE
         elif isinstance(split_strategy, dict) and isinstance(split_strategy.get("crossbackend"), dict):
             graph_split_method = split_strategy.get("crossbackend", {}).get(
@@ -973,6 +975,7 @@ class AggregatorBatchJobs(BatchJobs):
         elif graph_split_method == CROSSBACKEND_GRAPH_SPLIT_METHOD.DEEP:
 
             def supporting_backends(node_id: str, node: dict) -> Union[List[str], None]:
+                # TODO: wider coverage checking process id availability
                 if node["process_id"] == "load_collection":
                     collection_id = node["arguments"]["id"]
                     return self._catalog.get_backends_for_collection(cid=collection_id)

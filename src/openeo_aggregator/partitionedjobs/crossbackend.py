@@ -97,12 +97,16 @@ def _default_get_replacement(node_id: str, node: dict, subgraph_id: SubGraphId) 
 
 
 class _SubGraphData(NamedTuple):
+    """Container for result of ProcessGraphSplitterInterface.split"""
+
     split_node: NodeId
     node_ids: Set[NodeId]
     backend_id: BackendId
 
 
 class _PGSplitResult(NamedTuple):
+    """Container for result of ProcessGraphSplitterInterface.split"""
+
     primary_node_ids: Set[NodeId]
     primary_backend_id: BackendId
     secondary_graphs: List[_SubGraphData]
@@ -187,10 +191,6 @@ class CrossBackendJobSplitter(AbstractJobSplitter):
     """
 
     def __init__(self, graph_splitter: ProcessGraphSplitterInterface):
-        """
-        :param backend_for_collection: callable that determines backend id for given collection id
-        :param always_split: split all load_collections, also when on same backend
-        """
         self._graph_splitter = graph_splitter
 
     def split_streaming(
@@ -466,8 +466,6 @@ class _GVNode:
     without having to worry about accidentally propagating changed state to other parts of the graph.
     """
 
-    # TODO: type coercion in __init__ of frozen dataclasses is bit ugly. Use attrs with field converters instead?
-
     # Node ids of other nodes this node depends on (aka parents)
     depends_on: frozenset[NodeId]
     # Node ids of other nodes that depend on this node (aka children)
@@ -475,7 +473,6 @@ class _GVNode:
 
     # Backend ids this node is marked to be supported on
     # value None means it is unknown/unconstrained for this node
-    # TODO: Move this to _GraphViewer as responsibility?
     backend_candidates: Union[frozenset[BackendId], None]
 
     def __init__(
@@ -485,6 +482,7 @@ class _GVNode:
         flows_to: Union[Iterable[NodeId], NodeId, None] = None,
         backend_candidates: Union[Iterable[BackendId], BackendId, None] = None,
     ):
+        # TODO: type coercion in __init__ of frozen dataclasses is bit ugly. Use attrs with field converters instead?
         super().__init__()
         object.__setattr__(self, "depends_on", to_frozenset(depends_on or []))
         object.__setattr__(self, "flows_to", to_frozenset(flows_to or []))
@@ -492,7 +490,11 @@ class _GVNode:
         object.__setattr__(self, "backend_candidates", backend_candidates)
 
     def __repr__(self):
-        return f"<{type(self).__name__}({self.depends_on}, {self.flows_to}, {self.backend_candidates})>"
+        # Somewhat cryptic, but compact representation of node attributes
+        depends_on = (" <" + ",".join(sorted(self.depends_on))) if self.depends_on else ""
+        flows_to = (" >" + ",".join(sorted(self.flows_to))) if self.flows_to else ""
+        backends = (" @" + ",".join(sorted(self.backend_candidates))) if self.backend_candidates else ""
+        return f"[{type(self).__name__}{depends_on}{flows_to}{backends}]"
 
 
 class _GraphViewer:
@@ -505,7 +507,7 @@ class _GraphViewer:
     def __init__(self, node_map: dict[NodeId, _GVNode]):
         self._check_consistency(node_map=node_map)
         # Work with a read-only proxy to prevent accidental changes
-        self._graph: Mapping[NodeId, _GVNode] = types.MappingProxyType(node_map)
+        self._graph: Mapping[NodeId, _GVNode] = types.MappingProxyType(node_map.copy())
 
     @staticmethod
     def _check_consistency(node_map: dict[NodeId, _GVNode]):
@@ -567,7 +569,6 @@ class _GraphViewer:
 
         graph = {
             node_id: _GVNode(
-                # Note that we just use node id as process id. Do we have better options here?
                 depends_on=depends_on.get(node_id, []),
                 flows_to=flows_to.get(node_id, []),
                 backend_candidates=supporting_backends_mapper(node_id, {}),
@@ -593,9 +594,15 @@ class _GraphViewer:
         auto_sort: bool = True,
     ) -> Iterator[NodeId]:
         """
-        Walk the graph nodes starting from given seed nodes, taking steps as defined by `next_nodes` function.
-        Optionally include seeds or not, and walk breadth first.
+        Walk the graph nodes starting from given seed nodes,
+        taking steps as defined by `next_nodes` function.
+        Walks breadth first and each node is only visited once.
+
+        :param include_seeds: whether to include the seed nodes in the walk
+        :param auto_sort: visit "next" nodes of a given node lexicographically sorted
+            to make the walk deterministic.
         """
+        # TODO: option to walk depth first instead of breadth first?
         if auto_sort:
             # Automatically sort next nodes to make walk more deterministic
             prepare = sorted
@@ -743,7 +750,7 @@ class _GraphViewer:
 
         return up, down
 
-    def produce_split_locations(self, limit: int = 10) -> Iterator[List[NodeId]]:
+    def produce_split_locations(self, limit: int = 20) -> Iterator[List[NodeId]]:
         """
         Produce disjoint subgraphs that can be processed independently.
 
@@ -763,9 +770,8 @@ class _GraphViewer:
 
         if forsaken_nodes:
             # Sort forsaken nodes (based on forsaken parent count), to start higher up the graph
-            # TODO: avoid need for this sort, and just use a better scoring metric higher up?
             forsaken_nodes = sorted(
-                forsaken_nodes, key=lambda n: sum(p in forsaken_nodes for p in self.node(n).depends_on)
+                forsaken_nodes, key=lambda n: (sum(p in forsaken_nodes for p in self.node(n).depends_on), n)
             )
             _log.debug(f"_GraphViewer.produce_split_locations: {forsaken_nodes=}")
 
@@ -784,8 +790,7 @@ class _GraphViewer:
             _log.debug(f"_GraphViewer.produce_split_locations: {split_options=}")
             if not split_options:
                 raise GraphSplitException("No split options found.")
-            # TODO: how to handle limit? will it scale feasibly to iterate over all possibilities at this point?
-            # TODO: smarter picking of split node (e.g. one with most upstream nodes)
+            # TODO: Do we really need a limit? Or is there a practical scalability risk to list all possibilities?
             assert limit > 0
             for split_node_id in split_options[:limit]:
                 _log.debug(f"_GraphViewer.produce_split_locations: splitting at {split_node_id=}")

@@ -478,6 +478,14 @@ class TestGVNode:
             backend_candidates=["X"],
         )
 
+    def test_repr(self):
+        assert repr(_GVNode()) == "[_GVNode]"
+        assert repr(_GVNode(depends_on="a")) == "[_GVNode <a]"
+        assert repr(_GVNode(depends_on=["b", "a"])) == "[_GVNode <a,b]"
+        assert repr(_GVNode(depends_on="a", flows_to="b")) == "[_GVNode <a >b]"
+        assert repr(_GVNode(depends_on=["a", "b"], flows_to=["foo", "bar"])) == "[_GVNode <a,b >bar,foo]"
+        assert repr(_GVNode(depends_on="a", flows_to="b", backend_candidates=["x", "yy"])) == "[_GVNode <a >b @x,yy]"
+
 
 def supporting_backends_from_node_id_dict(data: dict) -> SupportingBackendsMapper:
     return lambda node_id, node: data.get(node_id)
@@ -500,6 +508,21 @@ class TestGraphViewer:
     def test_check_consistency(self, node_map, expected_error):
         with pytest.raises(GraphSplitException, match=expected_error):
             _ = _GraphViewer(node_map=node_map)
+
+    def test_immutability(self):
+        node_map = {"a": _GVNode(flows_to="b"), "b": _GVNode(depends_on="a")}
+        graph = _GraphViewer(node_map=node_map)
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
+
+        # Adding a node to the original map should not affect the graph
+        node_map["c"] = _GVNode()
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
+
+        # Trying to mess with internals shouldn't work either
+        with pytest.raises(Exception, match="does not support item assignment"):
+            graph._graph["c"] = _GVNode()
+
+        assert sorted(graph.iter_nodes()) == [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))]
 
     def test_from_flat_graph_basic(self):
         flat = {
