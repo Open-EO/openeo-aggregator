@@ -22,7 +22,7 @@ from openeo_aggregator.partitionedjobs.crossbackend import (
     _GraphViewer,
     _GVNode,
     _PGSplitResult,
-    _SubGraphData,
+    _PGSplitSubGraph,
     run_partitioned_job,
 )
 
@@ -786,6 +786,13 @@ class TestGraphViewer:
 
     def test_split_at_complex(self):
         graph = _GraphViewer.from_edges(
+            #   a
+            #  / \
+            # b   c           X
+            #  \ / \          |
+            #   d   e   f     Y
+            #        \ /
+            #         g
             [("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("c", "e"), ("e", "g"), ("f", "g"), ("X", "Y")]
         )
         up, down = graph.split_at("e")
@@ -829,6 +836,44 @@ class TestGraphViewer:
         assert sorted(down.iter_nodes()) == [
             ("c", _GVNode()),
         ]
+
+    def test_split_at_multiple_empty(self):
+        graph = _GraphViewer.from_edges([("a", "b")])
+        result = graph.split_at_multiple([])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            None: [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))],
+        }
+
+    def test_split_at_multiple_single(self):
+        graph = _GraphViewer.from_edges([("a", "b"), ("b", "c")])
+        result = graph.split_at_multiple(["b"])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            "b": [("a", _GVNode(flows_to="b")), ("b", _GVNode(depends_on="a"))],
+            None: [("b", _GVNode(flows_to="c")), ("c", _GVNode(depends_on="b"))],
+        }
+
+    def test_split_at_multiple_basic(self):
+        graph = _GraphViewer.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d")],
+            supporting_backends_mapper=supporting_backends_from_node_id_dict({"a": "A"}),
+        )
+        result = graph.split_at_multiple(["b", "c"])
+        assert {n: sorted(g.iter_nodes()) for (n, g) in result.items()} == {
+            "b": [("a", _GVNode(flows_to="b", backend_candidates="A")), ("b", _GVNode(depends_on="a"))],
+            "c": [("b", _GVNode(flows_to="c")), ("c", _GVNode(depends_on="b"))],
+            None: [("c", _GVNode(flows_to="d")), ("d", _GVNode(depends_on="c"))],
+        }
+
+    def test_split_at_multiple_invalid(self):
+        """Split nodes should be in downstream order"""
+        graph = _GraphViewer.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d")],
+        )
+        # Downstream order: works
+        _ = graph.split_at_multiple(["b", "c"])
+        # Upstream order: fails
+        with pytest.raises(GraphSplitException, match="Invalid node id 'b'"):
+            _ = graph.split_at_multiple(["c", "b"])
 
     def test_produce_split_locations_simple(self):
         """Simple produce_split_locations use case: no need for splits"""
@@ -956,7 +1001,7 @@ class TestDeepGraphSplitter:
             primary_node_ids={"lc1", "lc2", "merge"},
             primary_backend_id="b2",
             secondary_graphs=[
-                _SubGraphData(
+                _PGSplitSubGraph(
                     split_node="lc1",
                     node_ids={"lc1"},
                     backend_id="b1",
@@ -995,7 +1040,7 @@ class TestDeepGraphSplitter:
         assert result == _PGSplitResult(
             primary_node_ids={"lc2", "temporal2", "bands1", "merge"},
             primary_backend_id="b2",
-            secondary_graphs=[_SubGraphData(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
+            secondary_graphs=[_PGSplitSubGraph(split_node="bands1", node_ids={"lc1", "bands1"}, backend_id="b1")],
         )
 
     def test_shallow_triple_split(self):
@@ -1026,8 +1071,8 @@ class TestDeepGraphSplitter:
             primary_node_ids={"lc1", "lc2", "lc3", "merge1", "merge2"},
             primary_backend_id="b2",
             secondary_graphs=[
-                _SubGraphData(split_node="lc1", node_ids={"lc1"}, backend_id="b1"),
-                _SubGraphData(split_node="lc3", node_ids={"lc3"}, backend_id="b3"),
+                _PGSplitSubGraph(split_node="lc1", node_ids={"lc1"}, backend_id="b1"),
+                _PGSplitSubGraph(split_node="lc3", node_ids={"lc3"}, backend_id="b3"),
             ],
         )
 
@@ -1067,16 +1112,18 @@ class TestDeepGraphSplitter:
             primary_node_ids={"merge2", "merge1", "lc3", "spatial3"},
             primary_backend_id="b3",
             secondary_graphs=[
-                _SubGraphData(split_node="bands1", node_ids={"bands1", "lc1"}, backend_id="b1"),
-                _SubGraphData(split_node="merge1", node_ids={"bands1", "merge1", "temporal2", "lc2"}, backend_id="b2"),
+                _PGSplitSubGraph(split_node="bands1", node_ids={"bands1", "lc1"}, backend_id="b1"),
+                _PGSplitSubGraph(
+                    split_node="merge1", node_ids={"bands1", "merge1", "temporal2", "lc2"}, backend_id="b2"
+                ),
             ],
         )
 
     @pytest.mark.parametrize(
         ["primary_backend", "secondary_graph"],
         [
-            ("b1", _SubGraphData(split_node="lc2", node_ids={"lc2"}, backend_id="b2")),
-            ("b2", _SubGraphData(split_node="lc1", node_ids={"lc1"}, backend_id="b1")),
+            ("b1", _PGSplitSubGraph(split_node="lc2", node_ids={"lc2"}, backend_id="b2")),
+            ("b2", _PGSplitSubGraph(split_node="lc1", node_ids={"lc1"}, backend_id="b1")),
         ],
     )
     def test_split_with_primary_backend(self, primary_backend, secondary_graph):
