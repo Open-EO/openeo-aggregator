@@ -332,6 +332,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 only_on = [
                     f"{cid!r} only on {list(backends)}"
                     for cid, backends in collection_backends_map.items()
+                    if cid in collections
                     if union.difference(backends)
                 ]
                 raise BackendLookupFailureException(

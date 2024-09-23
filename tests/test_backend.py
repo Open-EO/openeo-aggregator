@@ -1063,11 +1063,11 @@ class TestAggregatorCollectionCatalog:
     def test_get_best_backend_for_collections_basic(self, catalog, backend1, backend2, requests_mock):
         requests_mock.get(
             backend1 + "/collections",
-            json={"collections": [{"id": "S3"}, {"id": "S4"}]},
+            json={"collections": [{"id": "S3"}, {"id": "S4"}, {"id": "S666"}]},
         )
         requests_mock.get(
             backend2 + "/collections",
-            json={"collections": [{"id": "S4"}, {"id": "S5"}]},
+            json={"collections": [{"id": "S4"}, {"id": "S5"}, {"id": "S777"}]},
         )
         with pytest.raises(OpenEOApiException, match="Empty collection set given"):
             catalog.get_backend_candidates_for_collections([])
