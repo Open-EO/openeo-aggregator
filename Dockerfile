@@ -1,9 +1,4 @@
-FROM python:3.9-slim-bullseye
-
-
-# Workaround for IPv4/IPv6 networking performance issues.
-# (https://stackoverflow.com/questions/65760510/readtimeouterror-pip-not-installling-any-library)
-RUN echo "precedence ::ffff:0:0/96  100" >> /etc/gai.conf
+FROM python:3.11-slim-bookworm
 
 
 # Install OS updates (https://pythonspeed.com/articles/docker-cache-insecure-images/)
@@ -34,23 +29,10 @@ USER openeo
 ENV VIRTUAL_ENV="/home/openeo/venv"
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN pip install --upgrade pip
 
+# Install openeo-aggregator
+COPY --chown=openeo requirements.txt .
+RUN pip install -r requirements.txt
 
-# Copy source code
-RUN mkdir /home/openeo/aggregator
-WORKDIR /home/openeo/aggregator
-COPY --chown=openeo setup.py setup.py
-COPY --chown=openeo src src
-COPY --chown=openeo conf conf
-COPY --chown=openeo pytest.ini pytest.ini
-COPY --chown=openeo tests tests
-COPY --chown=openeo CHANGELOG.md CHANGELOG.md
-
-
-# Install dependencies and app.
-RUN pip install --upgrade pip && \
-    pip install .
-
-
-# TODO #117/#143 eliminate conf/gunicorn.prod.py reference
 CMD ["gunicorn", "--config=conf/gunicorn.prod.py", "openeo_aggregator.app:create_app()"]

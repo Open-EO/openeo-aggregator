@@ -2,6 +2,7 @@
 @Library('lib')_
 
 pythonPipeline {
+  build_container_image = true
   package_name = 'openeo-aggregator'
   test_module_name = 'openeo_aggregator'
   wipeout_workspace = true
