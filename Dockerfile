@@ -22,6 +22,7 @@ RUN echo "[global]" >> $PIP_CONF && \
 # Build and run as non-root (see https://pythonspeed.com/articles/root-capabilities-docker-security/)
 RUN groupadd --gid 1000 openeo && \
     useradd --create-home --base-dir /home --uid 1000 --gid openeo openeo
+
 WORKDIR /home/openeo
 USER openeo
 
@@ -35,4 +36,4 @@ RUN pip install --upgrade pip
 COPY --chown=openeo requirements.txt .
 RUN pip install -r requirements.txt
 
-CMD ["gunicorn", "--config=conf/gunicorn.prod.py", "openeo_aggregator.app:create_app()"]
+CMD ["gunicorn", "openeo_aggregator.app:create_app()"]
