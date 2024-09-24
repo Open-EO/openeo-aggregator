@@ -27,10 +27,6 @@ setup(
             "openeo-aggregator-data",
             [
                 "CHANGELOG.md",
-                # TODO #117 eliminate gunicorn.dev.py reference
-                "conf/gunicorn.dev.py",
-                # TODO #117 eliminate gunicorn.prod.py reference
-                "conf/gunicorn.prod.py",
             ],
         ),
     ],
