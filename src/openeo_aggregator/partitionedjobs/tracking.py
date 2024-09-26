@@ -113,7 +113,7 @@ class PartitionedJobTracker:
                 canonical_links = [link for link in result_metadata.get("links", {}) if link.get("rel") == "canonical"]
                 stac_url = canonical_links[0]["href"]
             except Exception as e:
-                msg = f"Failed to obtain partial canonical batch job result URL for {subgraph_id=}: {e}"
+                msg = f"Failed to obtain partial canonical batch job result URL for {subgraph_id=}: {e!r}"
                 _log.exception(msg)
                 raise PartitionedJobFailure(msg) from e
             return {
