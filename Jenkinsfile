@@ -3,6 +3,7 @@
 
 pythonPipeline {
   build_container_image = true
+  dockerfile_location = 'docker/Dockerfile'
   // Set dev registry as this job has no promotion job and we want to put the image in a public registry
   docker_registry_dev = 'vito-docker.artifactory.vgt.vito.be'
   package_name = 'openeo-aggregator'
