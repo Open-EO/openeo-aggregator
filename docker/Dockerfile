@@ -33,7 +33,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN pip install --upgrade pip
 
 # Install openeo-aggregator
-COPY --chown=openeo requirements.txt .
+COPY --chown=openeo docker/requirements.txt .
 RUN pip install -r requirements.txt
 
 CMD ["gunicorn", "openeo_aggregator.app:create_app()"]
