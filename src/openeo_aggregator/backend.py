@@ -4,6 +4,8 @@ import contextlib
 import dataclasses
 import datetime
 import functools
+import importlib
+import importlib.metadata
 import logging
 import pathlib
 import re
@@ -27,6 +29,7 @@ import flask
 import openeo
 import openeo.rest
 import openeo_driver.errors
+import openeo_driver.util.changelog
 import openeo_driver.util.view_helpers
 from openeo.capabilities import ComparableVersion
 from openeo.rest import (
@@ -1601,9 +1604,27 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities
 
-    def changelog(self) -> Union[str, pathlib.Path]:
-        # TODO: What is path of CHANGELOG.md in docker container? It's probably not even there yet #97
-        changelog = pathlib.Path(__file__).parent.parent.parent / "CHANGELOG.md"
-        if changelog.exists():
-            return changelog
-        return super().changelog()
+    def changelog(self) -> Union[str, pathlib.Path, flask.Response]:
+        html = openeo_driver.util.changelog.multi_project_changelog(
+            [
+                {
+                    "name": "openeo-aggregator",
+                    "version": importlib.metadata.version(distribution_name="openeo-aggregator"),
+                    "changelog_path": openeo_driver.util.changelog.get_changelog_path(
+                        data_files_dir="openeo-aggregator-data",
+                        src_root=pathlib.Path(openeo_aggregator.__file__).parent.parent.parent,
+                        filename="CHANGELOG.md",
+                    ),
+                },
+                {
+                    "name": "openeo-python-driver",
+                    "version": importlib.metadata.version(distribution_name="openeo_driver"),
+                    "changelog_path": openeo_driver.util.changelog.get_changelog_path(
+                        data_files_dir="openeo-python-driver-data",
+                        src_root=pathlib.Path(openeo_driver.__file__).parent.parent,
+                        filename="CHANGELOG.md",
+                    ),
+                },
+            ]
+        )
+        return flask.make_response(html, {"Content-Type": "text/html"})
