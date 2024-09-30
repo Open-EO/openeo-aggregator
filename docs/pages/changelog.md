@@ -2,6 +2,6 @@
 
 
 ```{include} ../../CHANGELOG.md
-:start-after: <!-- start changelog -->
-:end-before: <!-- end changelog -->
+:start-after: <!-- start-of-changelog -->
+:end-before: <!-- end-of-changelog -->
 ```

@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-<!-- start changelog -->
+<!-- start-of-changelog -->
 
 ## 0.39.0
 
@@ -366,4 +366,4 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 - Skip failing back-ends when merging `/jobs` listings (EP-4014)
 
 
-<!-- end changelog -->
+<!-- end-of-changelog -->
