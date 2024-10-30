@@ -636,12 +636,12 @@ class AggregatorProcessing(Processing):
                 )
             except openeo.rest.OpenEoApiError as e:
                 _log.error(f"Sync processing on {con.id!r} failed with API error {e!r}", exc_info=True)
-                raise pass_through_api_error(e)
+                raise pass_through_api_error(e) from None
             except Exception as e:
                 _log.error(f"Sync processing on {con.id!r} failed with unexpected error {e=}", exc_info=True)
                 raise openeo_driver.errors.OpenEOApiException(
                     code="Internal", message=f"Synchronous processing failed on {con.id!r} with {e!r}"
-                )
+                ) from e
 
         return streaming_flask_response(backend_response, chunk_size=get_backend_config().streaming_chunk_size)
 
@@ -1027,9 +1027,9 @@ class AggregatorBatchJobs(BatchJobs):
             yield
         except openeo.rest.OpenEoApiError as e:
             if e.code == JobNotFoundException.code:
-                raise JobNotFoundException(job_id=job_id)
+                raise JobNotFoundException(job_id=job_id) from None
             # By default, pass through API errors.
-            raise pass_through_api_error(e)
+            raise pass_through_api_error(e) from None
 
     def get_job_info(self, job_id: str, user_id: str) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
@@ -1338,10 +1338,12 @@ class AggregatorSecondaryServices(SecondaryServices):
             except OpenEoApiError as e:
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
                     if e.code == exc_class.code:
-                        raise exc_class
-                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+                        raise exc_class from None
+                raise OpenEOApiException(
+                    f"Failed to create secondary service on backend {backend_id!r}: {e!r}"
+                ) from None
             except (OpenEoRestError, OpenEoClientException) as e:
-                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}")
+                raise OpenEOApiException(f"Failed to create secondary service on backend {backend_id!r}: {e!r}") from e
 
             return ServiceIdMapping.get_aggregator_service_id(service.service_id, backend_id)
 
@@ -1406,7 +1408,7 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
                 yield con
         except OpenEoApiError as e:
             if e.code == ProcessGraphNotFoundException.code:
-                raise ProcessGraphNotFoundException(process_graph_id=process_graph_id)
+                raise ProcessGraphNotFoundException(process_graph_id=process_graph_id) from None
             raise
 
     def get(self, user_id: str, process_id: str) -> Union[UserDefinedProcessMetadata, None]:
@@ -1538,7 +1540,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                         "userinfo keys": (user.info.keys(), user.info.get("oidc_userinfo", {}).keys()),
                     },
                 )
-                raise PermissionsInsufficientException(enrollment_error_user_message)
+                raise PermissionsInsufficientException(enrollment_error_user_message) from e
 
             roles = openeo_aggregator.egi.OPENEO_PLATFORM_USER_ROLES.extract_roles(eduperson_entitlements)
             if roles:
