@@ -727,6 +727,7 @@ class TestProcessing:
                 },
             ],
             "links": [],
+            "version": None,
         }
 
     @pytest.mark.parametrize(
@@ -844,7 +845,7 @@ class TestProcessing:
         else:
             requests_mock.get(backend2 + "/processes", status_code=404, text="nope")
         res = api100.get("/processes").assert_status_code(200).json
-        assert res == {"processes": expected, "links": []}
+        assert res == {"processes": expected, "links": [], "version": None}
 
     def test_result_basic_math_basic_auth(self, api100, requests_mock, backend1, backend2):
         def post_result(request: requests.Request, context):
@@ -1006,6 +1007,7 @@ class TestProcessing:
                 DictSubSet({"id": "prod", "federation:backends": ["b2"]}),
             ],
             "links": [],
+            "version": None,
         }
 
     def test_result_backend_by_collection_multiple_hits(self, api100, requests_mock, backend1, backend2, caplog):
