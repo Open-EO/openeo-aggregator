@@ -866,13 +866,11 @@ class AggregatorBatchJobs(BatchJobs):
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         if job_options:
-            additional = {k: v for k, v in job_options.items() if not k.startswith("_agg_")}
-        else:
-            additional = None
+            job_options = {k: v for k, v in job_options.items() if not k.startswith("_agg_")}
 
         if get_backend_config().job_options_update:
             # Allow fine-tuning job options through config
-            additional = get_backend_config().job_options_update(job_options=additional, backend_id=backend_id)
+            job_options = get_backend_config().job_options_update(job_options=job_options, backend_id=backend_id)
 
         con = self.backends.get_connection(backend_id)
         with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), con.override(
@@ -885,7 +883,7 @@ class AggregatorBatchJobs(BatchJobs):
                     description=metadata.get("description"),
                     plan=metadata.get("plan"),
                     budget=metadata.get("budget"),
-                    additional=additional,
+                    job_options=job_options,
                 )
             except OpenEoApiError as e:
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:

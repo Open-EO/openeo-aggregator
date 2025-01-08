@@ -1953,7 +1953,7 @@ class TestBatchJobs:
         ).assert_status_code(201)
         assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected}-th3j0b"
         assert res.headers["OpenEO-Identifier"] == f"{expected}-th3j0b"
-        assert jobs == [{"process": {"process_graph": pg}}]
+        assert jobs == [{"process": {"process_graph": pg}, "job_options": {}}]
 
         assert (backend1_post_jobs.call_count, backend2_post_jobs.call_count) == {
             "b1": (1, 0),

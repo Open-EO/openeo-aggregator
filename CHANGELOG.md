@@ -6,6 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
+## unreleased
+
+- Update to harmonized `job_option`/`additional` handling in `Connection.create_job` ([#165](https://github.com/Open-EO/openeo-aggregator/issues/165), [Open-EO/openeo-python-client#683](https://github.com/Open-EO/openeo-python-client/issues/683))
+
 ## 0.39.0
 
 - More advanced process-graph splitting for cross-backend execution: not limited to splitting off `load_collection` nodes, but cut deeper into the graph. ([#150](https://github.com/Open-EO/openeo-aggregator/issues/150))
