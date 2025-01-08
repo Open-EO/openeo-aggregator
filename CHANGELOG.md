@@ -8,7 +8,11 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## unreleased
 
+## 0.40.0
+
 - Update to harmonized `job_option`/`additional` handling in `Connection.create_job` ([#165](https://github.com/Open-EO/openeo-aggregator/issues/165), [Open-EO/openeo-python-client#683](https://github.com/Open-EO/openeo-python-client/issues/683))
+- Update to new "version" property on `GET /processes` ([#165](https://github.com/Open-EO/openeo-aggregator/issues/165), [Open-EO/openeo-python-driver#352](https://github.com/Open-EO/openeo-python-driver/issues/352))
+
 
 ## 0.39.0
 
