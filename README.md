@@ -71,20 +71,11 @@ The most important config value is `aggregator_backends`, which
 defines the backends to "aggregate".
 See `src/openeo_aggregator/config/config.py` for more details and other available configuration options.
 
-The `conf` folder contains config files for the dev and production
-variant of this application config:
-
-- `conf/aggregator.dev.py`
-- `conf/aggregator.prod.py`
-
 Use the env var `OPENEO_BACKEND_CONFIG` to point to the desired config path.
 For example, using the example dummy config from the repo:
 
     export OPENEO_BACKEND_CONFIG=src/openeo_aggregator/config/examples/aggregator.dummy.py
 
-Also note that these concrete config files will be refactored out of the `openeo-aggregator` repo
-at some point in the future ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
-and probably only a dummy default config will be preserved.
 
 ### Logging
 
