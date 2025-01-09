@@ -1,2 +1,2 @@
-openeo-aggregator>=0.37.0.dev
+openeo-aggregator>=0.41.0.dev
 fiona<1.10  # Workaround for issue with missing libexpat https://github.com/Open-EO/openeo-aggregator/issues/166
