@@ -11,15 +11,13 @@ config = AggregatorBackendConfig(
     capabilities_title="openEO Aggregator Dummy",
     capabilities_description="openEO Aggregator Dummy instance.",
     aggregator_backends={
-        "dummy": "https://openeo.example/openeo/1.1/",
+        "dummy": "https://openeo.example/",
     },
     oidc_providers=[
         OidcProvider(
             id="egi",
             title="EGI Check-in",
             issuer="https://aai.egi.eu/auth/realms/egi/",
-            scopes=["openid"],
         ),
     ],
-    zookeeper_prefix="/openeo/aggregator/dummy/",
 )

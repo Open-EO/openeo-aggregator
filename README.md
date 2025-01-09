@@ -2,17 +2,43 @@
 
 Driver to run an openEO back-end that combines the collections and compute power of a set of openEO back-ends.
 
-## Install
+
+## Installation
 
 Basic install from source, preferably in some kind of virtual environment:
 
     pip install .
 
-When planning to do development, it is recommended to install it in development mode with the `dev` "extra":
+When planning to do development, it is recommended to install it in development mode (option `-e`) with the `dev` "extra":
 
     pip install -e .[dev]
 
-## Usage
+
+## Configuration
+
+The openEO-Aggregator specific configuration,
+is grouped by an `AggregatorBackendConfig` container object
+(subclass of `OpenEoBackendConfig` as defined in the `openeo-python-driver` framework project).
+The most important config value is `aggregator_backends`, which
+defines the backends to "aggregate".
+See [`src/openeo_aggregator/config/config.py`](src/openeo_aggregator/config/config.py)
+for more details and other available configuration options.
+
+Use the env var `OPENEO_BACKEND_CONFIG` to point to the desired config path.
+For example, using the example [dummy config](src/openeo_aggregator/config/examples/aggregator.dummy.py)
+from the repo:
+
+    export OPENEO_BACKEND_CONFIG=src/openeo_aggregator/config/examples/aggregator.dummy.py
+
+When no valid openEO-Aggregator is set that way, you typically get this error:
+
+    ConfigException: Expected AggregatorBackendConfig but got OpenEoBackendConfig
+
+
+## Running the webapp
+
+Note, as mentioned above: make sure you point to a valid configuration file
+before trying to run the web app.
 
 ### Flask dev mode
 
@@ -23,7 +49,7 @@ for example (also see `./scripts/run-flask-dev.sh`):
     export FLASK_ENV=development
     flask run
 
-The webapp should be available at http://localhost:5000/openeo/1.0
+The webapp should be available at http://localhost:5000/openeo/1.2
 
 ### With gunicorn
 
@@ -32,24 +58,31 @@ for example (also see `./scripts/run-gunicorn.sh`):
 
     gunicorn --workers=4 --bind 0.0.0.0:8080 'openeo_aggregator.app:create_app()'
 
-The webapp should be available at http://localhost:8080/openeo/1.0
+The webapp should be available at http://localhost:8080/openeo/1.2
 
 
 ## Docker image
 
-There is a `Dockerfile` to build a Docker image, for example:
+The [docker](docker) folder has a `Dockerfile` to build a Docker image, e.g.:
 
-    docker build -t openeo-aggregator .
+    docker build -t openeo-aggregator -f docker/Dockerfile .
 
-The image runs the app in gunicorn by default, serving on `0.0.0.0:8080`.
-For example, to run it locally:
+This image is built and hosted by VITO at `vito-docker.artifactory.vgt.vito.be/openeo-aggregator`
 
-    docker run --rm -p 8080:8080 openeo-aggregator
+The image runs the app in gunicorn by default (serving on `127.0.0.1:8000`).
+Example usage, with some extra gunicorn settings and the built-in dummy config:
 
-The webapp should be available at http://localhost:8080/openeo/1.0
+    docker run \
+      --rm \
+      -p 8080:8080 \
+      -e GUNICORN_CMD_ARGS='--bind=0.0.0.0:8080 --workers=2' \
+      -e OPENEO_BACKEND_CONFIG=/home/openeo/venv/lib/python3.11/site-packages/openeo_aggregator/config/examples/aggregator.dummy.py \
+      vito-docker.artifactory.vgt.vito.be/openeo-aggregator:latest
+
+The webapp should be available at http://localhost:8080/openeo/1.2
 
 
-## Configuration
+## Further configuration
 
 The flask/gunicorn related configuration can be set through
 standard flask/gunicorn configuration means
@@ -60,26 +93,14 @@ like command line options or env variables, as shown above.
 For gunicorn there is an example config at `src/openeo_aggregator/config/examples/gunicorn-config.py`,
 for example to be used like this:
 
-    gunicorn --config=src/openeo_aggregator/config/examples/gunicorn-config.py openeo_aggregator.app:create_app()
-
-### Application/Flask config
-
-The openEO-Aggregator specific configuration,
-is grouped by an `AggregatorBackendConfig` container object
-(subclass of `OpenEoBackendConfig` as defined in the `openeo-python-driver` framework project).
-The most important config value is `aggregator_backends`, which
-defines the backends to "aggregate".
-See `src/openeo_aggregator/config/config.py` for more details and other available configuration options.
-
-Use the env var `OPENEO_BACKEND_CONFIG` to point to the desired config path.
-For example, using the example dummy config from the repo:
-
-    export OPENEO_BACKEND_CONFIG=src/openeo_aggregator/config/examples/aggregator.dummy.py
-
+    gunicorn --config=src/openeo_aggregator/config/examples/gunicorn-config.py 'openeo_aggregator.app:create_app()'
 
 ### Logging
 
-Logging is set up (by default) through `config/logging-json.conf`.
+By default, logging is done in JSON format.
+You can switch to a simple text-based logging with this env var:
+
+    OPENEO_AGGREGATOR_SIMPLE_LOGGING=1
 
 ## Running tests
 
