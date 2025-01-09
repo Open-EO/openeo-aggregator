@@ -8,6 +8,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## unreleased
 
+## 0.41.0
+
+- Remove concrete openEO Platform configs from generic repo ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
+
 ## 0.40.0
 
 - Update to harmonized `job_option`/`additional` handling in `Connection.create_job` ([#165](https://github.com/Open-EO/openeo-aggregator/issues/165), [Open-EO/openeo-python-client#683](https://github.com/Open-EO/openeo-python-client/issues/683))

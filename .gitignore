@@ -120,3 +120,7 @@ pytest-tmp
 
 openeo_python.log*
 .envrc
+
+
+# Ignore local/dev/test/dummy configs
+conf*local.py
