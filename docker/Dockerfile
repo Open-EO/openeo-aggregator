@@ -37,6 +37,7 @@ RUN pip install --upgrade pip
 # Use ARG trick with to allow triggering a docker cache miss at this point.
 # Depends `--build-arg` usage, e.g. as done from jenkinslib
 ARG CACHE_DATE=0 PACKAGE_NAME=0
+RUN echo $CACHE_DATE $PACKAGE_NAME
 
 
 # Install openeo-aggregator
