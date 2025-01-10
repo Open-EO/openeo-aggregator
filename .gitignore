@@ -124,3 +124,4 @@ openeo_python.log*
 
 # Ignore local/dev/test/dummy configs
 conf*local.py
+conf*/*local.py
