@@ -33,6 +33,12 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN pip install --upgrade pip
 
+
+# Use ARG trick with to allow triggering a docker cache miss at this point.
+# Depends `--build-arg` usage, e.g. as done from jenkinslib
+ARG CACHE_DATE=0 PACKAGE_NAME=0
+
+
 # Install openeo-aggregator
 COPY --chown=openeo docker/requirements.txt .
 RUN pip install -r requirements.txt
