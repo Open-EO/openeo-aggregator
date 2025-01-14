@@ -67,9 +67,10 @@ The [docker](docker) folder has a `Dockerfile` to build a Docker image, e.g.:
 
     docker build -t openeo-aggregator -f docker/Dockerfile .
 
-This image is built and hosted by VITO at `vito-docker.artifactory.vgt.vito.be/openeo-aggregator`
+This image is built automatically and hosted by VITO at `vito-docker.artifactory.vgt.vito.be/openeo-aggregator`
 
 The image runs the app in gunicorn by default (serving on `127.0.0.1:8000`).
+
 Example usage, with some extra gunicorn settings and the built-in dummy config:
 
     docker run \
@@ -79,7 +80,7 @@ Example usage, with some extra gunicorn settings and the built-in dummy config:
       -e OPENEO_BACKEND_CONFIG=/home/openeo/venv/lib/python3.11/site-packages/openeo_aggregator/config/examples/aggregator.dummy.py \
       vito-docker.artifactory.vgt.vito.be/openeo-aggregator:latest
 
-The webapp should be available at http://localhost:8080/openeo/1.2
+This webapp should be available at http://localhost:8080/openeo/1.2
 
 
 ## Further configuration
