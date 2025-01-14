@@ -30,7 +30,7 @@ from the repo:
 
     export OPENEO_BACKEND_CONFIG=src/openeo_aggregator/config/examples/aggregator.dummy.py
 
-When no valid openEO-Aggregator is set that way, you typically get this error:
+When no valid openEO-Aggregator configuration is set that way, you typically get this error:
 
     ConfigException: Expected AggregatorBackendConfig but got OpenEoBackendConfig
 
@@ -101,7 +101,7 @@ for example to be used like this:
 By default, logging is done in JSON format.
 You can switch to a simple text-based logging with this env var:
 
-    OPENEO_AGGREGATOR_SIMPLE_LOGGING=1
+    export OPENEO_AGGREGATOR_SIMPLE_LOGGING=1
 
 ## Running tests
 
