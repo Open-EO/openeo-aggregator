@@ -6,8 +6,7 @@ import dirty_equals
 import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
-from openeo.rest.connection import url_join
-from openeo.util import rfc3339
+from openeo.util import rfc3339, url_join
 from openeo_driver.backend import ServiceMetadata
 from openeo_driver.errors import (
     JobNotFinishedException,
