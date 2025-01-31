@@ -20,6 +20,8 @@ from typing import (
 import flask
 import requests
 from openeo import Connection
+
+# TODO #170: from openeo.utils.version import ComparableVersion
 from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo.rest.connection import RestApiConnection

@@ -31,6 +31,8 @@ import openeo.rest
 import openeo_driver.errors
 import openeo_driver.util.changelog
 import openeo_driver.util.view_helpers
+
+# TODO #170: from openeo.utils.version import ComparableVersion
 from openeo.capabilities import ComparableVersion
 from openeo.rest import (
     OpenEoApiError,

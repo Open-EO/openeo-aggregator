@@ -34,7 +34,7 @@ setup(
     install_requires=[
         "requests",
         "attrs",
-        "openeo>=0.36.0",
+        "openeo>=0.36.0,<0.38.0",  # TODO #170 temporary pin waiting for actual 0.38.0 release
         "openeo_driver>=0.123.0.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
