@@ -1472,6 +1472,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             public=True,
         )
 
+        self._conformance_classes.append("https://api.openeo.org/extensions/federation/0.1.0")
+
     def oidc_providers(self) -> List[OidcProvider]:
         # Technically, this implementation is redundant given the parent implementation
         # But keeping it allows for some additional tests

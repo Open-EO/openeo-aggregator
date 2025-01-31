@@ -76,6 +76,12 @@ class TestGeneral:
         capabilities = api100.get("/").assert_status_code(200).json
         assert "openeo_aggregator" in capabilities["processing:software"]
 
+    def test_conformance_classes(self, api100):
+        capabilities = api100.get("/").assert_status_code(200).json
+        assert capabilities["conformsTo"] == dirty_equals.Contains(
+            "https://api.openeo.org/extensions/federation/0.1.0",
+        )
+
     def test_only_oidc_auth(self, api100):
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json

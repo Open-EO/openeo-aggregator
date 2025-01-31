@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## unreleased
 
+- Add "openEO Federation Extension" to conformance classes ([#169](https://github.com/Open-EO/openeo-aggregator/issues/169))
+
 ## 0.41.0
 
 - Remove concrete openEO Platform configs from generic repo ([#117](https://github.com/Open-EO/openeo-aggregator/issues/117))
