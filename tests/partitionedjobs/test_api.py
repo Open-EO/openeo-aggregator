@@ -239,6 +239,7 @@ class TestFlimsyBatchJobSplitting:
 
         res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {
+            "level": "debug",
             "logs": [{"id": "0000-0", "level": "error", "message": approx_str_contains("NoJobIdForSubJob")}],
             "links": [],
         }
@@ -449,6 +450,7 @@ class TestFlimsyBatchJobSplitting:
 
         res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {
+            "level": "debug",
             "logs": [{"id": "0000-123", "level": "info", "message": "Created job. You're welcome."}],
             "links": [],
         }
