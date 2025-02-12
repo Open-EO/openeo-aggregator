@@ -2334,6 +2334,7 @@ class TestBatchJobs:
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/jobs/b1-th3j0b/logs").assert_status_code(200).json
         assert res == {
+            "level": "debug",
             "logs": [
                 {"id": "_1", "level": "info", "message": "hello"},
                 {"id": "_11", "level": "info", "message": "hello"},
@@ -2343,6 +2344,7 @@ class TestBatchJobs:
 
         res = api100.get("/jobs/b1-th3j0b/logs?offset=3").assert_status_code(200).json
         assert res == {
+            "level": "debug",
             "logs": [
                 {"id": "31", "level": "info", "message": "hello"},
                 {"id": "311", "level": "info", "message": "hello"},
