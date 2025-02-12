@@ -8,10 +8,11 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## unreleased
 
+- Bump minimum required Python version to 3.11 ([#127](https://github.com/Open-EO/openeo-aggregator/issues/127), [#174](https://github.com/Open-EO/openeo-aggregator/issues/174))
 
 ## 0.43.0
 
-- Jenkins test build: bump to Python 3.11 to align with version used in Docker image ([#174](https://github.com/Open-EO/openeo-aggregator/issues/174))
+- Jenkins test pipeline: bump to Python 3.11 to align with version used in Docker image ([#174](https://github.com/Open-EO/openeo-aggregator/issues/174))
 
 ## 0.42.0
 
