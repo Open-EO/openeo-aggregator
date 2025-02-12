@@ -20,12 +20,10 @@ from typing import (
 import flask
 import requests
 from openeo import Connection
-
-# TODO #170: from openeo.utils.version import ComparableVersion
-from openeo.capabilities import ComparableVersion
 from openeo.rest.auth.auth import BearerAuth, OpenEoApiAuthBase
 from openeo.rest.connection import RestApiConnection
 from openeo.util import TimingLogger
+from openeo.utils.version import ComparableVersion
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import (
     AuthenticationRequiredException,

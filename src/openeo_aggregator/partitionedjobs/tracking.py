@@ -5,10 +5,8 @@ import threading
 from typing import Dict, List, Optional
 
 import flask
-
-# TODO #170 from openeo.rest.models.logs import LogEntry
-from openeo.api.logs import LogEntry
 from openeo.rest.job import BatchJob, ResultAsset
+from openeo.rest.models.logs import LogEntry
 from openeo.util import TimingLogger
 from openeo_driver.errors import JobNotFinishedException
 from openeo_driver.users import User
