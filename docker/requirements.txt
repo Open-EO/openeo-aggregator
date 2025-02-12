@@ -1,1 +1,1 @@
-openeo-aggregator>=0.41.0.dev
+openeo-aggregator>=0.42.0.dev
