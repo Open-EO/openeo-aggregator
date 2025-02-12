@@ -9,6 +9,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ## unreleased
 
 - Add "openEO Federation Extension" to conformance classes ([#169](https://github.com/Open-EO/openeo-aggregator/issues/169))
+- Update to openeo python client version 0.38.0 ([#170](https://github.com/Open-EO/openeo-aggregator/issues/170))
 
 ## 0.41.0
 
