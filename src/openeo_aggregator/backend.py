@@ -1599,6 +1599,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         capabilities["federation"] = {
             bid: {
                 "url": status["root_url"],
+                "title": status.get("title") or f"Backend {bid!r}",
+                "description": status.get("description") or f"OpenEO backend {bid!r}",
             }
             for bid, status in self._backends.get_status().items()
         }

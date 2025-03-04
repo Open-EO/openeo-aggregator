@@ -269,8 +269,18 @@ class TestMultiBackendConnection:
 
     def test_status(self, multi_backend_connection):
         assert multi_backend_connection.get_status() == {
-            "b1": {"orig_url": "https://b1.test/v1", "root_url": "https://b1.test/v1"},
-            "b2": {"orig_url": "https://b2.test/v1", "root_url": "https://b2.test/v1"},
+            "b1": {
+                "orig_url": "https://b1.test/v1",
+                "root_url": "https://b1.test/v1",
+                "title": "Dummy Federation One",
+                "description": "Welcome to Federation One.",
+            },
+            "b2": {
+                "orig_url": "https://b2.test/v1",
+                "root_url": "https://b2.test/v1",
+                "title": "Dummy The Second",
+                "description": "Test instance of openEO Aggregator",
+            },
         }
 
     @pytest.mark.parametrize(

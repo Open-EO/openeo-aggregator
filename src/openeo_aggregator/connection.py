@@ -314,12 +314,15 @@ class MultiBackendConnection:
         raise OpenEOApiException(f"No backend with id {backend_id!r}")
 
     def get_status(self) -> dict:
+        # TODO: reconsider method name (currently it has little to do with status)
         return {
             c.id: {
                 # TODO: avoid private attributes?
                 # TODO: add real backend status? (cached?)
                 "root_url": c._root_url,
                 "orig_url": c._orig_url,
+                "title": c.capabilities().get("title"),
+                "description": c.capabilities().get("description"),
             }
             for c in self.get_connections()
         }

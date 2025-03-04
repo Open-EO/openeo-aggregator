@@ -48,8 +48,16 @@ class TestGeneral:
         assert {"methods": ["GET"], "path": "/collections/{collection_id}"} in endpoints
         assert {"methods": ["GET"], "path": "/processes"} in endpoints
         assert capabilities["federation"] == {
-            "b1": {"url": "https://b1.test/v1"},
-            "b2": {"url": "https://b2.test/v1"},
+            "b1": {
+                "url": "https://b1.test/v1",
+                "title": "Dummy Federation One",
+                "description": "Welcome to Federation One.",
+            },
+            "b2": {
+                "url": "https://b2.test/v1",
+                "title": "Dummy The Second",
+                "description": "Test instance of openEO Aggregator",
+            },
         }
 
     def test_title_and_description(self, api100):
