@@ -1493,17 +1493,21 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 if name.lower() not in {k.lower() for k in formats.keys()}:
                     formats[name] = data
 
+        federation_missing = set()
         for con in self._backends:
             try:
                 file_formats = con.get("/file_formats").json()
             except Exception as e:
-                # TODO: fail instead of warn?
+                federation_missing.add(con.id)
                 _log.warning(f"Failed to get file_formats from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
             merge(input_formats, file_formats.get("input", {}))
             merge(output_formats, file_formats.get("output", {}))
-        return {"input": input_formats, "output": output_formats}
+
+        federation_missing.update(self._backends.get_disabled_connection_ids())
+
+        return {"input": input_formats, "output": output_formats, "federation:missing": list(federation_missing)}
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:

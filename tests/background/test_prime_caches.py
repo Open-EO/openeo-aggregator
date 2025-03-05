@@ -63,7 +63,11 @@ def test_prime_caches_basic(upstream_request_mocks, zk_client):
             ],
             "/o-a/cache/CollectionCatalog/collection/S2": DictSubSet({"id": "S2"}),
             "/o-a/cache/Processing/all/1.1.0": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
-            "/o-a/cache/general/file_formats": FILE_FORMATS_JUST_GEOTIFF,
+            "/o-a/cache/general/file_formats": {
+                "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+                "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+                "federation:missing": [],
+            },
             "/o-a/cache/mbcon/api_versions": ["1.1.0"],
             "/o-a/cache/SecondaryServices/service_types": {
                 "service_types": {},

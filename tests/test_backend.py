@@ -69,7 +69,11 @@ class TestAggregatorBackendImplementation:
         requests_mock.get(backend2 + "/file_formats", json=just_geotiff)
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         file_formats = implementation.file_formats()
-        assert file_formats == just_geotiff
+        assert file_formats == {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "federation:missing": [],
+        }
 
     @pytest.mark.parametrize(
         ["overrides", "expected_cache_types"],
@@ -92,7 +96,11 @@ class TestAggregatorBackendImplementation:
             implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
 
         file_formats = implementation.file_formats()
-        assert file_formats == just_geotiff
+        assert file_formats == {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "federation:missing": [],
+        }
         assert mock1.call_count == 1
         assert mock2.call_count == 1
         _ = implementation.file_formats()
@@ -159,6 +167,45 @@ class TestAggregatorBackendImplementation:
                 "JSON": {"gis_data_types": ["raster"], "parameters": {}},
                 "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
             },
+            "federation:missing": [],
+        }
+
+    @pytest.mark.parametrize(
+        ["fail_capabilities", "fail_file_formats", "expected"],
+        [
+            (False, False, []),
+            (True, False, ["b2"]),
+            (False, True, ["b2"]),
+            (True, True, ["b2"]),
+        ],
+    )
+    def test_file_formats_missing_backends(
+        self,
+        multi_backend_connection,
+        backend1,
+        backend2,
+        requests_mock,
+        fail_capabilities,
+        fail_file_formats,
+        expected,
+    ):
+        just_geotiff = {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+        }
+        requests_mock.get(backend1 + "/file_formats", json=just_geotiff)
+        if fail_capabilities:
+            requests_mock.get(f"{backend2}/", status_code=404, text="nope")
+        if fail_file_formats:
+            requests_mock.get(f"{backend2}/file_formats", status_code=404, text="nope")
+        else:
+            requests_mock.get(f"{backend2}/file_formats", json=just_geotiff)
+        implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
+        file_formats = implementation.file_formats()
+        assert file_formats == {
+            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "federation:missing": expected,
         }
 
 
