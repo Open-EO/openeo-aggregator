@@ -168,7 +168,7 @@ class Clock:
         """
         Like `datetime.datetime.utcnow()`: Current UTC datetime (naive).
         """
-        return datetime.datetime.utcfromtimestamp(cls.time())
+        return datetime.datetime.fromtimestamp(cls.time(), tz=datetime.timezone.utc)
 
 
 class BoundingBox(NamedTuple):
@@ -211,7 +211,7 @@ def strip_join(separator: str, *args: str) -> str:
 
 def timestamp_to_rfc3339(timestamp: float) -> str:
     """Convert unix epoch timestamp to RFC3339 datetime string"""
-    dt = datetime.datetime.utcfromtimestamp(timestamp)
+    dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
     return rfc3339.datetime(dt)
 
 

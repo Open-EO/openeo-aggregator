@@ -267,6 +267,7 @@ class TestMultiBackendConnection:
         assert isinstance(res, types.GeneratorType)
         assert list(res) == [("b1", {"bar": 1}), ("b2", {"meh": 2})]
 
+    @clock_mock("2025-03-05T12:34:56Z")
     def test_get_federation_overview_basic(self, multi_backend_connection):
         assert multi_backend_connection.get_federation_overview() == {
             "b1": {
@@ -274,15 +275,18 @@ class TestMultiBackendConnection:
                 "title": "Dummy Federation One",
                 "description": "Welcome to Federation One.",
                 "status": "online",
+                "last_status_check": "2025-03-05T12:34:56Z",
             },
             "b2": {
                 "url": "https://b2.test/v1",
                 "title": "Dummy The Second",
                 "description": "Test instance of openEO Aggregator",
                 "status": "online",
+                "last_status_check": "2025-03-05T12:34:56Z",
             },
         }
 
+    @clock_mock("2025-03-05T12:34:56Z")
     def test_get_federation_overview_offline(self, multi_backend_connection, backend1, backend2, requests_mock):
         requests_mock.get(f"{backend2}/", status_code=500, json={"error": "nope"})
         assert multi_backend_connection.get_federation_overview() == {
@@ -291,12 +295,14 @@ class TestMultiBackendConnection:
                 "title": "Dummy Federation One",
                 "description": "Welcome to Federation One.",
                 "status": "online",
+                "last_status_check": "2025-03-05T12:34:56Z",
             },
             "b2": {
                 "url": "https://b2.test/v1",
                 "description": "Federated openEO backend 'b2'",
                 "title": "Backend 'b2'",
                 "status": "offline",
+                "last_status_check": "2025-03-05T12:34:56Z",
             },
         }
 
