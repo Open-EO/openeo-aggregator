@@ -6,7 +6,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## unreleased
+## Work in progress: 0.44.0
 
 - Bump minimum required Python version to 3.11 ([#127](https://github.com/Open-EO/openeo-aggregator/issues/127), [#174](https://github.com/Open-EO/openeo-aggregator/issues/174))
 - Add title, description, online/offline status and last_status_check to federation listing in capabilities document ([#22](https://github.com/Open-EO/openeo-aggregator/issues/22))
