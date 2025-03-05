@@ -38,6 +38,8 @@ from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
 class TestGeneral:
+
+    @clock_mock("2025-03-05T12:34:56Z")
     def test_capabilities(self, api100):
         res = api100.get("/").assert_status_code(200)
         capabilities = res.json
@@ -48,8 +50,20 @@ class TestGeneral:
         assert {"methods": ["GET"], "path": "/collections/{collection_id}"} in endpoints
         assert {"methods": ["GET"], "path": "/processes"} in endpoints
         assert capabilities["federation"] == {
-            "b1": {"url": "https://b1.test/v1"},
-            "b2": {"url": "https://b2.test/v1"},
+            "b1": {
+                "url": "https://b1.test/v1",
+                "title": "Dummy Federation One",
+                "description": "Welcome to Federation One.",
+                "status": "online",
+                "last_status_check": "2025-03-05T12:34:56Z",
+            },
+            "b2": {
+                "url": "https://b2.test/v1",
+                "title": "Dummy The Second",
+                "description": "Test instance of openEO Aggregator",
+                "status": "online",
+                "last_status_check": "2025-03-05T12:34:56Z",
+            },
         }
 
     def test_title_and_description(self, api100):

@@ -2,6 +2,7 @@ import collections
 import concurrent.futures
 import contextlib
 import dataclasses
+import datetime
 import logging
 import re
 from typing import (
@@ -41,7 +42,7 @@ from openeo_aggregator.config import (
     STREAM_CHUNK_SIZE_DEFAULT,
     get_backend_config,
 )
-from openeo_aggregator.utils import _UNSET, Clock, EventHandler
+from openeo_aggregator.utils import _UNSET, Clock, EventHandler, timestamp_to_rfc3339
 
 _log = logging.getLogger(__name__)
 
@@ -198,7 +199,10 @@ class BackendConnection(Connection):
         self.request = request
 
 
-_ConnectionsCache = collections.namedtuple("_ConnectionsCache", ["expiry", "connections"])
+@dataclasses.dataclass(frozen=True)
+class _ConnectionsCache:
+    timestamp: float
+    connections: List[BackendConnection]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -234,6 +238,7 @@ class MultiBackendConnection:
             )
         # TODO: backend_urls as dict does not have explicit order, while this is important.
         _log.info(f"Creating MultiBackendConnection with {backends=!r}")
+        # TODO: support more backend info than just URL (title, description, experimental flag, ...)
         self._backend_urls = backends
         self._configured_oidc_providers = configured_oidc_providers
 
@@ -241,7 +246,7 @@ class MultiBackendConnection:
         self._memoizer: Memoizer = memoizer or NullMemoizer()
 
         # Caching of connection objects
-        self._connections_cache = _ConnectionsCache(expiry=0, connections=[])
+        self._connections_cache = _ConnectionsCache(timestamp=0, connections=[])
         self._connections_cache_ttl = connections_cache_ttl
         # Event handler for when there is a change in the set of working back-end ids.
         self.on_connections_change = EventHandler("connections_change")
@@ -258,7 +263,7 @@ class MultiBackendConnection:
         )
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
-        """Create new backend connections."""
+        """Create new backend connections, possibly skipping connection failures."""
         for bid, url in self._backend_urls.items():
             try:
                 _log.info(f"Create backend {bid!r} connection to {url!r}")
@@ -273,13 +278,14 @@ class MultiBackendConnection:
     def get_connections(self) -> List[BackendConnection]:
         """Get backend connections (re-created automatically if cache ttl expired)"""
         now = Clock.time()
-        if now > self._connections_cache.expiry:
-            _log.debug(f"Connections cache expired ({now:.2f}>{self._connections_cache.expiry:.2f})")
+        expiry = self._connections_cache.timestamp + self._connections_cache_ttl
+        if now > expiry:
+            _log.debug(f"Connections cache expired ({now:.2f}>{expiry:.2f})")
             orig_bids = [c.id for c in self._connections_cache.connections]
             for con in self._connections_cache.connections:
                 con.invalidate()
             self._connections_cache = _ConnectionsCache(
-                expiry=now + self._connections_cache_ttl, connections=list(self._get_connections(skip_failures=True))
+                timestamp=now, connections=list(self._get_connections(skip_failures=True))
             )
             new_bids = [c.id for c in self._connections_cache.connections]
             _log.debug(
@@ -313,16 +319,36 @@ class MultiBackendConnection:
                 return con
         raise OpenEOApiException(f"No backend with id {backend_id!r}")
 
-    def get_status(self) -> dict:
-        return {
+    def get_federation_overview(self) -> dict:
+        """
+        Federation overview, to be used in the capabilities document (`GET /`),
+        under the "federation" field, per federation extension
+        (conformance class https://api.openeo.org/extensions/federation/0.1.0)
+        """
+        online_connections = self.get_connections()
+        last_status_check = timestamp_to_rfc3339(self._connections_cache.timestamp)
+        federation = {
             c.id: {
-                # TODO: avoid private attributes?
-                # TODO: add real backend status? (cached?)
-                "root_url": c._root_url,
-                "orig_url": c._orig_url,
+                "url": c.root_url,
+                "title": c.capabilities().get("title", f"Backend {c.id!r}"),
+                "description": c.capabilities().get("description", f"Federated openEO backend {c.id!r}"),
+                "status": "online",
+                "last_status_check": last_status_check,
             }
-            for c in self.get_connections()
+            for c in online_connections
         }
+
+        for bid, url in self._backend_urls.items():
+            if bid not in federation:
+                federation[bid] = {
+                    "url": url,
+                    "status": "offline",
+                    "title": f"Backend {bid!r}",
+                    "description": f"Federated openEO backend {bid!r}",
+                    "last_status_check": last_status_check,
+                }
+
+        return federation
 
     def _get_api_versions(self) -> List[str]:
         return list(set(c.capabilities().api_version() for c in self.get_connections()))

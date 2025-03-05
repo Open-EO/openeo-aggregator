@@ -20,7 +20,7 @@ def test_mock_clock_basic(fail):
     try:
         with clock_mock():
             assert Clock.time() == 1500000000
-            assert Clock.utcnow() == datetime.datetime(2017, 7, 14, 2, 40, 0)
+            assert Clock.utcnow() == datetime.datetime(2017, 7, 14, 2, 40, 0, tzinfo=datetime.timezone.utc)
             if fail:
                 raise RuntimeError
     except RuntimeError:
@@ -32,9 +32,9 @@ def test_mock_clock_basic(fail):
 @pytest.mark.parametrize(
     ["start", "expected_time", "expected_date"],
     [
-        (1000, 1000, datetime.datetime(1970, 1, 1, 0, 16, 40)),
-        ("2021-02-21", 1613865600, datetime.datetime(2021, 2, 21)),
-        ("2021-02-21T12:34:56Z", 1613910896, datetime.datetime(2021, 2, 21, 12, 34, 56)),
+        (1000, 1000, datetime.datetime(1970, 1, 1, 0, 16, 40, tzinfo=datetime.timezone.utc)),
+        ("2021-02-21", 1613865600, datetime.datetime(2021, 2, 21, tzinfo=datetime.timezone.utc)),
+        ("2021-02-21T12:34:56Z", 1613910896, datetime.datetime(2021, 2, 21, 12, 34, 56, tzinfo=datetime.timezone.utc)),
     ],
 )
 def test_mock_clock_start(start, expected_time, expected_date):

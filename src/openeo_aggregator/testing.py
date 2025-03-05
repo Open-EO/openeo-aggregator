@@ -193,6 +193,8 @@ class MetadataBuilder:
         api_version: str = "1.1.0",
         stac_version: str = "0.9.0",
         secondary_services: bool = False,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> dict:
         """
         Helper to build a capabilities doc.
@@ -203,8 +205,8 @@ class MetadataBuilder:
             "backend_version": openeo_aggregator.about.__version__,
             "stac_version": stac_version,
             "id": "openeo-aggregator-testing",
-            "title": "Test openEO Aggregator",
-            "description": "Test instance of openEO Aggregator",
+            "title": title or "Dummy federation",
+            "description": description or "Test instance of openEO Aggregator",
             "endpoints": [
                 {"path": "/collections", "methods": ["GET"]},
                 {"path": "/collections/{collection_id}", "methods": ["GET"]},
