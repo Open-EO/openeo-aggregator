@@ -52,11 +52,13 @@ class TestGeneral:
                 "url": "https://b1.test/v1",
                 "title": "Dummy Federation One",
                 "description": "Welcome to Federation One.",
+                "status": "online",
             },
             "b2": {
                 "url": "https://b2.test/v1",
                 "title": "Dummy The Second",
                 "description": "Test instance of openEO Aggregator",
+                "status": "online",
             },
         }
 

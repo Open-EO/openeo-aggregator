@@ -54,6 +54,7 @@ class AggregatorBackendConfig(OpenEoBackendConfig):
         packages=["openeo", "openeo_driver", "openeo_aggregator"],
     )
 
+    # TODO: allow to specify more info per backend in addtion to just URL: title, description, experimental flag, ...
     aggregator_backends: Dict[str, str] = attrs.field(validator=attrs.validators.min_len(1))
 
     # See `ZooKeeperPartitionedJobDB.from_config` for supported fields.

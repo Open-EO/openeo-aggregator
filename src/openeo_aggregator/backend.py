@@ -1596,14 +1596,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     def postprocess_capabilities(self, capabilities: dict) -> dict:
         # TODO: which url to use? unversioned or versioned? see https://github.com/Open-EO/openeo-api/pull/419
-        capabilities["federation"] = {
-            bid: {
-                "url": status["root_url"],
-                "title": status.get("title") or f"Backend {bid!r}",
-                "description": status.get("description") or f"OpenEO backend {bid!r}",
-            }
-            for bid, status in self._backends.get_status().items()
-        }
+        capabilities["federation"] = self._backends.get_federation_overview()
+
         # TODO: standardize this field?
         capabilities["_partitioned_job_tracking"] = bool(self.batch_jobs.partitioned_job_tracker)
         return capabilities

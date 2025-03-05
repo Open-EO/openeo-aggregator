@@ -234,6 +234,7 @@ class MultiBackendConnection:
             )
         # TODO: backend_urls as dict does not have explicit order, while this is important.
         _log.info(f"Creating MultiBackendConnection with {backends=!r}")
+        # TODO: support more backend info than just URL (title, description, experimental flag, ...)
         self._backend_urls = backends
         self._configured_oidc_providers = configured_oidc_providers
 
@@ -258,7 +259,7 @@ class MultiBackendConnection:
         )
 
     def _get_connections(self, skip_failures=False) -> Iterator[BackendConnection]:
-        """Create new backend connections."""
+        """Create new backend connections, possibly skipping connection failures."""
         for bid, url in self._backend_urls.items():
             try:
                 _log.info(f"Create backend {bid!r} connection to {url!r}")
@@ -313,19 +314,32 @@ class MultiBackendConnection:
                 return con
         raise OpenEOApiException(f"No backend with id {backend_id!r}")
 
-    def get_status(self) -> dict:
-        # TODO: reconsider method name (currently it has little to do with status)
-        return {
+    def get_federation_overview(self) -> dict:
+        """
+        Federation overview, to be used in the capabilities document (`GET /`),
+        under the "federation" field, per federation extension
+        (conformance class https://api.openeo.org/extensions/federation/0.1.0)
+        """
+        federation = {
             c.id: {
-                # TODO: avoid private attributes?
-                # TODO: add real backend status? (cached?)
-                "root_url": c._root_url,
-                "orig_url": c._orig_url,
-                "title": c.capabilities().get("title"),
-                "description": c.capabilities().get("description"),
+                "url": c.root_url,
+                "title": c.capabilities().get("title", f"Backend {c.id!r}"),
+                "description": c.capabilities().get("description", f"Federated openEO backend {c.id!r}"),
+                "status": "online",
             }
             for c in self.get_connections()
         }
+
+        for bid, url in self._backend_urls.items():
+            if bid not in federation:
+                federation[bid] = {
+                    "url": url,
+                    "status": "offline",
+                    "title": f"Backend {bid!r}",
+                    "description": f"Federated openEO backend {bid!r}",
+                }
+
+        return federation
 
     def _get_api_versions(self) -> List[str]:
         return list(set(c.capabilities().api_version() for c in self.get_connections()))

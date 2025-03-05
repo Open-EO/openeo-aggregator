@@ -9,7 +9,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ## unreleased
 
 - Bump minimum required Python version to 3.11 ([#127](https://github.com/Open-EO/openeo-aggregator/issues/127), [#174](https://github.com/Open-EO/openeo-aggregator/issues/174))
-- Add title and description to federation listing in capabilities document ([#22](https://github.com/Open-EO/openeo-aggregator/issues/22))
+- Add title, description and online/offline status to federation listing in capabilities document ([#22](https://github.com/Open-EO/openeo-aggregator/issues/22))
 
 
 ## 0.43.0
