@@ -44,6 +44,7 @@ from openeo_driver.backend import (
     BatchJobMetadata,
     BatchJobResultMetadata,
     BatchJobs,
+    CollectionsListing,
     LoadParameters,
     OidcProvider,
     OpenEoBackendImplementation,
@@ -130,29 +131,42 @@ _log = logging.getLogger(__name__)
 
 @json_serde.register_custom_codec
 class _InternalCollectionMetadata:
-    def __init__(self, data: Optional[Dict[str, dict]] = None):
-        self._data = data or {}
+    def __init__(self, collection_data: Optional[Dict[str, dict]] = None, extra: Optional[Dict] = None):
+        self._collection_data = {} if collection_data is None else {}
+        self._extra = {} if extra is None else extra
 
     def set_backends_for_collection(self, cid: str, backends: Iterable[str]):
-        self._data.setdefault(cid, {})
-        self._data[cid]["backends"] = list(backends)
+        self._collection_data.setdefault(cid, {})
+        self._collection_data[cid]["backends"] = list(backends)
 
     def get_backends_for_collection(self, cid: str) -> List[str]:
         """Get backend ids that provide given collection id."""
-        if cid not in self._data:
+        if cid not in self._collection_data:
             raise CollectionNotFoundException(collection_id=cid)
-        return self._data[cid]["backends"]
+        return self._collection_data[cid]["backends"]
 
     def list_backends_per_collection(self) -> Iterator[Tuple[str, List[str]]]:
-        for cid, data in self._data.items():
+        for cid, data in self._collection_data.items():
             yield cid, data.get("backends", [])
 
+    def set_federation_missing(self, missing: Iterable[str]):
+        self._extra["federation_missing"] = sorted(missing)
+
+    def get_federation_missing(self) -> List[str]:
+        return self._extra.get("federation_missing", [])
+
     def __jsonserde_prepare__(self) -> dict:
-        return self._data
+        return {
+            "collection_data": self._collection_data,
+            "extra": self._extra,
+        }
 
     @classmethod
     def __jsonserde_load__(cls, data: dict):
-        return cls(data=data)
+        return cls(
+            collection_data=data.get("collection_data"),
+            extra=data.get("extra"),
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -212,6 +226,23 @@ class CollectionAllowList:
         return any(item.match(collection_id=collection_id, backend_id=backend_id) for item in self.items)
 
 
+class AggregatorCollectionsListing(CollectionsListing):
+    def __init__(self, collections: List[dict], *, federation_missing: Iterable[str] = ()):
+        super().__init__(collections=collections)
+        self._federation_missing = list(federation_missing)
+
+    def filter_by_id(self, exclusion_list: Iterable[str]) -> CollectionsListing:
+        return AggregatorCollectionsListing(
+            collections=super().filter_by_id(exclusion_list=exclusion_list).collections,
+            federation_missing=self._federation_missing,
+        )
+
+    def to_response_dict(self, normalize: Callable[[dict], dict]) -> dict:
+        resp = super().to_response_dict(normalize=normalize)
+        resp["federation:missing"] = self._federation_missing
+        return resp
+
+
 class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def __init__(self, backends: MultiBackendConnection):
         self.backends = backends
@@ -221,6 +252,13 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
     def get_all_metadata(self) -> List[dict]:
         metadata, internal = self._get_all_metadata_cached()
         return metadata
+
+    def get_collections_listing(self) -> CollectionsListing:
+        metadata, internal = self._get_all_metadata_cached()
+        return AggregatorCollectionsListing(
+            collections=metadata,
+            federation_missing=internal.get_federation_missing(),
+        )
 
     def _get_all_metadata_cached(self) -> Tuple[List[dict], _InternalCollectionMetadata]:
         return self._memoizer.get_or_call(key=("all",), callback=self._get_all_metadata)
@@ -238,6 +276,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         if collection_allow_list:
             collection_allow_list = CollectionAllowList(collection_allow_list)
 
+        federation_missing = set()
         with TimingLogger(title="Collect collection metadata from all backends", logger=_log):
             for con in self.backends:
                 try:
@@ -245,6 +284,7 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                 except Exception as e:
                     # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                     _log.warning(f"Failed to get collection metadata from {con.id}: {e!r}", exc_info=True)
+                    federation_missing.add(con.id)
                     # On failure: still cache, but with shorter TTL? (#2)
                     continue
                 for collection_metadata in backend_collections:
@@ -262,9 +302,12 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
                         # TODO: there must be something seriously wrong with this backend: skip all its results?
                         _log.warning(f"Invalid collection metadata from {con.id}: %r", collection_metadata)
 
+        federation_missing.update(self.backends.get_disabled_connection_ids())
+
         # Merge down to single set of collection metadata
         collections_metadata = []
         internal_data = _InternalCollectionMetadata()
+        internal_data.set_federation_missing(federation_missing)
         for cid, by_backend in grouped.items():
             if len(by_backend) == 1:
                 # Simple case: collection is only available on single backend.

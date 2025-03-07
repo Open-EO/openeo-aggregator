@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.45.0
 
+- Provide "federation:missing" on `/collections` ([#122](https://github.com/Open-EO/openeo-aggregator/issues/122))
+
 
 ## 0.44.0
 
@@ -15,6 +17,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 - Add title, description, online/offline status and last_status_check to federation listing in capabilities document ([#22](https://github.com/Open-EO/openeo-aggregator/issues/22))
 - Provide "federation:missing" on `/file_formats` ([#124](https://github.com/Open-EO/openeo-aggregator/issues/124))
 - Provide "federation:missing" on `/process_graphs` ([#125](https://github.com/Open-EO/openeo-aggregator/issues/125))
+
 
 ## 0.43.0
 

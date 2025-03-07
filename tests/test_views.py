@@ -157,12 +157,28 @@ class TestCatalog:
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S3"}]})
         res = api100.get("/collections").assert_status_code(200).json
+
+        # Overall structure
+        assert res == {
+            "collections": dirty_equals.IsList(length=3),
+            "links": [],
+            "federation:missing": [],
+        }
+        # Merged collections
         assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
 
     def test_collections_duplicate(self, api100, requests_mock, backend1, backend2):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}, {"id": "S3"}]})
         res = api100.get("/collections").assert_status_code(200).json
+
+        # Overall structure
+        assert res == {
+            "collections": dirty_equals.IsList(length=3),
+            "links": [],
+            "federation:missing": [],
+        }
+        # Merged collections
         assert set(c["id"] for c in res["collections"]) == {"S1", "S2", "S3"}
 
     def test_collection_full_metadata(self, api100, requests_mock, backend1, backend2):
@@ -200,15 +216,15 @@ class TestCatalog:
         assert res.json == {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": "blabla"}]}
 
     @pytest.mark.parametrize(
-        ["backend1_up", "backend2_up", "expected"],
+        ["backend1_up", "backend2_up", "expected", "federation_missing"],
         [
-            (True, False, {"S1", "S2"}),
-            (False, True, {"S3"}),
-            (False, False, set()),
+            (True, False, {"S1", "S2"}, ["b2"]),
+            (False, True, {"S3"}, ["b1"]),
+            (False, False, set(), ["b1", "b2"]),
         ],
     )
     def test_collections_resilience(
-        self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected
+        self, api100, requests_mock, backend1, backend2, backend1_up, backend2_up, expected, federation_missing
     ):
         if backend1_up:
             requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S1"}, {"id": "S2"}]})
@@ -220,6 +236,14 @@ class TestCatalog:
             requests_mock.get(backend2 + "/collections", status_code=404, text="down")
 
         res = api100.get("/collections").assert_status_code(200).json
+
+        # Overall structure
+        assert res == {
+            "collections": dirty_equals.IsList(length=len(expected)),
+            "links": [],
+            "federation:missing": federation_missing,
+        }
+        # Merged collections
         assert set(c["id"] for c in res["collections"]) == expected
         # TODO: test caching of results
 
@@ -294,6 +318,7 @@ class TestCatalog:
                 ),
             ],
             "links": [],
+            "federation:missing": [],
         }
 
     @pytest.mark.parametrize(
