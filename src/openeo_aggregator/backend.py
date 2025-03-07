@@ -69,7 +69,7 @@ from openeo_driver.errors import (
     ServiceNotFoundException,
     ServiceUnsupportedException,
 )
-from openeo_driver.processes import ProcessRegistry
+from openeo_driver.processes import ProcessesListing, ProcessRegistry
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
@@ -483,6 +483,33 @@ def pass_through_api_error(error: openeo.rest.OpenEoApiError) -> openeo_driver.e
     )
 
 
+class AggregatorProcessesListing(ProcessesListing):
+    def __init__(self, processes: List[dict], *, target_version: str, federation_missing: Iterable[str] = ()):
+        super().__init__(processes=processes, target_version=target_version)
+        self._federation_missing = list(federation_missing)
+
+    def to_response_dict(self) -> dict:
+        resp = super().to_response_dict()
+        resp["federation:missing"] = self._federation_missing
+        return resp
+
+
+class AggregatorProcessRegistry(ProcessRegistry):
+    """ProcessRegistry with a bit of aggregator-specific customization"""
+
+    def __init__(self, federation_missing: Iterable[str] = ()):
+        # TODO #149 target_version=...
+        super().__init__()
+        self._federation_missing = list(federation_missing)
+
+    def get_processes_listing(self, *, exclusion_list: Optional[Iterable[str]] = None) -> ProcessesListing:
+        return AggregatorProcessesListing(
+            processes=self.get_specs(exclusion_list=exclusion_list),
+            target_version=self.target_version,
+            federation_missing=self._federation_missing,
+        )
+
+
 class AggregatorProcessing(Processing):
     def __init__(
         self,
@@ -500,13 +527,15 @@ class AggregatorProcessing(Processing):
             # TODO: more relaxed version check? How useful is this check anyway?
             _log.warning(f"API mismatch: requested {api_version} outside of {self.backends.get_api_versions()}")
 
-        combined_processes = self.get_merged_process_metadata()
-        process_registry = ProcessRegistry()
-        for pid, spec in combined_processes.items():
+        processes_metadata = self.get_merged_process_metadata()
+        process_registry = AggregatorProcessRegistry(
+            federation_missing=processes_metadata.get("federation:missing", [])
+        )
+        for pid, spec in processes_metadata["combined_processes"].items():
             process_registry.add_spec(spec=spec)
         return process_registry
 
-    def get_merged_process_metadata(self) -> Dict[str, dict]:
+    def get_merged_process_metadata(self) -> dict:
         return self._memoizer.get_or_call(
             key=("all", str(self.backends.api_version_minimum)),
             callback=self._get_merged_process_metadata,
@@ -515,6 +544,8 @@ class AggregatorProcessing(Processing):
     def _get_merged_process_metadata(self) -> dict:
         processes_per_backend = {}
         process_allowed: ProcessAllowed = get_backend_config().process_allowed
+
+        federation_missing = set()
         for con in self.backends:
             try:
                 processes_per_backend[con.id] = {
@@ -525,11 +556,17 @@ class AggregatorProcessing(Processing):
             except Exception as e:
                 # TODO: user warning https://github.com/Open-EO/openeo-api/issues/412
                 _log.warning(f"Failed to get processes from {con.id}: {e!r}", exc_info=True)
+                federation_missing.add(con.id)
+
+        federation_missing.update(self.backends.get_disabled_connection_ids())
 
         combined_processes = ProcessMetadataMerger().merge_processes_metadata(
             processes_per_backend=processes_per_backend
         )
-        return combined_processes
+        return {
+            "combined_processes": combined_processes,
+            "federation:missing": sorted(federation_missing),
+        }
 
     def _get_backend_candidates_for_processes(self, processes: typing.Collection[str]) -> Union[List[str], None]:
         """
@@ -538,7 +575,7 @@ class AggregatorProcessing(Processing):
         :return:
         """
         processes = set(processes)
-        process_metadata = self.get_merged_process_metadata()
+        process_metadata = self.get_merged_process_metadata()["combined_processes"]
         candidates: Union[Set[str], None] = None
         for pid in processes:
             if pid in process_metadata:

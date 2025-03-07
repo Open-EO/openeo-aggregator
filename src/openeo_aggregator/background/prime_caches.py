@@ -19,7 +19,10 @@ from openeo_driver.util.logging import (
 import openeo_aggregator.caching
 from openeo_aggregator.about import log_version_info
 from openeo_aggregator.app import get_aggregator_logging_config
-from openeo_aggregator.backend import AggregatorBackendImplementation
+from openeo_aggregator.backend import (
+    AggregatorBackendImplementation,
+    AggregatorProcessing,
+)
 from openeo_aggregator.config import get_backend_config
 from openeo_aggregator.connection import MultiBackendConnection
 
@@ -114,7 +117,8 @@ def prime_caches(
 
         with TimingLogger(title="Get merged processes", logger=_log):
             with fail_handler():
-                backend_implementation.processing.get_merged_process_metadata()
+                processing: AggregatorProcessing = backend_implementation.processing
+                processing.get_merged_process_metadata()
 
     if get_backend_config().zk_memoizer_tracking:
         kazoo_stats = openeo_aggregator.caching.zk_memoizer_stats

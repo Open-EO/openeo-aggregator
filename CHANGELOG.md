@@ -9,6 +9,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ## Work in progress: 0.45.0
 
 - Provide "federation:missing" on `/collections` ([#122](https://github.com/Open-EO/openeo-aggregator/issues/122))
+- Provide "federation:missing" on `/processes` ([#122](https://github.com/Open-EO/openeo-aggregator/issues/122))
 
 
 ## 0.44.0

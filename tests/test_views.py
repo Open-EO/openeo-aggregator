@@ -772,10 +772,11 @@ class TestProcessing:
             ],
             "links": [],
             "version": None,
+            "federation:missing": [],
         }
 
     @pytest.mark.parametrize(
-        ["backend1_up", "backend2_up", "expected"],
+        ["backend1_up", "backend2_up", "expected", "federation_missing"],
         [
             (
                 True,
@@ -807,6 +808,7 @@ class TestProcessing:
                         "links": [],
                     },
                 ],
+                ["b2"],
             ),
             (
                 False,
@@ -838,8 +840,14 @@ class TestProcessing:
                         "links": [],
                     },
                 ],
+                ["b1"],
             ),
-            (False, False, []),
+            (
+                False,
+                False,
+                [],
+                ["b1", "b2"],
+            ),
         ],
     )
     def test_processes_resilience(
@@ -851,6 +859,7 @@ class TestProcessing:
         backend1_up,
         backend2_up,
         expected,
+        federation_missing,
     ):
         if backend1_up:
             requests_mock.get(
@@ -889,7 +898,12 @@ class TestProcessing:
         else:
             requests_mock.get(backend2 + "/processes", status_code=404, text="nope")
         res = api100.get("/processes").assert_status_code(200).json
-        assert res == {"processes": expected, "links": [], "version": None}
+        assert res == {
+            "processes": expected,
+            "links": [],
+            "version": None,
+            "federation:missing": federation_missing,
+        }
 
     def test_result_basic_math_basic_auth(self, api100, requests_mock, backend1, backend2):
         def post_result(request: requests.Request, context):
@@ -1052,6 +1066,7 @@ class TestProcessing:
             ],
             "links": [],
             "version": None,
+            "federation:missing": [],
         }
 
     def test_result_backend_by_collection_multiple_hits(self, api100, requests_mock, backend1, backend2, caplog):

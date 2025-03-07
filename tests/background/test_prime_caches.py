@@ -62,7 +62,10 @@ def test_prime_caches_basic(upstream_request_mocks, zk_client):
                 DictSubSet({"_jsonserde": DictSubSet()}),
             ],
             "/o-a/cache/CollectionCatalog/collection/S2": DictSubSet({"id": "S2"}),
-            "/o-a/cache/Processing/all/1.1.0": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
+            "/o-a/cache/Processing/all/1.1.0": {
+                "combined_processes": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
+                "federation:missing": [],
+            },
             "/o-a/cache/general/file_formats": {
                 "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
                 "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
