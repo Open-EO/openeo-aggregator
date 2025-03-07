@@ -303,6 +303,10 @@ class MultiBackendConnection:
     def __iter__(self) -> Iterator[BackendConnection]:
         return iter(self.get_connections())
 
+    def get_all_connection_ids(self) -> List[str]:
+        """Return all connection ids (regardless of online/offline status)."""
+        return list(self._backend_urls.keys())
+
     def get_disabled_connection_ids(self) -> Set[str]:
         all_ids = set(self._backend_urls.keys())
         active_ids = set(b.id for b in self.get_connections())

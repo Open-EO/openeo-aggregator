@@ -3017,7 +3017,11 @@ class TestUserDefinedProcesses:
         )
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.get("/process_graphs").assert_status_code(200).json
-        assert res == {"processes": [], "links": []}
+        assert res == {
+            "processes": [],
+            "links": [],
+            "federation:missing": ["b2"],
+        }
         assert upstream.call_count == 1
 
     def test_list_udps_existing(self, api100, requests_mock, backend1):
@@ -3043,6 +3047,7 @@ class TestUserDefinedProcesses:
                 {"id": "somethingelse"},
             ],
             "links": [],
+            "federation:missing": ["b2"],
         }
         assert upstream.call_count == 1
 

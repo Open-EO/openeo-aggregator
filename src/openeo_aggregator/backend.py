@@ -51,6 +51,7 @@ from openeo_driver.backend import (
     SecondaryServices,
     ServiceMetadata,
     UserDefinedProcesses,
+    UserDefinedProcessesListing,
     UserDefinedProcessMetadata,
 )
 from openeo_driver.datacube import DriverDataCube
@@ -1392,17 +1393,31 @@ class AggregatorSecondaryServices(SecondaryServices):
                 ) from e
 
 
+class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
+
+    def __init__(self, udps: List[UserDefinedProcessMetadata], *, federation_missing: Iterable[str] = ()):
+        super().__init__(udps=udps)
+        self._federation_missing = list(federation_missing)
+
+    def to_response_dict(self, full: bool = True) -> dict:
+        resp = super().to_response_dict(full=full)
+        resp["federation:missing"] = self._federation_missing
+        return resp
+
+
 class AggregatorUserDefinedProcesses(UserDefinedProcesses):
     def __init__(self, backends: MultiBackendConnection):
         super(AggregatorUserDefinedProcesses, self).__init__()
         self._backends = backends
 
     @contextlib.contextmanager
-    def _get_connection(self, process_graph_id: Optional[str] = None) -> Iterator[openeo.Connection]:
+    def _get_connection(self, process_graph_id: Optional[str] = None) -> Iterator[BackendConnection]:
         """Get connection and handle/translate common errors"""
         try:
-            # TODO: we blindly pick "first" upstream backend for now. Do better!
-            with self._backends.first().authenticated_from_request(request=flask.request) as con:
+            # TODO #90 #176 we blindly pick "first" upstream backend for now. Do better!
+            first = self._backends.first()
+            _log.warning(f"AggregatorUserDefinedProcesses: just using 'first' backend: {first!r}")
+            with first.authenticated_from_request(request=flask.request) as con:
                 yield con
         except OpenEoApiError as e:
             if e.code == ProcessGraphNotFoundException.code:
@@ -1414,10 +1429,17 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
             metadata = con.get(f"/process_graphs/{process_id}", expected_status=200).json()
             return UserDefinedProcessMetadata.from_dict(metadata)
 
-    def get_for_user(self, user_id: str) -> List[UserDefinedProcessMetadata]:
+    def list_for_user(
+        self,
+        user_id: str,
+    ) -> UserDefinedProcessesListing:
+        # TODO #175 how to handle pagination?
         with self._get_connection() as con:
             data = con.get(f"/process_graphs", expected_status=200).json()
-            return [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
+            udps = [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
+            federation_missing = [c for c in self._backends.get_all_connection_ids() if c != con.id]
+
+        return AggregatorUserDefinedProcessesListing(udps=udps, federation_missing=federation_missing)
 
     def save(self, user_id: str, process_id: str, spec: dict) -> None:
         with self._get_connection(process_graph_id=process_id) as con:

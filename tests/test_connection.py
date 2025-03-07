@@ -674,6 +674,7 @@ class TestMultiBackendConnection:
 
         assert set(b.id for b in multi_backend_connection.get_connections()) == {"b1", "b2"}
         assert multi_backend_connection.get_disabled_connection_ids() == set()
+        assert multi_backend_connection.get_all_connection_ids() == ["b1", "b2"]
 
         # Wait for connections cache to expire
         with clock_mock(offset=1000):
@@ -681,3 +682,4 @@ class TestMultiBackendConnection:
 
             assert set(b.id for b in multi_backend_connection.get_connections()) == {"b2"}
             assert multi_backend_connection.get_disabled_connection_ids() == {"b1"}
+            assert multi_backend_connection.get_all_connection_ids() == ["b1", "b2"]
