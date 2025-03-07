@@ -132,7 +132,7 @@ _log = logging.getLogger(__name__)
 @json_serde.register_custom_codec
 class _InternalCollectionMetadata:
     def __init__(self, collection_data: Optional[Dict[str, dict]] = None, extra: Optional[Dict] = None):
-        self._collection_data = {} if collection_data is None else {}
+        self._collection_data = {} if collection_data is None else collection_data
         self._extra = {} if extra is None else extra
 
     def set_backends_for_collection(self, cid: str, backends: Iterable[str]):
