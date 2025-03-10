@@ -6,7 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## Work in progress: 0.45.0
+## Work in progress: 0.46.0
+
+
+## 0.45.0
 
 - Provide "federation:missing" on `/collections` ([#122](https://github.com/Open-EO/openeo-aggregator/issues/122))
 - Provide "federation:missing" on `/processes` ([#122](https://github.com/Open-EO/openeo-aggregator/issues/122))
