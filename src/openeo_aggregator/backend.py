@@ -497,9 +497,8 @@ class AggregatorProcessesListing(ProcessesListing):
 class AggregatorProcessRegistry(ProcessRegistry):
     """ProcessRegistry with a bit of aggregator-specific customization"""
 
-    def __init__(self, federation_missing: Iterable[str] = ()):
-        # TODO #149 target_version=...
-        super().__init__()
+    def __init__(self, federation_missing: Iterable[str] = (), target_version: Optional[str] = None):
+        super().__init__(target_version=target_version)
         self._federation_missing = list(federation_missing)
 
     def get_processes_listing(self, *, exclusion_list: Optional[Iterable[str]] = None) -> ProcessesListing:
@@ -529,7 +528,8 @@ class AggregatorProcessing(Processing):
 
         processes_metadata = self.get_merged_process_metadata()
         process_registry = AggregatorProcessRegistry(
-            federation_missing=processes_metadata.get("federation:missing", [])
+            federation_missing=processes_metadata.get("federation:missing", []),
+            target_version=get_backend_config().processes_target_version,
         )
         for pid, spec in processes_metadata["combined_processes"].items():
             process_registry.add_spec(spec=spec)

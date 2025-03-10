@@ -17,6 +17,7 @@ config = AggregatorBackendConfig(
         "b1": "https://b1.test/v1",
         "b2": "https://b2.test/v1",
     },
+    processes_target_version="1.2.0",
     connections_cache_ttl=1.0,
     zookeeper_prefix="/o-a/",
     memoizer={

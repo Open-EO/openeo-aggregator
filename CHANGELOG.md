@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.46.0
 
+- Add `AggregatorBackendConfig.processes_target_version` to define processes target version ([#149](https://github.com/Open-EO/openeo-aggregator/issues/149))
+
 
 ## 0.45.0
 

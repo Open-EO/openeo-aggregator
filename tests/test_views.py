@@ -771,7 +771,7 @@ class TestProcessing:
                 },
             ],
             "links": [],
-            "version": None,
+            "version": "1.2.0",
             "federation:missing": [],
         }
 
@@ -901,7 +901,7 @@ class TestProcessing:
         assert res == {
             "processes": expected,
             "links": [],
-            "version": None,
+            "version": "1.2.0",
             "federation:missing": federation_missing,
         }
 
@@ -1065,7 +1065,7 @@ class TestProcessing:
                 DictSubSet({"id": "prod", "federation:backends": ["b2"]}),
             ],
             "links": [],
-            "version": None,
+            "version": "1.2.0",
             "federation:missing": [],
         }
 
