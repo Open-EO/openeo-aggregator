@@ -112,8 +112,10 @@ class TileGrid(typing.NamedTuple):
         # Bounding box (in tiling CRS) to cover with tiles.
         to_cover = BoundingBox.from_dict(reproject_bounding_box(bbox.as_dict(), from_crs=bbox.crs, to_crs=tiling_crs))
         # Get ranges of tile indices
-        xmin, xmax = [int(math.floor((x - x_offset) / tile_size)) for x in [to_cover.west, to_cover.east]]
-        ymin, ymax = [int(math.floor(y / tile_size)) for y in [to_cover.south, to_cover.north]]
+        xmin = int(math.floor((to_cover.west - x_offset) / tile_size))
+        xmax = int(math.ceil((to_cover.east - x_offset) / tile_size)) - 1
+        ymin = int(math.floor(to_cover.south / tile_size))
+        ymax = int(math.ceil(to_cover.north / tile_size)) - 1
 
         tile_count = (xmax - xmin + 1) * (ymax - ymin + 1)
         if tile_count > max_tiles:

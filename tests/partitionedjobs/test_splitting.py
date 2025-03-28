@@ -15,9 +15,68 @@ from openeo_aggregator.partitionedjobs.splitting import (
 from openeo_aggregator.utils import BoundingBox
 
 
-def test_tile_grid_spec_from_string():
-    assert TileGrid.from_string("wgs84-1degree") == TileGrid(crs_type="wgs84", size=1, unit="degree")
-    assert TileGrid.from_string("utm-10km") == TileGrid(crs_type="utm", size=10, unit="km")
+class TestTileGrid:
+    def test_tile_grid_spec_from_string(self):
+        assert TileGrid.from_string("wgs84-1degree") == TileGrid(crs_type="wgs84", size=1, unit="degree")
+        assert TileGrid.from_string("utm-10km") == TileGrid(crs_type="utm", size=10, unit="km")
+
+    def test_get_tiles_wgs84_simple(self):
+        tile_grid = TileGrid(crs_type="wgs84", size=1, unit="degree")
+        bbox = BoundingBox(west=0.2, south=0.3, east=0.6, north=0.8, crs="epsg:4326")
+        assert tile_grid.get_tiles(bbox=bbox) == [
+            BoundingBox(west=0, south=0, east=1, north=1, crs="epsg:4326"),
+        ]
+
+    def test_get_tiles_wgs84_basic(self):
+        tile_grid = TileGrid(crs_type="wgs84", size=1, unit="degree")
+        bbox = BoundingBox(west=1.2, south=2.3, east=2.6, north=4.8, crs="epsg:4326")
+        assert tile_grid.get_tiles(bbox=bbox) == [
+            BoundingBox(west=1, south=2, east=2, north=3, crs="epsg:4326"),
+            BoundingBox(west=1, south=3, east=2, north=4, crs="epsg:4326"),
+            BoundingBox(west=1, south=4, east=2, north=5, crs="epsg:4326"),
+            BoundingBox(west=2, south=2, east=3, north=3, crs="epsg:4326"),
+            BoundingBox(west=2, south=3, east=3, north=4, crs="epsg:4326"),
+            BoundingBox(west=2, south=4, east=3, north=5, crs="epsg:4326"),
+        ]
+
+    def test_get_get_tiles_wgs84_perfect_alignment(self):
+        tile_grid = TileGrid(crs_type="wgs84", size=1, unit="degree")
+        bbox = BoundingBox(west=0, south=2, east=1, north=3, crs="epsg:4326")
+        assert tile_grid.get_tiles(bbox=bbox) == [
+            BoundingBox(west=0, south=2, east=1, north=3, crs="epsg:4326"),
+        ]
+
+    def test_get_tiles_utm_simple(self):
+        tile_grid = TileGrid.from_string("utm-10km")
+        bbox = BoundingBox(west=500_100, south=5_672_000, east=503_000, north=5_677_000, crs="epsg:32631")
+        assert tile_grid.get_tiles(bbox=bbox) == [
+            BoundingBox(west=500_000, south=5_670_000, east=510_000, north=5_680_000, crs="epsg:32631"),
+        ]
+
+    @pytest.mark.parametrize(
+        ["tile_grid", "expected"],
+        [
+            (
+                "utm-10km",
+                [
+                    BoundingBox(west=640000, south=5660000, east=650000, north=5670000, crs="epsg:32631"),
+                    BoundingBox(west=640000, south=5670000, east=650000, north=5680000, crs="epsg:32631"),
+                    BoundingBox(west=650000, south=5660000, east=660000, north=5670000, crs="epsg:32631"),
+                    BoundingBox(west=650000, south=5670000, east=660000, north=5680000, crs="epsg:32631"),
+                ],
+            ),
+            (
+                "utm-100km",
+                [
+                    BoundingBox(west=600000, south=5600000, east=700000, north=5700000, crs="epsg:32631"),
+                ],
+            ),
+        ],
+    )
+    def test_get_tiles_wgs84_to_utm_basic(self, tile_grid, expected):
+        tile_grid = TileGrid.from_string(tile_grid)
+        bbox = BoundingBox(west=5.10, south=51.10, east=5.25, north=51.20, crs="epsg:4326")
+        assert tile_grid.get_tiles(bbox=bbox) == expected
 
 
 def test_flimsy_splitter(multi_backend_connection, catalog):
