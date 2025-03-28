@@ -206,7 +206,7 @@ class TileGridSplitter(AbstractJobSplitter):
                 {
                     ENV_DRY_RUN_TRACER: dry_run_tracer,
                     "backend_implementation": backend_implementation,
-                    "version": "1.0.0",  # TODO
+                    "openeo_api_version": "1.0.0",
                     "user": None,  # TODO
                 }
             ),

@@ -35,7 +35,7 @@ setup(
         "requests",
         "attrs",
         "openeo>=0.38.0",
-        "openeo_driver>=0.130.2.dev",
+        "openeo_driver>=0.132.0.dev",
         "flask~=2.0",
         "gunicorn~=20.0",
         "python-json-logger>=2.0.0",
