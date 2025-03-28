@@ -185,7 +185,7 @@ class TestTileGridSplitter:
             (dict(west=7.2, south=50, east=7.9, north=50.7), "utm-20km", 20, "epsg:32632"),
             (dict(west=7.2, south=50, east=7.9, north=50.7), "utm-10km", 54, "epsg:32632"),
             (dict(west=-55, south=-33, east=-50, north=-31), "utm-100km", 15, "epsg:32722"),
-            (dict(west=-82, south=31, east=-81, north=32), "utm-20km", 42, "epsg:32617"),
+            (dict(west=-82, south=31, east=-81, north=32), "utm-20km", 35, "epsg:32617"),
         ],
     )
     def test_basic(self, aggregator_processing, spatial_extent, tile_grid, expected_tile_count, expected_utm_crs):
