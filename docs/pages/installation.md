@@ -23,6 +23,8 @@ As usual, run something like this from the project root in some kind of virtual 
 pip install .
 ```
 
+### "dev" extra
+
 When planning to do development, it is recommended to install it in development mode (option `-e`) with the `dev` "extra":
 
 ```shell

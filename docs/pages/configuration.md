@@ -8,7 +8,7 @@ is grouped by an `AggregatorBackendConfig` container object
 as defined in the [`openeo-python-driver`](https://github.com/Open-EO/openeo-python-driver) framework project).
 
 The most important config value is `aggregator_backends`, which
-defines the backends to "aggregate".
+defines the backends to include in the federation.
 
 ```python
 config = AggregatorBackendConfig(

@@ -7,7 +7,7 @@ Note: make sure you [point to a valid configuration file](configuration.md)
 before trying to run the web app.
 
 
-### Flask dev mode
+## Flask dev mode
 
 To run locally in development mode, with standard Flask workflow,
 for example (also see `./scripts/run-flask-dev.sh`):
@@ -21,7 +21,7 @@ flask run
 The webapp should be available at [http://localhost:5000/openeo/1.2](http://localhost:5000/openeo/1.2).
 
 
-### With gunicorn
+## With gunicorn
 
 To run the app as gunicorn application, with desired options,
 for example (also see `./scripts/run-gunicorn.sh`):

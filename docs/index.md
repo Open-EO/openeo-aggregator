@@ -56,6 +56,7 @@ including, but not limited to:
 pages/installation.md
 pages/configuration.md
 pages/usage.md
+pages/development.md
 ```
 
 ```{toctree}
