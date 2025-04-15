@@ -4,7 +4,7 @@ import re
 from typing import Callable, Dict, List, Optional, Protocol, Union
 
 import attrs
-from openeo_driver.config import OpenEoBackendConfig
+from openeo_driver.config import OpenEoBackendConfig, openeo_backend_config_class
 from openeo_driver.config.load import ConfigGetter
 from openeo_driver.server import build_backend_deploy_metadata
 from openeo_driver.utils import smart_bool
@@ -46,7 +46,7 @@ class ProcessAllowed(Protocol):
         ...
 
 
-@attrs.frozen(kw_only=True)
+@openeo_backend_config_class
 class AggregatorBackendConfig(OpenEoBackendConfig):
 
     capabilities_backend_version: str = openeo_aggregator.about.__version__
