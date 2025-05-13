@@ -834,7 +834,12 @@ class AggregatorBatchJobs(BatchJobs):
         self.processing = processing
         self.partitioned_job_tracker = partitioned_job_tracker
 
-    def get_user_jobs(self, user_id: str) -> Union[List[BatchJobMetadata], dict]:
+    def get_user_jobs(
+        self,
+        user_id: str,
+        limit: Optional[int] = None,
+        request_parameters: Optional[dict] = None,
+    ) -> Union[List[BatchJobMetadata], dict]:
         all_jobs = []
         federation_missing = set()
 
@@ -843,6 +848,9 @@ class AggregatorBatchJobs(BatchJobs):
         results = self.backends.request_parallel(
             path="/jobs",
             method="GET",
+            # TODO #175 how to handle limit in a federatd way?
+            # TODO #175 how to handle `request_parameters` too?
+            params={"limit": limit} if limit else None,
             expected_status=[200],
             authenticated_from_request=flask.request,
             request_timeout=backend_config.request_timeout_list_jobs,

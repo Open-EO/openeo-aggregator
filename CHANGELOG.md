@@ -10,6 +10,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Add `AggregatorBackendConfig.processes_target_version` to define processes target version ([#149](https://github.com/Open-EO/openeo-aggregator/issues/149))
 - Fixup compatibility with `openeo_driver` 0.132.0 ([Open-EO/openeo-python-driver#382](https://github.com/Open-EO/openeo-python-driver/issues/382))
+- Fixup compatibility with `BatchJobs.get_user_jobs()` API ([#182](https://github.com/Open-EO/openeo-aggregator/issues/182), [Open-EO/openeo-python-driver#332](https://github.com/Open-EO/openeo-python-driver/issues/332))
 
 
 ## 0.45.0

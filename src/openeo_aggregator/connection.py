@@ -389,6 +389,7 @@ class MultiBackendConnection:
         path: str,
         *,
         method: str = "GET",
+        params: Optional[dict] = None,
         parse_json: bool = True,
         authenticated_from_request: Optional[flask.Request] = None,
         expected_status: Union[int, Iterable[int], None] = None,
@@ -416,6 +417,7 @@ class MultiBackendConnection:
                 resp = con.request(
                     method=method,
                     path=path,
+                    params=params,
                     headers=headers,
                     auth=auth,
                     timeout=request_timeout,

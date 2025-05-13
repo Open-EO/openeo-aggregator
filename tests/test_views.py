@@ -1803,6 +1803,37 @@ class TestBatchJobs:
             "links": [],
         }
 
+    def test_list_jobs_limit(self, api100, requests_mock, backend1, backend2):
+        def b1_jobs(request, context):
+            assert request.query == "limit=5"
+            return {
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
+                ]
+            }
+
+        def b2_jobs(request, context):
+            assert request.query == "limit=5"
+            return {
+                "jobs": [
+                    {"id": "job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+                ]
+            }
+
+        requests_mock.get(backend1 + "/jobs", json=b1_jobs)
+        requests_mock.get(backend2 + "/jobs", json=b2_jobs)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs", params={"limit": 5}).assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
+                {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
+            ],
+            "links": [],
+        }
+
     def test_create_job_basic(self, api100, requests_mock, backend1):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
 
