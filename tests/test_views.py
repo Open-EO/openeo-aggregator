@@ -2405,6 +2405,55 @@ class TestBatchJobs:
         assert m1.call_count == 1
         assert m2.call_count == 1
 
+    def test_get_results_asset_bands(self, api100, requests_mock, backend1):
+        """https://github.com/Open-EO/openeo-aggregator/issues/183"""
+        m1 = requests_mock.get(
+            backend1 + "/jobs/th3j0b",
+            json={
+                "id": "th3j0b",
+                "title": "The job",
+                "description": "Just doing my job.",
+                "status": "finished",
+                "progress": 100,
+                "created": "2017-01-01T09:32:12Z",
+            },
+        )
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=200,
+            json={
+                "assets": {
+                    "r1.tiff": {
+                        "href": "https//res.b1.test/123/r1.tiff",
+                        "title": "Result 1",
+                        "type": "image/tiff; application=geotiff",
+                        "roles": ["data", "testing"],
+                        "bands": [{"name": "r1", "eo:common_name": "red"}],
+                    }
+                }
+            },
+        )
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
+        assert m1.call_count == 1
+        assert m2.call_count == 1
+        assert res["assets"] == {
+            "r1.tiff": {
+                "href": "https//res.b1.test/123/r1.tiff",
+                "title": "Result 1",
+                "roles": ["data", "testing"],
+                "type": "image/tiff; application=geotiff",
+                "bands": [{"name": "r1", "eo:common_name": "red"}],
+                "eo:bands": [{"name": "r1", "common_name": "red"}],
+            }
+        }
+        assert res["id"] == "b1-th3j0b"
+        assert res["type"] == "Feature"
+        assert_dict_subset(
+            {"title": "The job", "created": "2017-01-01T09:32:12Z", "description": "Just doing my job."},
+            res["properties"],
+        )
+
     def test_get_logs(self, api100, requests_mock, backend1):
         def get_logs(request, context):
             offset = request.qs.get("offset", ["_"])[0]
