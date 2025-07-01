@@ -96,10 +96,12 @@ from openeo_aggregator.constants import (
     JOB_OPTION_TILE_GRID,
 )
 from openeo_aggregator.errors import BackendLookupFailureException
-from openeo_aggregator.metadata import (
-    STAC_PROPERTY_FEDERATION_BACKENDS,
-    STAC_PROPERTY_PROVIDER_BACKEND,
+from openeo_aggregator.federation_extension import (
+    FED_EXT_BACKENDS,
+    FED_EXT_CONFORMANCE_CLASS,
+    FED_EXT_MISSING,
 )
+from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.metadata.merging import (
     ProcessMetadataMerger,
     merge_collection_metadata,
@@ -240,7 +242,7 @@ class AggregatorCollectionsListing(CollectionsListing):
 
     def to_response_dict(self, normalize: Callable[[dict], dict]) -> dict:
         resp = super().to_response_dict(normalize=normalize)
-        resp["federation:missing"] = self._federation_missing
+        resp[FED_EXT_MISSING] = self._federation_missing
         return resp
 
 
@@ -491,7 +493,7 @@ class AggregatorProcessesListing(ProcessesListing):
 
     def to_response_dict(self) -> dict:
         resp = super().to_response_dict()
-        resp["federation:missing"] = self._federation_missing
+        resp[FED_EXT_MISSING] = self._federation_missing
         return resp
 
 
@@ -529,7 +531,7 @@ class AggregatorProcessing(Processing):
 
         processes_metadata = self.get_merged_process_metadata()
         process_registry = AggregatorProcessRegistry(
-            federation_missing=processes_metadata.get("federation:missing", []),
+            federation_missing=processes_metadata.get(FED_EXT_MISSING, []),
             target_version=get_backend_config().processes_target_version,
         )
         for pid, spec in processes_metadata["combined_processes"].items():
@@ -566,7 +568,7 @@ class AggregatorProcessing(Processing):
         )
         return {
             "combined_processes": combined_processes,
-            "federation:missing": sorted(federation_missing),
+            FED_EXT_MISSING: sorted(federation_missing),
         }
 
     def _get_backend_candidates_for_processes(self, processes: typing.Collection[str]) -> Union[List[str], None]:
@@ -580,7 +582,7 @@ class AggregatorProcessing(Processing):
         candidates: Union[Set[str], None] = None
         for pid in processes:
             if pid in process_metadata:
-                backends = process_metadata[pid][STAC_PROPERTY_FEDERATION_BACKENDS]
+                backends = process_metadata[pid][FED_EXT_BACKENDS]
                 if candidates is None:
                     candidates = set(backends)
                 else:
@@ -621,7 +623,7 @@ class AggregatorProcessing(Processing):
                     collections.add(arguments["id"])
                     for stac_property in [
                         STAC_PROPERTY_PROVIDER_BACKEND,
-                        STAC_PROPERTY_FEDERATION_BACKENDS,
+                        FED_EXT_BACKENDS,
                     ]:
                         provider_backend_pg = deep_get(
                             arguments,
@@ -836,9 +838,9 @@ class AggregatorJobListing(JobListing):
     def to_response_dict(self, build_url: Callable[[dict], str], api_version: ComparableVersion = None) -> dict:
         resp = super().to_response_dict(build_url=build_url, api_version=api_version)
         if self.federation_backends is not None:
-            resp["federation:backends"] = self.federation_backends
+            resp[FED_EXT_BACKENDS] = self.federation_backends
         if self.federation_missing is not None:
-            resp["federation:missing"] = self.federation_missing
+            resp[FED_EXT_MISSING] = self.federation_missing
         return resp
 
 
@@ -1522,8 +1524,8 @@ class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
     def to_response_dict(self, full: bool = True) -> dict:
         resp = super().to_response_dict(full=full)
         if self._federation_backends is not None:
-            resp[STAC_PROPERTY_FEDERATION_BACKENDS] = self._federation_backends
-        resp["federation:missing"] = self._federation_missing
+            resp[FED_EXT_BACKENDS] = self._federation_backends
+        resp[FED_EXT_MISSING] = self._federation_missing
         return resp
 
 
@@ -1624,7 +1626,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             public=True,
         )
 
-        self._conformance_classes.append("https://api.openeo.org/extensions/federation/0.1.0")
+        self._conformance_classes.append(FED_EXT_CONFORMANCE_CLASS)
 
     def oidc_providers(self) -> List[OidcProvider]:
         # Technically, this implementation is redundant given the parent implementation
@@ -1645,11 +1647,11 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
                 matching = {f for f in formats.keys() if f.lower() == name.lower()}
                 if not matching:
                     data = data.copy()
-                    data[STAC_PROPERTY_FEDERATION_BACKENDS] = [backend_id]
+                    data[FED_EXT_BACKENDS] = [backend_id]
                     formats[name] = data
                 else:
                     for f in matching:
-                        formats[f][STAC_PROPERTY_FEDERATION_BACKENDS].append(backend_id)
+                        formats[f][FED_EXT_BACKENDS].append(backend_id)
 
         federation_backends = set()
         federation_missing = set()
@@ -1670,8 +1672,8 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         return {
             "input": input_formats,
             "output": output_formats,
-            "federation:backends": sorted(federation_backends),
-            "federation:missing": sorted(federation_missing),
+            FED_EXT_BACKENDS: sorted(federation_backends),
+            FED_EXT_MISSING: sorted(federation_missing),
         }
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:

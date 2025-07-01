@@ -11,14 +11,11 @@ import logging
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
 
-import flask
 from openeo.util import deep_get, rfc3339
 from openeo_driver.errors import OpenEOApiException
 
-from openeo_aggregator.metadata import (
-    STAC_PROPERTY_FEDERATION_BACKENDS,
-    STAC_PROPERTY_PROVIDER_BACKEND,
-)
+from openeo_aggregator.federation_extension import FED_EXT_BACKENDS
+from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.metadata.models.cube_dimensions import CubeDimensions
 from openeo_aggregator.metadata.models.extent import Extent
 from openeo_aggregator.metadata.models.stac_summaries import StacSummaries
@@ -208,7 +205,7 @@ def merge_collection_metadata(
 
     # TODO: use a more robust/user friendly backend pointer than backend id (which is internal implementation detail)
     result["summaries"][STAC_PROPERTY_PROVIDER_BACKEND] = list(by_backend.keys())
-    result["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS] = list(by_backend.keys())
+    result["summaries"][FED_EXT_BACKENDS] = list(by_backend.keys())
 
     ## Log warnings for improper metadata.
     # license => Log warning for collections without license links.
@@ -226,12 +223,12 @@ def merge_collection_metadata(
 
 def single_backend_collection_post_processing(metadata: dict, *, backend_id: str):
     """In-place post-processing of a single backend collection"""
-    if not deep_get(metadata, "summaries", STAC_PROPERTY_FEDERATION_BACKENDS, default=None):
+    if not deep_get(metadata, "summaries", FED_EXT_BACKENDS, default=None):
         metadata.setdefault("summaries", {})
-        metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS] = [backend_id]
+        metadata["summaries"][FED_EXT_BACKENDS] = [backend_id]
     else:
         _log.warning(
-            f"Summary {STAC_PROPERTY_FEDERATION_BACKENDS} is already set on collection {metadata.get('id', 'n/a')}, which is weird."
+            f"Summary {FED_EXT_BACKENDS} is already set on collection {metadata.get('id', 'n/a')}, which is weird."
         )
 
 
@@ -318,7 +315,7 @@ class ProcessMetadataMerger:
             # Some fields to always set (e.g. required)
             "id": process_id,
             "description": getter.first("description", default=process_id),
-            STAC_PROPERTY_FEDERATION_BACKENDS: supporting_backends,
+            FED_EXT_BACKENDS: supporting_backends,
         }
         set_if_non_empty(merged, "summary", getter.first("summary", default=None))
 

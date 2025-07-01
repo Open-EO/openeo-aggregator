@@ -4,7 +4,7 @@ import logging
 import openeo
 from openeo.util import TimingLogger
 
-from openeo_aggregator.metadata import STAC_PROPERTY_FEDERATION_BACKENDS
+from openeo_aggregator.federation_extension import FED_EXT_BACKENDS
 from openeo_aggregator.partitionedjobs import PartitionedJob
 from openeo_aggregator.partitionedjobs.crossbackend import (
     CrossBackendJobSplitter,
@@ -61,7 +61,7 @@ def main():
 
     def backend_for_collection(collection_id) -> str:
         metadata = connection.describe_collection(collection_id)
-        return metadata["summaries"][STAC_PROPERTY_FEDERATION_BACKENDS][0]
+        return metadata["summaries"][FED_EXT_BACKENDS][0]
 
     splitter = CrossBackendJobSplitter(
         graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=backend_for_collection, always_split=True)

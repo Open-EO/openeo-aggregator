@@ -28,10 +28,8 @@ from openeo_driver.users.oidc import OidcProvider
 
 import openeo_aggregator.about
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
-from openeo_aggregator.metadata import (
-    STAC_PROPERTY_FEDERATION_BACKENDS,
-    STAC_PROPERTY_PROVIDER_BACKEND,
-)
+from openeo_aggregator.federation_extension import FED_EXT_BACKENDS
+from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.testing import clock_mock, config_overrides
 
 from .conftest import assert_dict_subset, get_api100, get_flask_app
@@ -1146,7 +1144,7 @@ class TestProcessing:
         "stac_property",
         [
             STAC_PROPERTY_PROVIDER_BACKEND,
-            STAC_PROPERTY_FEDERATION_BACKENDS,
+            FED_EXT_BACKENDS,
         ],
     )
     def test_load_collection_from_user_selected_backend(
