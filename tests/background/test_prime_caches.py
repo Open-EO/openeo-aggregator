@@ -67,8 +67,23 @@ def test_prime_caches_basic(upstream_request_mocks, zk_client):
                 "federation:missing": [],
             },
             "/o-a/cache/general/file_formats": {
-                "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-                "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+                "input": {
+                    "GTiff": {
+                        "gis_data_types": ["raster"],
+                        "parameters": {},
+                        "title": "GeoTiff",
+                        "federation:backends": ["b1", "b2"],
+                    }
+                },
+                "output": {
+                    "GTiff": {
+                        "gis_data_types": ["raster"],
+                        "parameters": {},
+                        "title": "GeoTiff",
+                        "federation:backends": ["b1", "b2"],
+                    }
+                },
+                "federation:backends": ["b1", "b2"],
                 "federation:missing": [],
             },
             "/o-a/cache/mbcon/api_versions": ["1.1.0"],
