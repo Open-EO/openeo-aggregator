@@ -3140,6 +3140,7 @@ class TestUserDefinedProcesses:
         assert res == {
             "processes": [],
             "links": [],
+            "federation:backends": ["b1"],
             "federation:missing": [],
         }
         assert upstream.call_count == 1
@@ -3167,6 +3168,7 @@ class TestUserDefinedProcesses:
                 {"id": "somethingelse"},
             ],
             "links": [],
+            "federation:backends": ["b1"],
             "federation:missing": [],
         }
         assert upstream.call_count == 1
@@ -3186,6 +3188,7 @@ class TestUserDefinedProcesses:
         assert res == {
             "processes": [],
             "links": [],
+            "federation:backends": ["b1"],
             "federation:missing": ["b1"],
         }
         assert upstream.call_count == 1

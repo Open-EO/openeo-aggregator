@@ -1483,12 +1483,21 @@ class AggregatorSecondaryServices(SecondaryServices):
 
 class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
 
-    def __init__(self, udps: List[UserDefinedProcessMetadata], *, federation_missing: Iterable[str] = ()):
+    def __init__(
+        self,
+        udps: List[UserDefinedProcessMetadata],
+        *,
+        federation_backends: Optional[Iterable[str]] = None,
+        federation_missing: Iterable[str] = (),
+    ):
         super().__init__(udps=udps)
+        self._federation_backends = list(federation_backends) if federation_backends is not None else None
         self._federation_missing = list(federation_missing)
 
     def to_response_dict(self, full: bool = True) -> dict:
         resp = super().to_response_dict(full=full)
+        if self._federation_backends is not None:
+            resp["federation:backends"] = self._federation_backends
         resp["federation:missing"] = self._federation_missing
         return resp
 
@@ -1523,6 +1532,7 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
     ) -> UserDefinedProcessesListing:
         # TODO #175 how to handle pagination?
         with self._get_connection(process_graph_id=None) as con:
+            federation_backends = [con.id]
             try:
                 data = con.get(f"/process_graphs", expected_status=200).json()
                 udps = [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
@@ -1532,7 +1542,9 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
                 udps = []
                 federation_missing = [con.id]
 
-        return AggregatorUserDefinedProcessesListing(udps=udps, federation_missing=federation_missing)
+        return AggregatorUserDefinedProcessesListing(
+            udps=udps, federation_backends=federation_backends, federation_missing=federation_missing
+        )
 
     def save(self, user_id: str, process_id: str, spec: dict) -> None:
         with self._get_connection(process_graph_id=process_id) as con:
