@@ -3140,7 +3140,7 @@ class TestUserDefinedProcesses:
         assert res == {
             "processes": [],
             "links": [],
-            "federation:missing": ["b2"],
+            "federation:missing": [],
         }
         assert upstream.call_count == 1
 
@@ -3167,7 +3167,26 @@ class TestUserDefinedProcesses:
                 {"id": "somethingelse"},
             ],
             "links": [],
-            "federation:missing": ["b2"],
+            "federation:missing": [],
+        }
+        assert upstream.call_count == 1
+
+    @pytest.mark.parametrize(
+        ["status_code", "body"],
+        [
+            (500, {"error": "nope"}),
+            (404, {"error": "nope"}),
+            (200, {"nothing": "here"}),
+        ],
+    )
+    def test_list_udps_b1_missing(self, api100, requests_mock, backend1, status_code, body):
+        upstream = requests_mock.get(backend1 + "/process_graphs", status_code=status_code, json=body)
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/process_graphs").assert_status_code(200).json
+        assert res == {
+            "processes": [],
+            "links": [],
+            "federation:missing": ["b1"],
         }
         assert upstream.call_count == 1
 

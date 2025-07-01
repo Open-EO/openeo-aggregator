@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.47.0
 
+- Fixup "federation:missing" (Federation Extension) on UDP listing `GET /process_graphs` ([#185](https://github.com/Open-EO/openeo-aggregator/issues/185))
+
 
 ## 0.46.0
 

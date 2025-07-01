@@ -1522,10 +1522,15 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
         user_id: str,
     ) -> UserDefinedProcessesListing:
         # TODO #175 how to handle pagination?
-        with self._get_connection() as con:
-            data = con.get(f"/process_graphs", expected_status=200).json()
-            udps = [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
-            federation_missing = [c for c in self._backends.get_all_connection_ids() if c != con.id]
+        with self._get_connection(process_graph_id=None) as con:
+            try:
+                data = con.get(f"/process_graphs", expected_status=200).json()
+                udps = [UserDefinedProcessMetadata.from_dict(p) for p in data["processes"]]
+                federation_missing = []
+            except Exception as e:
+                _log.warning(f"Failed to list UDPs on {con=}: {e=}")
+                udps = []
+                federation_missing = [con.id]
 
         return AggregatorUserDefinedProcessesListing(udps=udps, federation_missing=federation_missing)
 
