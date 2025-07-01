@@ -435,6 +435,7 @@ class MultiBackendConnection:
                 return resp.content
 
         connections: List[BackendConnection] = self.get_connections()
+        failures = {}
         max_workers = min(max_workers, len(connections))
 
         with TimingLogger(
@@ -444,10 +445,15 @@ class MultiBackendConnection:
             # Submit all futures (one for each backend connection)
             futures: List[Tuple[BackendId, concurrent.futures.Future]] = []
             for con in connections:
-                if authenticated_from_request:
-                    auth = BearerAuth(bearer=con.extract_bearer(request=authenticated_from_request))
-                else:
-                    auth = None
+                try:
+                    if authenticated_from_request:
+                        auth = BearerAuth(bearer=con.extract_bearer(request=authenticated_from_request))
+                    else:
+                        auth = None
+                except Exception as e:
+                    failures[con.id] = e
+                    continue
+
                 future = executor.submit(
                     do_request,
                     root_url=con.root_url,
@@ -463,7 +469,6 @@ class MultiBackendConnection:
 
             # Collect results.
             successes = {}
-            failures = {}
             for backend_id, future in futures:
                 try:
                     successes[backend_id] = future.result(timeout=0)

@@ -4,9 +4,9 @@ import types
 import flask
 import pytest
 import requests
-from openeo.capabilities import ComparableVersion
 from openeo.rest import OpenEoApiError
 from openeo.rest.auth.auth import BearerAuth
+from openeo.utils.version import ComparableVersion
 from openeo_driver.backend import OidcProvider
 from openeo_driver.errors import AuthenticationRequiredException, OpenEOApiException
 from openeo_driver.testing import DictSubSet

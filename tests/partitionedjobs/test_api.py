@@ -168,6 +168,7 @@ class TestFlimsyBatchJobSplitting:
                 dirty_equals.IsPartialDict({"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"}),
                 {"id": expected_job_id, "created": self.now.rfc3339, "status": "created", "progress": 0},
             ],
+            "federation:backends": ["b1"],
             "federation:missing": ["b2"],
             "links": [],
         }

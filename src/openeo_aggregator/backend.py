@@ -45,6 +45,7 @@ from openeo_driver.backend import (
     BatchJobResultMetadata,
     BatchJobs,
     CollectionsListing,
+    JobListing,
     LoadParameters,
     OidcProvider,
     OpenEoBackendImplementation,
@@ -819,6 +820,28 @@ class AggregatorProcessing(Processing):
         return errors
 
 
+class AggregatorJobListing(JobListing):
+    def __init__(
+        self,
+        jobs: List[BatchJobMetadata],
+        *,
+        next_parameters: Optional[dict] = None,
+        federation_backends: Optional[List[str]] = None,
+        federation_missing: Optional[List[str]] = None,
+    ):
+        super().__init__(jobs=jobs, next_parameters=next_parameters)
+        self.federation_backends = federation_backends
+        self.federation_missing = federation_missing
+
+    def to_response_dict(self, build_url: Callable[[dict], str], api_version: ComparableVersion = None) -> dict:
+        resp = super().to_response_dict(build_url=build_url, api_version=api_version)
+        if self.federation_backends is not None:
+            resp["federation:backends"] = self.federation_backends
+        if self.federation_missing is not None:
+            resp["federation:missing"] = self.federation_missing
+        return resp
+
+
 class AggregatorBatchJobs(BatchJobs):
     def __init__(
         self,
@@ -839,8 +862,10 @@ class AggregatorBatchJobs(BatchJobs):
         user_id: str,
         limit: Optional[int] = None,
         request_parameters: Optional[dict] = None,
-    ) -> Union[List[BatchJobMetadata], dict]:
+    ) -> Union[List[BatchJobMetadata], dict, JobListing]:
         all_jobs = []
+
+        federation_backends = set()
         federation_missing = set()
 
         backend_config = get_backend_config()
@@ -848,7 +873,7 @@ class AggregatorBatchJobs(BatchJobs):
         results = self.backends.request_parallel(
             path="/jobs",
             method="GET",
-            # TODO #175 how to handle limit in a federatd way?
+            # TODO #175 how to handle limit in a federated way?
             # TODO #175 how to handle `request_parameters` too?
             params={"limit": limit} if limit else None,
             expected_status=[200],
@@ -860,6 +885,7 @@ class AggregatorBatchJobs(BatchJobs):
             try:
                 jobs = result["jobs"]
                 assert isinstance(jobs, list), "must be a list"
+                federation_backends.add(backend_id)
             except Exception as e:
                 _log.warning(f"Invalid job listing from backend {backend_id!r}: {e!r}")
                 federation_missing.add(backend_id)
@@ -880,12 +906,11 @@ class AggregatorBatchJobs(BatchJobs):
                 all_jobs.append(BatchJobMetadata.from_api_dict(job))
 
         federation_missing.update(self.backends.get_disabled_connection_ids())
-        return dict_no_none(
-            {
-                "jobs": all_jobs,
-                # TODO: experimental "federation:missing" https://github.com/openEOPlatform/architecture-docs/issues/179
-                "federation:missing": list(federation_missing) or None,
-            }
+
+        return AggregatorJobListing(
+            jobs=all_jobs,
+            federation_backends=sorted(federation_backends),
+            federation_missing=sorted(federation_missing),
         )
 
     def create_job(

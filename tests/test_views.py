@@ -1629,6 +1629,8 @@ class TestBatchJobs:
                 {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
             "links": [],
+            "federation:backends": ["b1", "b2"],
+            "federation:missing": [],
         }
 
     def test_list_jobs_auth(self, api100, requests_mock, backend1, backend2):
@@ -1660,6 +1662,8 @@ class TestBatchJobs:
                 {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
             "links": [],
+            "federation:backends": ["b1", "b2"],
+            "federation:missing": [],
         }
 
     @pytest.mark.parametrize("b2_oidc_pid", ["egi", "aho"])
@@ -1709,6 +1713,54 @@ class TestBatchJobs:
             {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
         ]
 
+    def test_list_jobs_no_common_oidc_provider(self, requests_mock, backend1, backend2):
+        """
+        https://github.com/Open-EO/openeo-aggregator/issues/188
+        No common OIDC provider, or using an OIDC provider that is not supported by each back end.
+        """
+        # Override /credentials/oidc of backend2 before building flask app and ApiTester
+        requests_mock.get(
+            backend2 + "/credentials/oidc",
+            json={"providers": [{"id": "other", "issuer": "https://other-oidc.test", "title": "Other"}]},
+        )
+        api100 = get_api100(get_flask_app())
+
+        # OIDC setup
+        def get_userinfo(request: requests.Request, context):
+            assert request.headers["Authorization"] == "Bearer t0k3n"
+            return {"sub": "john"}
+
+        requests_mock.get(
+            "https://egi.test/.well-known/openid-configuration", json={"userinfo_endpoint": "https://egi.test/userinfo"}
+        )
+        requests_mock.get("https://egi.test/userinfo", json=get_userinfo)
+
+        def b1_get_jobs(request, context):
+            assert request.headers["Authorization"] == "Bearer oidc/egi/t0k3n"
+            return {
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ]
+            }
+
+        b1_get_jobs = requests_mock.get(backend1 + "/jobs", json=b1_get_jobs)
+        b2_get_jobs = requests_mock.get(backend2 + "/jobs", json={})
+
+        api100.set_auth_bearer_token(token="oidc/egi/t0k3n")
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+            ],
+            "links": [],
+            "federation:backends": ["b1"],
+            "federation:missing": ["b2"],
+        }
+
+        assert (b1_get_jobs.call_count, b2_get_jobs.call_count) == (1, 0)
+
     @pytest.mark.parametrize("status_code", [204, 303, 404, 500])
     def test_list_jobs_failing_backend(self, api100, requests_mock, backend1, backend2, caplog, status_code):
         requests_mock.get(
@@ -1729,6 +1781,7 @@ class TestBatchJobs:
                 {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
             ],
             "links": [],
+            "federation:backends": ["b1"],
             "federation:missing": ["b2"],
         }
 
@@ -1757,6 +1810,7 @@ class TestBatchJobs:
                     {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
                 ],
                 "links": [],
+                "federation:backends": ["b1"],
                 "federation:missing": ["b2"],
             }
 
@@ -1777,6 +1831,8 @@ class TestBatchJobs:
         res = api100.get("/jobs").assert_status_code(200).json
         assert res == {
             "jobs": [{"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"}],
+            "federation:backends": ["b1", "b2"],
+            "federation:missing": [],
             "links": [],
         }
 
@@ -1800,6 +1856,8 @@ class TestBatchJobs:
                 {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
                 {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
+            "federation:backends": ["b1", "b2"],
+            "federation:missing": [],
             "links": [],
         }
 
@@ -1831,6 +1889,8 @@ class TestBatchJobs:
                 {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z", "title": "Job number 8."},
                 {"id": "b2-job05", "status": "running", "created": "2021-06-05T12:34:56Z"},
             ],
+            "federation:backends": ["b1", "b2"],
+            "federation:missing": [],
             "links": [],
         }
 
