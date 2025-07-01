@@ -1759,6 +1759,62 @@ class TestBatchJobs:
 
         assert (b1_get_jobs.call_count, b2_get_jobs.call_count) == (1, 0)
 
+    @pytest.mark.parametrize(
+        ["supports_batch_jobs", "expected_missing", "expected_call_counts"],
+        [
+            (False, [], (1, 0)),
+            (True, ["b2"], (1, 1)),
+        ],
+    )
+    def test_list_jobs_skip_backend_without_support(
+        self,
+        api100,
+        requests_mock,
+        backend1,
+        backend2,
+        mbldr,
+        supports_batch_jobs,
+        expected_missing,
+        expected_call_counts,
+    ):
+        """
+        https://github.com/Open-EO/openeo-aggregator/issues/189
+        backend that does not declare batch job support in capabilities
+        should simplify be skipped, not listed under "federation:missing"
+        """
+        requests_mock.get(
+            backend2 + "/",
+            json=mbldr.capabilities(batch_jobs=supports_batch_jobs),
+        )
+
+        b1_get_jobs = requests_mock.get(
+            backend1 + "/jobs",
+            json={
+                "jobs": [
+                    {"id": "job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                    {"id": "job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+                ]
+            },
+        )
+        b2_get_jobs = requests_mock.get(
+            backend2 + "/jobs",
+            status_code=404,
+            json={"error": "not found"},
+        )
+
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api100.get("/jobs").assert_status_code(200).json
+        assert res == {
+            "jobs": [
+                {"id": "b1-job03", "status": "running", "created": "2021-06-03T12:34:56Z"},
+                {"id": "b1-job08", "status": "running", "created": "2021-06-08T12:34:56Z"},
+            ],
+            "links": [],
+            "federation:backends": ["b1"],
+            "federation:missing": expected_missing,
+        }
+        assert (b1_get_jobs.call_count, b2_get_jobs.call_count) == expected_call_counts
+
     @pytest.mark.parametrize("status_code", [204, 303, 404, 500])
     def test_list_jobs_failing_backend(self, api100, requests_mock, backend1, backend2, caplog, status_code):
         requests_mock.get(
@@ -3360,7 +3416,7 @@ class TestResilience:
             }
 
     @pytest.mark.parametrize("b2_oidc_provider_id", ["egi", "aho"])
-    def test_oidc_mapping_after_recover(self, backend1, broken_backend2, requests_mock, b2_oidc_provider_id):
+    def test_oidc_mapping_after_recover(self, backend1, broken_backend2, requests_mock, b2_oidc_provider_id, mbldr):
         # Initial backend setup with broken backend2
         backend2, b2_root = broken_backend2
         api100 = get_api100(get_flask_app())
@@ -3386,7 +3442,7 @@ class TestResilience:
         assert jobs["jobs"] == [{"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"}]
 
         # Backend2 is up again (but still cached as down)
-        requests_mock.get(backend2 + "/", json={"api_version": "1.0.0"})
+        requests_mock.get(backend2 + "/", json=mbldr.capabilities())
         requests_mock.get(
             backend2 + "/credentials/oidc",
             json={"providers": [{"id": b2_oidc_provider_id, "issuer": "https://egi.test", "title": "EGI"}]},

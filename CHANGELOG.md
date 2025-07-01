@@ -12,6 +12,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 - Add "federation:backends" (Federation Extension) on UDP listing `GET /process_graphs` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
 - Add "federation:backends" (Federation Extension) on file format listing `GET /file_formats` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
 - Fix broken user job listing when using an OIDC provider that is not supported by each backend ([#188](https://github.com/Open-EO/openeo-aggregator/issues/188))
+- Check back-end capabilities for batch job support before trying to list user jobs ([#189](https://github.com/Open-EO/openeo-aggregator/issues/189))
 
 
 ## 0.46.0

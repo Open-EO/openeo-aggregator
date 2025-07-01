@@ -402,6 +402,7 @@ class MultiBackendConnection:
         request_timeout: float = 5,
         overall_timeout: float = 8,
         max_workers=5,
+        check_capabilities: bool = True,
     ) -> ParallelResponse:
         """
         Request a given (relative) url on each backend in parallel
@@ -445,6 +446,8 @@ class MultiBackendConnection:
             # Submit all futures (one for each backend connection)
             futures: List[Tuple[BackendId, concurrent.futures.Future]] = []
             for con in connections:
+                if check_capabilities and not con.capabilities().supports_endpoint(path=path, method=method):
+                    continue
                 try:
                     if authenticated_from_request:
                         auth = BearerAuth(bearer=con.extract_bearer(request=authenticated_from_request))

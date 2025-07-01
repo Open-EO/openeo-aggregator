@@ -192,6 +192,7 @@ class MetadataBuilder:
         *,
         api_version: str = "1.1.0",
         stac_version: str = "0.9.0",
+        batch_jobs: bool = True,
         secondary_services: bool = False,
         title: Optional[str] = None,
         description: Optional[str] = None,
@@ -217,6 +218,16 @@ class MetadataBuilder:
         }
 
         # Additional features
+        if batch_jobs:
+            capabilities["endpoints"].extend(
+                [
+                    {"path": "/jobs", "methods": ["GET", "POST"]},
+                    {"path": "/jobs/{job_id}", "methods": ["GET", "DELETE"]},
+                    {"path": "/jobs/{job_id}/results", "methods": ["GET", "POST", "DELETE"]},
+                    {"path": "/jobs/{job_id}/logs", "methods": ["GET"]},
+                ]
+            )
+
         if secondary_services:
             capabilities["endpoints"].extend(
                 [
