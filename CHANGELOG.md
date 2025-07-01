@@ -10,7 +10,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Fixup "federation:missing" (Federation Extension) on UDP listing `GET /process_graphs` ([#185](https://github.com/Open-EO/openeo-aggregator/issues/185))
 - Add "federation:backends" (Federation Extension) on UDP listing `GET /process_graphs` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
-
+- Add "federation:backends" (Federation Extension) on file format listing `GET /file_formats` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
 
 ## 0.46.0
 

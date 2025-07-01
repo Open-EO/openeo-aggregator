@@ -70,8 +70,23 @@ class TestAggregatorBackendImplementation:
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         file_formats = implementation.file_formats()
         assert file_formats == {
-            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "input": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": ["b1", "b2"],
+                }
+            },
+            "output": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": ["b1", "b2"],
+                }
+            },
+            "federation:backends": ["b1", "b2"],
             "federation:missing": [],
         }
 
@@ -97,8 +112,23 @@ class TestAggregatorBackendImplementation:
 
         file_formats = implementation.file_formats()
         assert file_formats == {
-            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
+            "input": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": ["b1", "b2"],
+                }
+            },
+            "output": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": ["b1", "b2"],
+                }
+            },
+            "federation:backends": ["b1", "b2"],
             "federation:missing": [],
         }
         assert mock1.call_count == 1
@@ -151,11 +181,25 @@ class TestAggregatorBackendImplementation:
         file_formats = implementation.file_formats()
         assert file_formats == {
             "input": {
-                "GeoJSON": {"gis_data_types": ["vector"], "parameters": {}},
-                "GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"},
+                "GeoJSON": {
+                    "gis_data_types": ["vector"],
+                    "parameters": {},
+                    "federation:backends": ["b1"],
+                },
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": ["b2"],
+                },
             },
             "output": {
-                "CSV": {"gis_data_types": ["raster"], "parameters": {}, "title": "Comma Separated Values"},
+                "CSV": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "Comma Separated Values",
+                    "federation:backends": ["b1"],
+                },
                 "GTiff": {
                     "gis_data_types": ["raster"],
                     # TODO: merge parameters of backend1 and backend2?
@@ -163,20 +207,31 @@ class TestAggregatorBackendImplementation:
                         "ZLEVEL": {"type": "string", "default": "6"},
                     },
                     "title": "GeoTiff",
+                    "federation:backends": ["b1", "b2"],
                 },
-                "JSON": {"gis_data_types": ["raster"], "parameters": {}},
-                "netCDF": {"gis_data_types": ["raster"], "parameters": {}, "title": "netCDF"},
+                "JSON": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "federation:backends": ["b1"],
+                },
+                "netCDF": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "netCDF",
+                    "federation:backends": ["b1", "b2"],
+                },
             },
+            "federation:backends": ["b1", "b2"],
             "federation:missing": [],
         }
 
     @pytest.mark.parametrize(
-        ["fail_capabilities", "fail_file_formats", "expected"],
+        ["fail_capabilities", "fail_file_formats", "expected_backends", "expected_missing"],
         [
-            (False, False, []),
-            (True, False, ["b2"]),
-            (False, True, ["b2"]),
-            (True, True, ["b2"]),
+            (False, False, ["b1", "b2"], []),
+            (True, False, ["b1"], ["b2"]),
+            (False, True, ["b1"], ["b2"]),
+            (True, True, ["b1"], ["b2"]),
         ],
     )
     def test_file_formats_missing_backends(
@@ -187,7 +242,8 @@ class TestAggregatorBackendImplementation:
         requests_mock,
         fail_capabilities,
         fail_file_formats,
-        expected,
+        expected_backends,
+        expected_missing,
     ):
         just_geotiff = {
             "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
@@ -203,9 +259,24 @@ class TestAggregatorBackendImplementation:
         implementation = AggregatorBackendImplementation(backends=multi_backend_connection)
         file_formats = implementation.file_formats()
         assert file_formats == {
-            "input": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "output": {"GTiff": {"gis_data_types": ["raster"], "parameters": {}, "title": "GeoTiff"}},
-            "federation:missing": expected,
+            "input": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": expected_backends,
+                }
+            },
+            "output": {
+                "GTiff": {
+                    "gis_data_types": ["raster"],
+                    "parameters": {},
+                    "title": "GeoTiff",
+                    "federation:backends": expected_backends,
+                }
+            },
+            "federation:backends": expected_backends,
+            "federation:missing": expected_missing,
         }
 
 

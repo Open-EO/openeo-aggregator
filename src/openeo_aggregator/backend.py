@@ -1497,7 +1497,7 @@ class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
     def to_response_dict(self, full: bool = True) -> dict:
         resp = super().to_response_dict(full=full)
         if self._federation_backends is not None:
-            resp["federation:backends"] = self._federation_backends
+            resp[STAC_PROPERTY_FEDERATION_BACKENDS] = self._federation_backends
         resp["federation:missing"] = self._federation_missing
         return resp
 
@@ -1614,27 +1614,40 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
         input_formats = {}
         output_formats = {}
 
-        def merge(formats: dict, to_add: dict):
+        def merge(formats: dict, to_add: dict, *, backend_id: str):
             # TODO: merge parameters in some way?
             for name, data in to_add.items():
-                if name.lower() not in {k.lower() for k in formats.keys()}:
+                matching = {f for f in formats.keys() if f.lower() == name.lower()}
+                if not matching:
+                    data = data.copy()
+                    data[STAC_PROPERTY_FEDERATION_BACKENDS] = [backend_id]
                     formats[name] = data
+                else:
+                    for f in matching:
+                        formats[f][STAC_PROPERTY_FEDERATION_BACKENDS].append(backend_id)
 
+        federation_backends = set()
         federation_missing = set()
         for con in self._backends:
             try:
                 file_formats = con.get("/file_formats").json()
+                federation_backends.add(con.id)
             except Exception as e:
                 federation_missing.add(con.id)
                 _log.warning(f"Failed to get file_formats from {con.id}: {e!r}", exc_info=True)
                 continue
             # TODO #1 smarter merging:  parameter differences?
-            merge(input_formats, file_formats.get("input", {}))
-            merge(output_formats, file_formats.get("output", {}))
+            merge(input_formats, file_formats.get("input", {}), backend_id=con.id)
+            merge(output_formats, file_formats.get("output", {}), backend_id=con.id)
 
         federation_missing.update(self._backends.get_disabled_connection_ids())
 
-        return {"input": input_formats, "output": output_formats, "federation:missing": list(federation_missing)}
+        return {
+            "input": input_formats,
+            "output": output_formats,
+            "federation:backends": sorted(federation_backends),
+            "federation:missing": sorted(federation_missing),
+        }
 
     def user_access_validation(self, user: User, request: flask.Request) -> User:
         if self._auth_entitlement_check:
