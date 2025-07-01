@@ -85,7 +85,13 @@ class BackendConnection(Connection):
         # Temporarily unlock `_auth` for `super().__init__()`
         self._auth_locked = False
         super(BackendConnection, self).__init__(
-            url, default_timeout=init_timeout, slow_response_threshold=1, auto_validate=False
+            url=url,
+            default_timeout=init_timeout,
+            slow_response_threshold=1,
+            auto_validate=False,
+            # Disable default retry functionality from `openeo.Connection`
+            # TODO: smarter retry handling in the context of the aggregator?
+            retry=False,
         )
         self._auth = None
         self._auth_locked = True
