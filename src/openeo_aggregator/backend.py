@@ -92,6 +92,7 @@ from openeo_aggregator.connection import (
 from openeo_aggregator.constants import (
     CROSSBACKEND_GRAPH_SPLIT_METHOD,
     JOB_OPTION_FORCE_BACKEND,
+    JOB_OPTION_FORCE_BACKEND_LEGACY,
     JOB_OPTION_SPLIT_STRATEGY,
     JOB_OPTION_TILE_GRID,
 )
@@ -601,7 +602,7 @@ class AggregatorProcessing(Processing):
         backend_candidates: List[str] = [b.id for b in self.backends]
 
         if job_options and JOB_OPTION_FORCE_BACKEND in job_options:
-            # Experimental feature to force a certain upstream back-end through job options
+            # Processing option to force a certain upstream back-end
             bid = job_options[JOB_OPTION_FORCE_BACKEND]
             if bid not in backend_candidates:
                 # TODO use generic client error class
@@ -609,6 +610,21 @@ class AggregatorProcessing(Processing):
                     status_code=404,
                     message=f"Invalid job option {JOB_OPTION_FORCE_BACKEND!r}: {bid!r} not in {backend_candidates!r}",
                 )
+            _log.info(f"Picking backend {bid!r} based on job option {JOB_OPTION_FORCE_BACKEND!r}.")
+            return bid
+        elif job_options and JOB_OPTION_FORCE_BACKEND_LEGACY in job_options:
+            _log.warning(
+                f"Using deprecated job option {JOB_OPTION_FORCE_BACKEND_LEGACY!r}, use {JOB_OPTION_FORCE_BACKEND!r} instead."
+            )
+            # Processing option to force a certain upstream back-end
+            bid = job_options[JOB_OPTION_FORCE_BACKEND_LEGACY]
+            if bid not in backend_candidates:
+                # TODO use generic client error class
+                raise OpenEOApiException(
+                    status_code=404,
+                    message=f"Invalid job option {JOB_OPTION_FORCE_BACKEND_LEGACY!r}: {bid!r} not in {backend_candidates!r}",
+                )
+            _log.info(f"Picking backend {bid!r} based on job option {JOB_OPTION_FORCE_BACKEND_LEGACY!r}.")
             return bid
 
         collections = set()
@@ -982,7 +998,9 @@ class AggregatorBatchJobs(BatchJobs):
         process_graph = self.processing.preprocess_process_graph(process_graph, backend_id=backend_id)
 
         if job_options:
-            job_options = {k: v for k, v in job_options.items() if not k.startswith("_agg_")}
+            job_options = {
+                k: v for k, v in job_options.items() if not (k.startswith("_agg_") or k.startswith("federation:"))
+            }
 
         if get_backend_config().job_options_update:
             # Allow fine-tuning job options through config

@@ -27,7 +27,10 @@ from openeo_driver.testing import (
 from openeo_driver.users.oidc import OidcProvider
 
 import openeo_aggregator.about
-from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
+from openeo_aggregator.constants import (
+    JOB_OPTION_FORCE_BACKEND,
+    JOB_OPTION_FORCE_BACKEND_LEGACY,
+)
 from openeo_aggregator.federation_extension import FED_EXT_BACKENDS
 from openeo_aggregator.metadata import STAC_PROPERTY_PROVIDER_BACKEND
 from openeo_aggregator.testing import clock_mock, config_overrides
@@ -2122,7 +2125,10 @@ class TestBatchJobs:
         ["force_backend", "expected"],
         [("b1", "b1"), ("b2", "b2"), (None, "b1")],
     )
-    def test_create_job_force_backend(self, api100, requests_mock, backend1, backend2, force_backend, expected):
+    @pytest.mark.parametrize("job_option_force_backend", [JOB_OPTION_FORCE_BACKEND, JOB_OPTION_FORCE_BACKEND_LEGACY])
+    def test_create_job_force_backend(
+        self, api100, requests_mock, backend1, backend2, force_backend, expected, job_option_force_backend
+    ):
         requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
         requests_mock.get(backend2 + "/collections", json={"collections": [{"id": "S2"}]})
 
@@ -2148,7 +2154,7 @@ class TestBatchJobs:
         job_options = {}
 
         if force_backend:
-            job_options[JOB_OPTION_FORCE_BACKEND] = force_backend
+            job_options[job_option_force_backend] = force_backend
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api100.post(
             "/jobs",
