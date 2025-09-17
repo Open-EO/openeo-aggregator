@@ -362,15 +362,28 @@ class TestAggregatorSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                }
+            },
+        )
         requests_mock.get(backend2 + "/service_types", json={})
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
-
-        service_types = implementation.service_types()
-        assert service_types == single_service_type
+        assert implementation.service_types() == {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            },
+        }
 
     def test_service_types_simple_cached(
         self,
@@ -389,26 +402,43 @@ class TestAggregatorSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         # Just need one service type for the test.
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        mock_be1 = requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        mock_be1 = requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                }
+            },
+        )
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
+        expected_service_types = {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            }
+        }
+
         service_types = implementation.service_types()
         assert mock_be1.call_count == 1
-        assert service_types == single_service_type
+        assert service_types == expected_service_types
 
         # Second call happens before the cache item expires: it should not query the backend.
         service_types = implementation.service_types()
         assert mock_be1.call_count == 1
-        assert service_types == single_service_type
+        assert service_types == expected_service_types
 
         # Third call happens when the cached item has expired: it should query the backend.
         with clock_mock(offset=100):
             service_types = implementation.service_types()
             assert mock_be1.call_count == 2
-            assert service_types == single_service_type
+            assert service_types == expected_service_types
 
     def test_service_types_skips_unsupported_backend(
         self,
@@ -428,16 +458,30 @@ class TestAggregatorSecondaryServices:
         mock_b1_capabilities = requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=False))
         mock_b2_capabilities = requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
 
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
         # Backend 1 does support secondary services
         mock_b1_service_types = requests_mock.get(backend1 + "/service_types", status_code=500)
-        mock_b2_service_types = requests_mock.get(backend2 + "/service_types", json=single_service_type)
+        mock_b2_service_types = requests_mock.get(
+            backend2 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                }
+            },
+        )
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
-        service_types = implementation.service_types()
-        assert service_types == single_service_type
+        assert implementation.service_types() == {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b2"],
+            }
+        }
 
         assert mock_b1_capabilities.called
         assert mock_b2_capabilities.called
@@ -458,40 +502,45 @@ class TestAggregatorSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
-        service_type_1 = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description": "The colormap to apply to single band layers",
-                        "type": "string",
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string",
-                    },
+
+        requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
                 },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service",
-            }
-        }
-        service_type_2 = {
-            "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
-        }
-        requests_mock.get(backend1 + "/service_types", json=service_type_1)
-        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+            },
+        )
+        requests_mock.get(
+            backend2 + "/service_types",
+            json={
+                "WMS": {
+                    "title": "OGC Web Map Service",
+                    "configuration": {"flavor": {"type": "string", "description": "Seasoning to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
 
-        actual_service_types = implementation.service_types()
-
-        expected_service_types = dict(service_type_1)
-        expected_service_types.update(service_type_2)
-        assert actual_service_types == expected_service_types
+        assert implementation.service_types() == {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            },
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {"flavor": {"type": "string", "description": "Seasoning to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b2"],
+            },
+        }
 
     def test_service_types_warns_about_duplicate_service(
         self,
@@ -513,19 +562,26 @@ class TestAggregatorSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
-        service_type_1 = {
-            "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
-        }
-        service_type_2 = {
-            "WMS": {
-                "title": "A duplicate OGC Web Map Service",
-                "configuration": {},
-                "process_parameters": [],
-                "links": [],
-            }
-        }
-        requests_mock.get(backend1 + "/service_types", json=service_type_1)
-        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+        requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMZZ": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
+        requests_mock.get(
+            backend2 + "/service_types",
+            json={
+                "WMZZ": {
+                    "title": "OGC Web Map Service",
+                    "configuration": {"flavor": {"type": "string", "description": "Seasoning to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
 
         processing = AggregatorProcessing(backends=multi_backend_connection, catalog=catalog)
         implementation = AggregatorSecondaryServices(backends=multi_backend_connection, processing=processing)
@@ -534,13 +590,17 @@ class TestAggregatorSecondaryServices:
 
         # There were duplicate service types:
         # Therefore it should find only one service type, and the log should contain a warning.
-        expected_service_types = dict(service_type_1)
+        expected_service_types = {
+            "WMZZ": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            },
+        }
         assert actual_service_types == expected_service_types
 
-        expected_log_message = (
-            'Conflicting secondary service types: "WMS" is present in more than one backend, '
-            + "already found in backend: b1"
-        )
+        expected_log_message = 'Conflicting secondary service types: "WMZZ" is present in more than one backend, already found in backend: b1'
         assert expected_log_message in caplog.text
 
     @pytest.fixture

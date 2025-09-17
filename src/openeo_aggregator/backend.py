@@ -1300,7 +1300,13 @@ class AggregatorSecondaryServices(SecondaryServices):
         """https://openeo.org/documentation/1.0/developers/api/reference.html#operation/list-service-types"""
         service_types = self._get_service_types_cached()["service_types"]
         # Convert the cached results back to the format that service_types should return.
-        return {name: data["service_type"] for name, data, in service_types.items()}
+        return {
+            name: {
+                **data["service_type"],
+                FED_EXT_BACKENDS: [data["backend_id"]],
+            }
+            for name, data, in service_types.items()
+        }
 
     def _get_service_types_cached(self):
         return self._memoizer.get_or_call(key="service_types", callback=self._get_service_types)

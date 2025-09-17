@@ -2698,11 +2698,26 @@ class TestSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         # Only need a single service type.
-        single_service_type = self.SERVICE_TYPES_ONLT_WMTS
-        requests_mock.get(backend1 + "/service_types", json=single_service_type)
+        requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
 
         resp = api100.get("/service_types").assert_status_code(200)
-        assert resp.json == single_service_type
+        assert resp.json == {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            }
+        }
 
     def test_service_types_multiple_backends(self, api100, backend1, backend2, requests_mock, mbldr):
         """Given 2 backends with each 1 service, then the aggregator lists both services."""
@@ -2710,38 +2725,45 @@ class TestSecondaryServices:
         # Aggregator checks if the backend supports GET /service_types, so we have to mock that up too.
         requests_mock.get(backend1 + "/", json=mbldr.capabilities(secondary_services=True))
         requests_mock.get(backend2 + "/", json=mbldr.capabilities(secondary_services=True))
-        service_type_1 = {
-            "WMTS": {
-                "configuration": {
-                    "colormap": {
-                        "default": "YlGn",
-                        "description": "The colormap to apply to single band layers",
-                        "type": "string",
-                    },
-                    "version": {
-                        "default": "1.0.0",
-                        "description": "The WMTS version to use.",
-                        "enum": ["1.0.0"],
-                        "type": "string",
-                    },
-                },
-                "links": [],
-                "process_parameters": [],
-                "title": "Web Map Tile Service",
-            }
-        }
         service_type_2 = {
             "WMS": {"title": "OGC Web Map Service", "configuration": {}, "process_parameters": [], "links": []}
         }
-        requests_mock.get(backend1 + "/service_types", json=service_type_1)
-        requests_mock.get(backend2 + "/service_types", json=service_type_2)
+        requests_mock.get(
+            backend1 + "/service_types",
+            json={
+                "WMTS": {
+                    "title": "Web Map Tile Service",
+                    "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
+        requests_mock.get(
+            backend2 + "/service_types",
+            json={
+                "WMS": {
+                    "title": "OGC Web Map Service",
+                    "configuration": {"flavor": {"type": "string", "description": "Seasoning to apply"}},
+                    "process_parameters": [],
+                },
+            },
+        )
 
         resp = api100.get("/service_types").assert_status_code(200)
-        actual_service_types = resp.json
-
-        expected_service_types = dict(service_type_1)
-        expected_service_types.update(service_type_2)
-        assert actual_service_types == expected_service_types
+        assert resp.json == {
+            "WMTS": {
+                "title": "Web Map Tile Service",
+                "configuration": {"colormap": {"type": "string", "description": "Colormap to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b1"],
+            },
+            "WMS": {
+                "title": "OGC Web Map Service",
+                "configuration": {"flavor": {"type": "string", "description": "Seasoning to apply"}},
+                "process_parameters": [],
+                "federation:backends": ["b2"],
+            },
+        }
 
     def test_service_info(self, api100, backend1, requests_mock):
         """When it gets a correct service ID, it returns the expected service's metadata as JSON."""
