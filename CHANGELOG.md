@@ -15,6 +15,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 - Check back-end capabilities for batch job support before trying to list user jobs ([#189](https://github.com/Open-EO/openeo-aggregator/issues/189))
 - Rename experimental job option "_agg_force_backend" to bit more official "federation:force-backend" ([#190](https://github.com/Open-EO/openeo-aggregator/issues/190))
 - Add "federation:backends" (Federation Extension) on secondary service type listing `GET /service_types` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
+- Add "federation:backends" (Federation Extension) on `GET /udf_runtimes` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
 
 
 ## 0.46.0

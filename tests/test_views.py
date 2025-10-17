@@ -3492,3 +3492,27 @@ class TestResilience:
                 {"id": "b1-j0b1", "status": "running", "created": "2021-01-11T11:11:11Z"},
                 {"id": "b2-j0b2", "status": "running", "created": "2021-02-22T22:22:22Z"},
             ]
+
+
+class TestUdfRuntimes:
+    def test_udf_runtimes_basic(self, api100, requests_mock, backend1, backend2):
+        requests_mock.get(
+            backend1 + "/udf_runtimes",
+            json={
+                "Python": {
+                    "type": "language",
+                    "default": 3,
+                    "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                }
+            },
+        )
+
+        resp = api100.get("/udf_runtimes")
+        assert resp.json == {
+            "Python": {
+                "type": "language",
+                "default": 3,
+                "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                "federation:backends": ["b1"],
+            }
+        }

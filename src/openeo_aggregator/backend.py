@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import contextlib
 import dataclasses
 import datetime
@@ -52,6 +53,7 @@ from openeo_driver.backend import (
     Processing,
     SecondaryServices,
     ServiceMetadata,
+    UdfRuntimes,
     UserDefinedProcesses,
     UserDefinedProcessesListing,
     UserDefinedProcessMetadata,
@@ -869,7 +871,7 @@ class AggregatorBatchJobs(BatchJobs):
         processing: AggregatorProcessing,
         partitioned_job_tracker: Optional[PartitionedJobTracker] = None,
     ):
-        super(AggregatorBatchJobs, self).__init__()
+        super().__init__()
         self.backends = backends
         self._catalog = catalog
         self.processing = processing
@@ -1268,7 +1270,7 @@ class AggregatorSecondaryServices(SecondaryServices):
         backends: MultiBackendConnection,
         processing: AggregatorProcessing,
     ):
-        super(AggregatorSecondaryServices, self).__init__()
+        super().__init__()
 
         self._backends = backends
         self._memoizer = memoizer_from_config(namespace="SecondaryServices")
@@ -1555,7 +1557,7 @@ class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
 
 class AggregatorUserDefinedProcesses(UserDefinedProcesses):
     def __init__(self, backends: MultiBackendConnection):
-        super(AggregatorUserDefinedProcesses, self).__init__()
+        super().__init__()
         self._backends = backends
 
     @contextlib.contextmanager
@@ -1606,6 +1608,39 @@ class AggregatorUserDefinedProcesses(UserDefinedProcesses):
             con.delete(f"/process_graphs/{process_id}", expected_status=204)
 
 
+class AggregatorUdfRuntimes(UdfRuntimes):
+    def __init__(self, *, backends: MultiBackendConnection):
+        super().__init__()
+        self._backends = backends
+        self._memoizer: Memoizer = memoizer_from_config(namespace="UdfRuntimes")
+
+    def get_udf_runtimes(self) -> Dict[str, dict]:
+        return self._memoizer.get_or_call(key="udf_runtimes", callback=self._get_udf_runtimes)
+
+    def _get_udf_runtimes(self):
+        # Loop over backends and group runtime data by runtime name (e.g. "Python" or "R")
+        runtimes_by_name = collections.defaultdict(list)
+        for connection in self._backends:
+            try:
+                runtimes_resp = connection.get("/udf_runtimes").json()
+            except Exception as e:
+                _log.warning(f"Failed to get UDF runtimes from {connection.id}: {e!r}", exc_info=True)
+                continue
+            for runtime_name, runtime_data in runtimes_resp.items():
+                runtimes_by_name[runtime_name].append((connection.id, runtime_data))
+
+        # Merge runtimes
+        # TODO #193 real/smarter merging when there are differences between backends?
+        runtimes_result = {}
+        for runtime_name, to_merge in runtimes_by_name.items():
+            # For now, just pick variant of first backend
+            _, runtime_data = to_merge[0]
+            backends = [b for b, _ in to_merge]
+            runtimes_result[runtime_name] = {**runtime_data, FED_EXT_BACKENDS: backends}
+
+        return runtimes_result
+
+
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
     # Simplify mocking time for unit tests.
@@ -1630,6 +1665,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
 
         secondary_services = AggregatorSecondaryServices(backends=backends, processing=processing)
         user_defined_processes = AggregatorUserDefinedProcesses(backends=backends)
+        udf_runtimes = AggregatorUdfRuntimes(backends=backends)
 
         super().__init__(
             catalog=catalog,
@@ -1637,6 +1673,7 @@ class AggregatorBackendImplementation(OpenEoBackendImplementation):
             secondary_services=secondary_services,
             batch_jobs=batch_jobs,
             user_defined_processes=user_defined_processes,
+            udf_runtimes=udf_runtimes,
         )
         self._configured_oidc_providers: List[OidcProvider] = get_backend_config().oidc_providers
         self._auth_entitlement_check: Union[bool, dict] = get_backend_config().auth_entitlement_check

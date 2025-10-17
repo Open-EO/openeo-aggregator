@@ -24,6 +24,7 @@ from openeo_aggregator.backend import (
     AggregatorCollectionCatalog,
     AggregatorProcessing,
     AggregatorSecondaryServices,
+    AggregatorUdfRuntimes,
     CollectionAllowList,
     JobIdMapping,
     _InternalCollectionMetadata,
@@ -2296,3 +2297,75 @@ class TestAggregatorProcessing:
             IsPartialDict(**{"id": "avg", "federation:backends": ["b2"]}),
             IsPartialDict(**{"id": "mean", "federation:backends": ["b1", "b2"]}),
         ]
+
+
+class TestUdfRuntimes:
+    def test_empty(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(backend1 + "/udf_runtimes", json={})
+        requests_mock.get(backend2 + "/udf_runtimes", json={})
+        udf_runtimes = AggregatorUdfRuntimes(backends=multi_backend_connection)
+        assert udf_runtimes.get_udf_runtimes() == {}
+
+    def test_simple(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(
+            backend1 + "/udf_runtimes",
+            json={
+                "Python": {
+                    "type": "language",
+                    "default": 3,
+                    "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                }
+            },
+        )
+        requests_mock.get(backend2 + "/file_formats", json={})
+        udf_runtimes = AggregatorUdfRuntimes(backends=multi_backend_connection)
+        assert udf_runtimes.get_udf_runtimes() == {
+            "Python": {
+                "type": "language",
+                "default": 3,
+                "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                "federation:backends": ["b1"],
+            }
+        }
+
+    def test_basic_merge(self, multi_backend_connection, backend1, backend2, requests_mock):
+        requests_mock.get(
+            backend1 + "/udf_runtimes",
+            json={
+                "Python": {
+                    "type": "language",
+                    "default": 3,
+                    "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                },
+                "R": {
+                    "type": "language",
+                    "default": 4,
+                    "versions": {"4": {"libraries": {"dplyr": {"version": "1.0.0"}}}},
+                },
+            },
+        )
+        requests_mock.get(
+            backend2 + "/udf_runtimes",
+            json={
+                "Python": {
+                    "type": "language",
+                    "default": 3,
+                    "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                }
+            },
+        )
+        udf_runtimes = AggregatorUdfRuntimes(backends=multi_backend_connection)
+        assert udf_runtimes.get_udf_runtimes() == {
+            "Python": {
+                "type": "language",
+                "default": 3,
+                "versions": {"3": {"libraries": {"numpy": {"version": "1.2.3"}}}},
+                "federation:backends": ["b1", "b2"],
+            },
+            "R": {
+                "type": "language",
+                "default": 4,
+                "versions": {"4": {"libraries": {"dplyr": {"version": "1.0.0"}}}},
+                "federation:backends": ["b1"],
+            },
+        }
