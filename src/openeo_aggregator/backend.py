@@ -602,6 +602,7 @@ class AggregatorProcessing(Processing):
         """
         # Initial list of candidates
         backend_candidates: List[str] = [b.id for b in self.backends]
+        _log.info(f"get_backend_for_process_graph: initial {backend_candidates=}")
 
         if job_options and JOB_OPTION_FORCE_BACKEND in job_options:
             # Processing option to force a certain upstream back-end
@@ -698,7 +699,10 @@ class AggregatorProcessing(Processing):
 
         if not backend_candidates:
             raise BackendLookupFailureException(message="No backend matching all constraints")
-        return backend_candidates[0]
+
+        final_pick = backend_candidates[0]
+        _log.info(f"get_backend_for_process_graph: {final_pick=} from {backend_candidates=}.")
+        return final_pick
 
     def evaluate(self, process_graph: dict, env: EvalEnv = None):
         """Evaluate given process graph (flat dict format)."""
