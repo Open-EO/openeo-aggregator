@@ -2563,7 +2563,6 @@ class TestBatchJobs:
                 "title": "Result 1",
                 "roles": ["data", "testing"],
                 "type": "image/tiff; application=geotiff",
-                "bands": [{"name": "r1", "eo:common_name": "red"}],
                 "eo:bands": [{"name": "r1", "common_name": "red"}],
             }
         }
