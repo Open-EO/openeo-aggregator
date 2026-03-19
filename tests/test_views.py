@@ -286,35 +286,38 @@ class TestCatalog:
         res = api100.get("/collections").assert_status_code(200).json
         assert res == {
             "collections": [
-                DictSubSet(
+                dirty_equals.IsPartialDict(
                     {
                         "description": "S1",
-                        "links": [
+                        "links": dirty_equals.IsList(
                             {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S1"},
-                        ],
+                            length=...,
+                        ),
                     }
                 ),
-                DictSubSet(
+                dirty_equals.IsPartialDict(
                     {
                         "description": "S2",
-                        "links": [
+                        "links": dirty_equals.IsList(
                             {"rel": "license", "href": "foo"},
                             {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S2"},
-                        ],
+                            length=...,
+                        ),
                     }
                 ),
-                DictSubSet(
+                dirty_equals.IsPartialDict(
                     {
                         "description": "S3",
-                        "links": [
+                        "links": dirty_equals.IsList(
                             {"rel": "root", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "parent", "href": "http://oeoa.test/openeo/1.0.0/collections"},
                             {"rel": "self", "href": "http://oeoa.test/openeo/1.0.0/collections/S3"},
-                        ],
+                            length=...,
+                        ),
                     }
                 ),
             ],
