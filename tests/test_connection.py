@@ -93,7 +93,13 @@ class TestBackendConnection:
                 "userinfo_endpoint": "https://egi.test/userinfo",
             },
         )
-        requests_mock.post("https://egi.test/token", json={"access_token": "3nt3r"})
+        requests_mock.post(
+            "https://egi.test/token",
+            json={
+                "token_type": "Bearer",
+                "access_token": "3nt3r",
+            },
+        )
         con = BackendConnection(id="foo", url="https://foo.test")
         with pytest.raises(LockedAuthException):
             con.authenticate_oidc_refresh_token(client_id="cl13nt", refresh_token="r3fr35")
