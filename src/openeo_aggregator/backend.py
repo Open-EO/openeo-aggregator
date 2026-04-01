@@ -51,6 +51,7 @@ from openeo_driver.backend import (
     OidcProvider,
     OpenEoBackendImplementation,
     Processing,
+    QueryablesListing,
     SecondaryServices,
     ServiceMetadata,
     UdfRuntimes,
@@ -442,6 +443,25 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
             raise FeatureUnsupportedException(f"collection-items with multiple backends ({backends}) is not supported.")
         else:
             raise CollectionNotFoundException(collection_id)
+
+    def get_collection_queryables(self, collection_id: Union[str, None]) -> Union[QueryablesListing, flask.Response]:
+        metadata, internal = self._get_all_metadata_cached()
+        backends = internal.get_backends_for_collection(collection_id)
+
+        # For now just pass through the queryables from first hit
+        for bid in backends:
+            try:
+                con = self.backends.get_connection(backend_id=bid)
+                resp = con.get(f"/collections/{collection_id}/queryables", allow_redirects=False)
+                _log.info(
+                    f"Upstream queryables lookup for {collection_id=} with {bid=}: {resp.status_code=} on {resp.url=}"
+                )
+                resp.raise_for_status()
+                return flask.Response(status=resp.status_code, response=resp.text, headers=resp.headers)
+            except Exception as e:
+                pass
+
+        return super().get_collection_queryables(collection_id=collection_id)
 
 
 class JobIdMapping:

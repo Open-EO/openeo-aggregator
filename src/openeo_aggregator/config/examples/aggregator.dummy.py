@@ -12,6 +12,8 @@ config = AggregatorBackendConfig(
     capabilities_description="openEO Aggregator Dummy instance.",
     aggregator_backends={
         "dummy": "https://openeo.example/",
+        # "cdse": "https://openeo.dataspace.copernicus.eu/openeo/1.2",
+        # "cdsestag": "https://openeo-staging.dataspace.copernicus.eu/openeo/1.2",
     },
     oidc_providers=[
         OidcProvider(

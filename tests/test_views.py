@@ -7,7 +7,7 @@ import pytest
 import requests
 from openeo.rest import OpenEoApiError, OpenEoRestError
 from openeo.util import rfc3339, url_join
-from openeo_driver.backend import ServiceMetadata
+from openeo_driver.backend import QueryablesListing, ServiceMetadata
 from openeo_driver.errors import (
     JobNotFinishedException,
     JobNotFoundException,
@@ -483,6 +483,43 @@ class TestCatalog:
                     "summaries": DictSubSet({"federation:backends": ["b2"]}),
                 }
             )
+
+    def test_get_collection_queryables_basic(self, api100, requests_mock, backend1):
+        requests_mock.get(f"{backend1}/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(f"{backend1}/collections/S2", json={"id": "S2", "title": "b1's S2"})
+        b1_queryables = QueryablesListing(
+            queryables={"color": {"type": "string", "enum": ["green", "blue"]}}
+        ).to_response_dict(collection_id="S2", self_url=f"{backend1}/collections/S2/queryables")
+        requests_mock.get(
+            f"{backend1}/collections/S2/queryables",
+            json=b1_queryables,
+            # Even when using `json=` the JSON content type header has to be added explicitly unfortunately
+            # https://github.com/jamielennox/requests-mock/issues/231
+            headers={"Content-Type": "application/json"},
+        )
+
+        doc = api100.get("/collections/S2/queryables").assert_status_code(200).json
+        assert doc == dirty_equals.IsPartialDict(
+            {
+                "$id": "https://b1.test/v1/collections/S2/queryables",
+                "additionalProperties": False,
+                "type": "object",
+                "properties": {"color": {"type": "string", "enum": ["green", "blue"]}},
+            }
+        )
+
+    def test_get_collection_queryables_pass_through_redirect(self, api100, requests_mock, backend1):
+        requests_mock.get(f"{backend1}/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.get(f"{backend1}/collections/S2", json={"id": "S2", "title": "b1's S2"})
+        requests_mock.get(
+            f"{backend1}/collections/S2/queryables",
+            status_code=302,
+            headers={"Location": "https://stacapi.test/collections/zentinel-two/queryables"},
+        )
+
+        resp = api100.get("/collections/S2/queryables")
+        resp.assert_http_status_code(302)
+        assert resp.headers.get("Location") == "https://stacapi.test/collections/zentinel-two/queryables"
 
 
 class TestAuthentication:

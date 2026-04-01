@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.48.0
 
+- Basic support for collection queryables: just pass through first non-error upstream backend response ([#198](https://github.com/Open-EO/openeo-aggregator/issues/198))
+
 
 ## 0.47.0
 
