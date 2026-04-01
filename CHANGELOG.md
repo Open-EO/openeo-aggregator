@@ -6,7 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## Work in progress: 0.47.0
+## Work in progress: 0.48.0
+
+
+## 0.47.0
 
 - Fixup "federation:missing" (Federation Extension) on UDP listing `GET /process_graphs` ([#185](https://github.com/Open-EO/openeo-aggregator/issues/185))
 - Add "federation:backends" (Federation Extension) on UDP listing `GET /process_graphs` ([#186](https://github.com/Open-EO/openeo-aggregator/issues/186))
