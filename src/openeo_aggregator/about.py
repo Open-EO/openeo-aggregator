@@ -2,7 +2,7 @@ import logging
 import sys
 from typing import Optional
 
-__version__ = "0.48.0.a1"
+__version__ = "0.49.0a1"
 
 
 def log_version_info(logger: Optional[logging.Logger] = None):

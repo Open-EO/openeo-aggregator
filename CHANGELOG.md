@@ -6,7 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## Work in progress: 0.48.0
+## Work in progress: 0.49.0
+
+
+## 0.48.0
 
 - Basic support for collection queryables: just pass through first non-error upstream backend response ([#198](https://github.com/Open-EO/openeo-aggregator/issues/198))
 
