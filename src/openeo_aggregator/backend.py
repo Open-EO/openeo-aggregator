@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import copy
 import dataclasses
 import datetime
 import functools
@@ -344,6 +345,10 @@ class AggregatorCollectionCatalog(AbstractCollectionCatalog):
         env = processing.get_basic_env()
 
         def evaluate(backend_id, pg):
+            # The `evaluate` machinery from openeo-python-driver manipulates
+            # the process graph dict in-place unfortunately at the moment,
+            # so we work with a deep copy here to avoid the mess this can cause.
+            pg = copy.deepcopy(pg)
             return processing.evaluate(process_graph=pg, env=env.push_parameters({"value": backend_id}))
 
         return [functools.partial(evaluate, pg=pg) for pg in process_graphs]
