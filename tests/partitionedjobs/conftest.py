@@ -100,6 +100,9 @@ class DummyBackend:
         if status != job_data.history[-1]:
             job_data.history.append(status)
 
+    def delete_job(self, *, user_id: str, job_id: str):
+        del self.jobs[user_id, job_id]
+
     def get_job_status(self, user_id: str, job_id: str):
         return self.get_job_data(user_id, job_id).history[-1]
 

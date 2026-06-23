@@ -350,9 +350,12 @@ class PartitionedJobTracker:
                     _log.debug(f"Upstream status of {job_id} ({pjob_id}:{sjob_id}): {status}")
                     # TODO: handle job "progress" level?
                 except Exception as e:
-                    _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}", exc_info=True)
-                    # Skip unexpected failure for now (could be temporary)
-                    # TODO: inspect error and flag as failed, skip temporary glitches, ....
+                    _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}: {e}", exc_info=True)
+                    # Mark subjob as error, but note that (e.g. in case of temporary glitches)
+                    # we still might recover to non-error state in the next polling loop,
+                    # when there are still other subjobs running.
+                    # TODO: inspect error in more detail and flag as failed, skip temporary glitches, ....
+                    update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=f"exception: {e}")
                 else:
                     if status == "finished":
                         update_status(sjob_id=sjob_id, status=STATUS_FINISHED, old=sjob_status, upstream=status)

@@ -319,6 +319,48 @@ class TestPartitionedJobTracker:
         assert dummy1.jobs[john, "1-jb-0"].history == ["created", "running"]
         assert dummy2.jobs[john, "2-jb-0"].history == ["created", "running", "error", "running"]
 
+    def test_sync_with_describe_error(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, john):
+        # Create
+        pjob_id = zk_tracker.create(pjob=pjob, user_id=john, flask_request=flask_request)
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({"status": "created"})
+
+        # Start
+        zk_tracker.start_sjobs(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet({"status": "running"})
+
+        # Delete second job from backend to trigger JobNotFound on "describe_job" in sync
+        dummy1.set_job_status(john, "1-jb-0", "running")
+        dummy2.delete_job(user_id=john, job_id="2-jb-0")
+        zk_tracker.sync(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
+
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "running",
+                "message": approx_str_contains("{'running': 1, 'error': 1}"),
+            }
+        )
+        subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
+        assert set(subjobs.keys()) == {"0000", "0001"}
+        assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0000") == DictSubSet({"status": "running"})
+        assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0001") == DictSubSet({"status": "error"})
+
+        # Sync again after finishing first job
+        dummy1.set_job_status(john, "1-jb-0", "finished")
+        zk_tracker.sync(pjob_id=pjob_id, user_id=john, flask_request=flask_request)
+
+        assert zk_db.get_pjob_status(user_id=john, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "error",
+                "message": approx_str_contains("{'finished': 1, 'error': 1}"),
+            }
+        )
+        subjobs = zk_db.list_subjobs(user_id=john, pjob_id=pjob_id)
+        assert set(subjobs.keys()) == {"0000", "0001"}
+        assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
+            {"status": "finished"}
+        )
+        assert zk_db.get_sjob_status(user_id=john, pjob_id=pjob_id, sjob_id="0001") == DictSubSet({"status": "error"})
+
     def test_sync_wrong_user(self, pjob, zk_db, zk_tracker, flask_request, dummy1, dummy2, john):
         # Create
         pjob_id = zk_tracker.create(pjob=pjob, user_id=john, flask_request=flask_request)
