@@ -6,7 +6,10 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## Work in progress: 0.49.0
+## Work in progress: 0.50.0
+
+
+## 0.49.0
 
 - Partitioned job tracking: move sub-job to error state on `describe_job` failure to avoid partitioned job being stuck in "running" ([#200](https://github.com/Open-EO/openeo-aggregator/issues/200))
 
