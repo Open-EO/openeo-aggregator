@@ -319,12 +319,10 @@ class PartitionedJobTracker:
         # TODO: limit number of remote back-end requests per sync? #38
         # TODO: throttle sync logic, or cache per request? #38
 
-        def update_status(sjob_id: str, status: str, old: str, upstream: str):
+        def update_status(sjob_id: str, status: str, old: str, upstream: str, job_id: Optional[str] = None):
             msg = f"Upstream status: {upstream!r}"
             self._db.set_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id, status=status, message=msg)
-            _log.info(
-                f"Synced status {pjob_id}:{sjob_id}: {status} (was {old}). Upstream status: {upstream} ({job_id})."
-            )
+            _log.info(f"Synced status {pjob_id}:{sjob_id}: {status} (was {old}). {upstream=} ({job_id=}).")
 
         sjobs = self._db.list_subjobs(user_id=user_id, pjob_id=pjob_id)
         _log.info(f"Syncing partitioned job {pjob_id!r} with {len(sjobs)} sub-jobs")
@@ -343,33 +341,46 @@ class PartitionedJobTracker:
                 #       or a limited number of times?
                 #       also see https://github.com/Open-EO/openeo-api/issues/436
                 try:
+                    job_id = None
                     with con.authenticated_from_request(request=flask_request):
                         job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
                         metadata = con.job(job_id).describe_job()
                     status = metadata["status"]
                     _log.debug(f"Upstream status of {job_id} ({pjob_id}:{sjob_id}): {status}")
                     # TODO: handle job "progress" level?
-                except Exception as e:
-                    _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}: {e}", exc_info=True)
+                except Exception as exc:
+                    _log.error(f"Unexpected error while polling job status {pjob_id}:{sjob_id}: {exc}", exc_info=True)
                     # Mark subjob as error, but note that (e.g. in case of temporary glitches)
                     # we still might recover to non-error state in the next polling loop,
                     # when there are still other subjobs running.
                     # TODO: inspect error in more detail and flag as failed, skip temporary glitches, ....
-                    update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=f"exception: {e}")
+                    # Also, don't overwrite existing error information, as first error is probably most informing
+                    if sjob_status != STATUS_ERROR:
+                        update_status(
+                            sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=f"{exc=}", job_id=job_id
+                        )
                 else:
                     if status == "finished":
-                        update_status(sjob_id=sjob_id, status=STATUS_FINISHED, old=sjob_status, upstream=status)
+                        update_status(
+                            sjob_id=sjob_id, status=STATUS_FINISHED, old=sjob_status, upstream=status, job_id=job_id
+                        )
                         # TODO: collect result/asset URLS here already?
                     elif status in {"created", "queued", "running"}:
                         # TODO: also store full status metadata result in status?
                         # TODO: differentiate between created queued and running?
-                        update_status(sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status)
+                        update_status(
+                            sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status, job_id=job_id
+                        )
                     elif status in {"error", "canceled"}:
                         # TODO: handle "canceled" state properly? #39
-                        update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
+                        update_status(
+                            sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status, job_id=job_id
+                        )
                     else:
                         _log.error(f"Unexpected status for {pjob_id}:{sjob_id} ({job_id}): {status}")
-                        update_status(sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status)
+                        update_status(
+                            sjob_id=sjob_id, status=STATUS_ERROR, old=sjob_status, upstream=status, job_id=job_id
+                        )
             elif sjob_status == STATUS_FINISHED:
                 pass
 
