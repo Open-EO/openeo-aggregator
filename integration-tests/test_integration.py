@@ -82,17 +82,18 @@ def test_processes(connection):
 
 
 @pytest.mark.parametrize(
-    "path",
+    ["path", "min_size"],
     [
-        "/",
-        "/file_formats",
-        "/udf_runtimes",
-        # "/service_types",
-        "/credentials/oidc",
+        ("/", 4),
+        ("/file_formats", 2),
+        ("/udf_runtimes", 0),
+        ("/service_types", 0),
+        ("/credentials/oidc", 1),
     ],
 )
-def test_capabilities_generic(connection, path):
+def test_capabilities_generic(connection, path, min_size):
     """Just check that some generic capability docs return with JSON."""
     response = connection.get(path)
     assert response.status_code == 200
-    assert response.json()
+    doc = response.json()
+    assert len(doc) >= min_size
