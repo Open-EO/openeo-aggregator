@@ -8,11 +8,12 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.49.0
 
+- Partitioned job tracking: move sub-job to error state on `describe_job` failure to avoid partitioned job being stuck in "running" ([#200](https://github.com/Open-EO/openeo-aggregator/issues/200))
+
 
 ## 0.48.0
 
 - Basic support for collection queryables: just pass through first non-error upstream backend response ([#198](https://github.com/Open-EO/openeo-aggregator/issues/198))
-- Pertitioned job tracking: move sub-job to error state on `describe_job` failure to avoid partitioned job being stuck in "running" ([#200](https://github.com/Open-EO/openeo-aggregator/issues/200))
 
 
 ## 0.47.0
