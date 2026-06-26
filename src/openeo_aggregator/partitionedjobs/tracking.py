@@ -474,7 +474,7 @@ class PartitionedJobTracker:
                     # TODO: when some sjob assets fail, still continue with partial results  #40
                     sjob_assets = con.job(job_id).get_results().get_assets()
                 assets.extend(
-                    ResultAsset(job=None, name=f"{sjob_id}-{a.name}", href=a.href, metadata=a.metadata)
+                    ResultAsset(job=None, key=f"{sjob_id}-{a.name}", href=a.href, metadata=a.metadata)
                     for a in sjob_assets
                 )
         _log.info(f"Collected {len(assets)} assets for {pjob_id}")
@@ -489,7 +489,7 @@ class PartitionedJobTracker:
                 }
                 # No href, but let openeo_driver build URL from filename.
                 # TODO: Signed URL support for this asset. #41
-                assets.append(ResultAsset(job=None, name="tile_grid.geojson", href=None, metadata=metadata))
+                assets.append(ResultAsset(job=None, key="tile_grid.geojson", href=None, metadata=metadata))
             except Exception as e:
                 _log.error("Failed to add result asset with tiling geometry", exc_info=True)
 
