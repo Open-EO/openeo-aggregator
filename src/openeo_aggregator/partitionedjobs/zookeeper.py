@@ -175,9 +175,10 @@ class ZooKeeperPartitionedJobDB:
         with self._connect():
             if not self._client.exists(self._path(user_id, pjob_id)):
                 raise JobNotFoundException(job_id=pjob_id)
-            for child in self._client.get_children(self._path(user_id, pjob_id, "sjobs")):
-                value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", child))
-                listing[child] = self.deserialize(value)
+            if self._client.exists(self._path(user_id, pjob_id, "sjobs")):
+                for child in self._client.get_children(self._path(user_id, pjob_id, "sjobs")):
+                    value, stat = self._client.get(self._path(user_id, pjob_id, "sjobs", child))
+                    listing[child] = self.deserialize(value)
         return listing
 
     def set_backend_job_id(self, user_id: str, pjob_id: str, sjob_id: str, job_id: str):

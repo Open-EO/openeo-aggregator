@@ -8,6 +8,8 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## Work in progress: 0.50.0
 
+- Harden cross-backend splitting for cases without `load_collection` nodes [#202](https://github.com/Open-EO/openeo-aggregator/issues/202)
+
 
 ## 0.49.0
 

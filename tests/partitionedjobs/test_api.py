@@ -910,6 +910,97 @@ class TestCrossBackendSplitting:
 
     @now.mock
     @pytest.mark.parametrize(
+        ["split_strategy", "expected_backend"],
+        [
+            ("crossbackend", "b1"),
+            ({"crossbackend": {"method": "simple"}}, "b1"),
+            ({"crossbackend": {"method": "simple", "primary_backend": "b1"}}, "b1"),
+            ({"crossbackend": {"method": "simple", "primary_backend": "b2"}}, "b2"),
+            ({"crossbackend": {"method": "deep"}}, "b1"),
+            ({"crossbackend": {"method": "deep", "primary_backend": "b1"}}, "b1"),
+            ({"crossbackend": {"method": "deep", "primary_backend": "b2"}}, "b2"),
+        ],
+    )
+    def test_create_job_no_load_collection(
+        self, flask_app, api100, zk_db, dummy1, dummy2, split_strategy, expected_backend: str
+    ):
+        """Behavior on graph without load_collection or comparable processes"""
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        pg = {
+            "add35": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
+        }
+
+        res = api100.post(
+            "/jobs",
+            json={
+                "process": {"process_graph": pg},
+                "job_options": {"split_strategy": split_strategy},
+            },
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == dirty_equals.IsPartialDict(
+            {
+                "id": expected_job_id,
+                "process": {"process_graph": pg},
+                "status": "created",
+                "created": self.now.rfc3339,
+            }
+        )
+
+        # Inspect stored parent job metadata
+        assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == {
+            "user_id": TEST_USER,
+            "created": self.now.epoch,
+            "process": {"process_graph": pg},
+            "metadata": {"log_level": "info"},
+            "job_options": {"split_strategy": split_strategy},
+            "result_jobs": ["main"],
+        }
+
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == dirty_equals.IsPartialDict(
+            {
+                "status": "created",
+                "message": approx_str_contains("{'created': 1}"),
+                "timestamp": pytest.approx(self.now.epoch, abs=1),
+            }
+        )
+
+        # Inspect stored subjob metadata
+        subjobs = zk_db.list_subjobs(user_id=TEST_USER, pjob_id=pjob_id)
+        assert subjobs == {
+            "main": {
+                "backend_id": expected_backend,
+                "process_graph": {
+                    "add35": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
+                },
+                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+            }
+        }
+        sjob_id = "main"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id) == {
+            "status": "created",
+            "timestamp": pytest.approx(self.now.epoch, abs=1),
+            "message": None,
+        }
+        job_id = zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id=sjob_id)
+        assert job_id == {"b1": "1-jb-0", "b2": "2-jb-0"}[expected_backend]
+
+        dummy = {"b1": dummy1, "b2": dummy2}[expected_backend]
+        assert dummy.get_job_status(TEST_USER, job_id) == "created"
+        pg = dummy.get_job_data(TEST_USER, job_id).create["process"]["process_graph"]
+        assert pg == {
+            "add35": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
+        }
+
+    @now.mock
+    @pytest.mark.parametrize(
         "split_strategy",
         [
             "crossbackend",

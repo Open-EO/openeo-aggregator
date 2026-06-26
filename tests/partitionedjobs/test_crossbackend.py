@@ -31,21 +31,25 @@ class TestCrossBackendSplitter:
     def test_split_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: "foo", primary_backend_id="B1"
+            )
         )
         res = splitter.split({"process_graph": process_graph})
 
-        assert res.subjobs == {"main": SubJob(process_graph, backend_id=None)}
+        assert res.subjobs == {"main": SubJob(process_graph, backend_id="B1")}
         assert res.dependencies == {}
 
     def test_split_streaming_simple(self):
         process_graph = {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: "foo")
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: "foo", primary_backend_id="B1"
+            )
         )
         res = splitter.split_streaming(process_graph)
         assert isinstance(res, types.GeneratorType)
-        assert list(res) == [("main", SubJob(process_graph, backend_id=None), [])]
+        assert list(res) == [("main", SubJob(process_graph, backend_id="B1"), [])]
 
     def test_split_basic(self):
         process_graph = {
@@ -65,7 +69,9 @@ class TestCrossBackendSplitter:
             },
         }
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: cid.split("_")[0], primary_backend_id="B1"
+            )
         )
         res = splitter.split({"process_graph": process_graph})
 
@@ -130,7 +136,9 @@ class TestCrossBackendSplitter:
             },
         }
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: cid.split("_")[0], primary_backend_id="B1"
+            )
         )
         result = splitter.split_streaming(process_graph)
         assert isinstance(result, types.GeneratorType)
@@ -192,7 +200,9 @@ class TestCrossBackendSplitter:
             },
         }
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: cid.split("_")[0], primary_backend_id="B1"
+            )
         )
 
         batch_jobs = {}
@@ -390,7 +400,9 @@ class TestRunPartitionedJobs:
             },
         }
         splitter = CrossBackendJobSplitter(
-            graph_splitter=LoadCollectionGraphSplitter(backend_for_collection=lambda cid: cid.split("_")[0])
+            graph_splitter=LoadCollectionGraphSplitter(
+                backend_for_collection=lambda cid: cid.split("_")[0], primary_backend_id="B1"
+            )
         )
         pjob: PartitionedJob = splitter.split({"process_graph": process_graph})
 
@@ -1157,7 +1169,7 @@ class TestDeepGraphSplitter:
         """Test `primary_backend` argument of DeepGraphSplitter"""
         splitter = DeepGraphSplitter(
             supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
-            primary_backend=primary_backend,
+            primary_backend_id=primary_backend,
         )
         flat = {
             #   lc1   lc2
@@ -1192,7 +1204,7 @@ class TestDeepGraphSplitter:
         """
         splitter = DeepGraphSplitter(
             supporting_backends=supporting_backends_from_node_id_dict({"lc1": ["b1"], "lc2": ["b2"]}),
-            primary_backend="b1",
+            primary_backend_id="b1",
             split_deny_list=split_deny_list,
         )
         flat = {

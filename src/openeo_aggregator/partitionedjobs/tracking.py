@@ -388,7 +388,10 @@ class PartitionedJobTracker:
             self._db.get_sjob_status(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)["status"] for sjob_id in sjobs
         )
         # TODO: more advanced progress metric than just #finished/#total?
-        progress = int(100.0 * status_counts.get(STATUS_FINISHED, 0) / sum(status_counts.values()))
+        if status_counts:
+            progress = int(100.0 * status_counts.get(STATUS_FINISHED, 0) / sum(status_counts.values()))
+        else:
+            progress = 0
         status_message = repr(status_counts)
         _log.info(f"pjob {pjob_id} sjob status histogram: {status_counts}")
         statusses = set(status_counts)
@@ -406,6 +409,8 @@ class PartitionedJobTracker:
             self._db.set_pjob_status(
                 user_id=user_id, pjob_id=pjob_id, status=STATUS_ERROR, message=status_message, progress=progress
             )
+        elif len(statusses) == 0:
+            _log.warning(f"pjob {pjob_id} with empty {status_counts=}")
         else:
             raise RuntimeError(f"Unhandled sjob status combination: {statusses}")
 
