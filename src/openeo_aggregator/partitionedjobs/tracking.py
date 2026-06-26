@@ -365,12 +365,22 @@ class PartitionedJobTracker:
                             sjob_id=sjob_id, status=STATUS_FINISHED, old=sjob_status, upstream=status, job_id=job_id
                         )
                         # TODO: collect result/asset URLS here already?
-                    elif status in {"created", "queued", "running"}:
+                    elif status == "running":
                         # TODO: also store full status metadata result in status?
-                        # TODO: differentiate between created queued and running?
                         update_status(
                             sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status, job_id=job_id
                         )
+                    elif status in {"created", "queued"}:
+                        # Don't overwrite existing error state
+                        # (e.g. when job starting doesn't work and sub-job is stuck in "created" state)
+                        if sjob_status != STATUS_ERROR:
+                            # TODO: use different status than running here?
+                            #       Note that this complicates the `set_pjob_status` logic below a bit.
+                            update_status(
+                                sjob_id=sjob_id, status=STATUS_RUNNING, old=sjob_status, upstream=status, job_id=job_id
+                            )
+                        else:
+                            _log.info(f"Not syncing status {pjob_id}:{sjob_id}: {sjob_status=} ({job_id=}, {status=})")
                     elif status in {"error", "canceled"}:
                         # TODO: handle "canceled" state properly? #39
                         update_status(

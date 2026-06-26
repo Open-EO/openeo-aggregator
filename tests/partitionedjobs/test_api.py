@@ -348,6 +348,45 @@ class TestFlimsyBatchJobSplitting:
             {"status": "finished"}
         )
 
+    @now.mock
+    def test_sync_job_after_start_fail(self, api100, zk_db, dummy1):
+        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+
+        # Submit job
+        res = api100.post(
+            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
+        ).assert_status_code(201)
+
+        pjob_id = "pj-20220119-123456"
+        expected_job_id = f"agg-{pjob_id}"
+        assert res.headers["OpenEO-Identifier"] == expected_job_id
+
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
+
+        # Setup up failure on start
+        dummy1.fail_start_job = True
+
+        # Check status (and trigger job start)
+        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "error", "progress": 0})
+
+        # Check again that error state persist (even if upstream status is "created")
+        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        assert res.json == DictSubSet({"id": expected_job_id, "status": "error", "progress": 0})
+
+        assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
+            {
+                "status": "error",
+                "message": approx_str_contains("{'error': 1}"),
+            }
+        )
+        assert zk_db.get_backend_job_id(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == "1-jb-0"
+        assert zk_db.get_sjob_status(user_id=TEST_USER, pjob_id=pjob_id, sjob_id="0000") == DictSubSet(
+            {"status": "error"}
+        )
+
     def test_sync_job_wrong_user(self, api100, dummy1):
         api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
