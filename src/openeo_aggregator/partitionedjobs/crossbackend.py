@@ -33,6 +33,7 @@ from openeo import BatchJob
 from openeo.util import deep_get
 from openeo_driver.jobregistry import JOB_STATUS
 
+from openeo_aggregator.connection import BackendId
 from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.splitting import AbstractJobSplitter
@@ -51,7 +52,6 @@ _LOAD_RESULT_PLACEHOLDER = "_placeholder:"
 CollectionId = str
 SubGraphId = str
 NodeId = str
-BackendId = str
 ProcessId = str
 
 
@@ -140,10 +140,25 @@ class LoadCollectionGraphSplitter(ProcessGraphSplitterInterface):
 
     # TODO: migrate backend_for_collection to SupportingBackendsMapper format?
 
-    def __init__(self, backend_for_collection: Callable[[CollectionId], BackendId], always_split: bool = False):
+    def __init__(
+        self,
+        *,
+        backend_for_collection: Callable[[CollectionId], BackendId],
+        always_split: bool = False,
+        primary_backend_id: Optional[BackendId] = None,
+    ):
         # TODO: also support not not having a backend_for_collection map?
         self._backend_for_collection = backend_for_collection
         self._always_split = always_split
+        self._primary_backend_id = primary_backend_id
+
+    def _pick_primary_backend(self, backend_usage: collections.Counter) -> BackendId:
+        if backend_usage:
+            return backend_usage.most_common()[0][0]
+        elif self._primary_backend_id:
+            return self._primary_backend_id
+        else:
+            raise GraphSplitException("LoadCollectionGraphSplitter._pick_primary_backend: No backend candidates.")
 
     def split(self, process_graph: FlatPG) -> _PGSplitResult:
         # Extract necessary back-ends from `load_collection` usage
@@ -157,7 +172,7 @@ class LoadCollectionGraphSplitter(ProcessGraphSplitterInterface):
         _log.info(f"Extracted backend usage from `load_collection` nodes: {backend_usage=} {backend_per_collection=}")
 
         # TODO: more options to determine primary backend?
-        primary_backend = backend_usage.most_common(1)[0][0] if backend_usage else None
+        primary_backend = self._pick_primary_backend(backend_usage=backend_usage)
         secondary_backends = {b for b in backend_usage if b != primary_backend}
         _log.info(f"Backend split: {primary_backend=} {secondary_backends=}")
 
@@ -850,23 +865,22 @@ class DeepGraphSplitter(ProcessGraphSplitterInterface):
     def __init__(
         self,
         supporting_backends: SupportingBackendsMapper,
-        primary_backend: Optional[BackendId] = None,
+        primary_backend_id: Optional[BackendId] = None,
         split_deny_list: Iterable[ProcessId] = (),
     ):
         self._supporting_backends_mapper = supporting_backends
-        self._primary_backend = primary_backend
+        self._primary_backend_id = primary_backend_id
         # TODO also support other deny mechanisms, e.g. callable instead of a deny list?
         self._split_deny_list = set(split_deny_list)
 
     def _pick_backend(self, backend_candidates: Union[frozenset[BackendId], None]) -> BackendId:
-        if backend_candidates is None:
-            if self._primary_backend:
-                return self._primary_backend
-            else:
-                raise GraphSplitException("DeepGraphSplitter._pick_backend: No backend candidates.")
-        else:
+        if backend_candidates:
             # TODO: better backend selection mechanism
             return sorted(backend_candidates)[0]
+        elif self._primary_backend_id:
+            return self._primary_backend_id
+        else:
+            raise GraphSplitException("DeepGraphSplitter._pick_backend: No backend candidates.")
 
     def split(self, process_graph: FlatPG) -> _PGSplitResult:
         graph = _GraphViewer.from_flat_graph(
@@ -890,7 +904,7 @@ class DeepGraphSplitter(ProcessGraphSplitterInterface):
             }
             _log.debug(f"DeepGraphSplitter.split: {subgraph_node_ids=} {subgraph_backend_ids=}")
 
-            # Handle primary graph
+            # Handle primary graph (has split node_id value None)
             split_views.pop(None)
             primary_node_ids = subgraph_node_ids.pop(None)
             primary_backend_id = subgraph_backend_ids.pop(None)
@@ -901,7 +915,7 @@ class DeepGraphSplitter(ProcessGraphSplitterInterface):
                 for k in split_views.keys()
             ]
 
-            if self._primary_backend is None or primary_backend_id == self._primary_backend:
+            if self._primary_backend_id is None or primary_backend_id == self._primary_backend_id:
                 _log.debug(f"DeepGraphSplitter.split: current split matches constraints")
                 return _PGSplitResult(
                     primary_node_ids=primary_node_ids,

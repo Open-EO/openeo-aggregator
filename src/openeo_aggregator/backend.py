@@ -90,6 +90,7 @@ from openeo_aggregator.config import (
 )
 from openeo_aggregator.connection import (
     BackendConnection,
+    BackendId,
     MultiBackendConnection,
     streaming_flask_response,
 )
@@ -1119,14 +1120,15 @@ class AggregatorBatchJobs(BatchJobs):
 
         split_strategy = (job_options or {}).get(JOB_OPTION_SPLIT_STRATEGY)
         if split_strategy == "crossbackend":
-            # Legacy job option format
-            graph_split_method = CROSSBACKEND_GRAPH_SPLIT_METHOD.SIMPLE
+            # Convert legacy job option format
+            crossbackend_settings = {}
         elif isinstance(split_strategy, dict) and isinstance(split_strategy.get("crossbackend"), dict):
-            graph_split_method = split_strategy.get("crossbackend", {}).get(
-                "method", CROSSBACKEND_GRAPH_SPLIT_METHOD.SIMPLE
-            )
+            crossbackend_settings = split_strategy["crossbackend"]
         else:
             raise ValueError(f"Invalid split strategy {split_strategy!r}")
+
+        graph_split_method = crossbackend_settings.get("method", CROSSBACKEND_GRAPH_SPLIT_METHOD.SIMPLE)
+        primary_backend_id: BackendId = crossbackend_settings.get("primary_backend") or self.backends.first().id
 
         _log.info(f"_create_crossbackend_job: {graph_split_method=} from {split_strategy=}")
         if graph_split_method == CROSSBACKEND_GRAPH_SPLIT_METHOD.SIMPLE:
@@ -1138,6 +1140,7 @@ class AggregatorBatchJobs(BatchJobs):
                 backend_for_collection=backend_for_collection,
                 # TODO: job option for `always_split` feature?
                 always_split=True,
+                primary_backend_id=primary_backend_id,
             )
         elif graph_split_method == CROSSBACKEND_GRAPH_SPLIT_METHOD.DEEP:
 
@@ -1149,7 +1152,7 @@ class AggregatorBatchJobs(BatchJobs):
 
             graph_splitter = DeepGraphSplitter(
                 supporting_backends=supporting_backends,
-                primary_backend=split_strategy.get("crossbackend", {}).get("primary_backend"),
+                primary_backend_id=primary_backend_id,
                 # TODO: instead of this hardcoded deny-list, build it based on backend metadata inspection?
                 # TODO: make a config for this?
                 split_deny_list={"aggregate_spatial", "load_geojson", "load_url"},
