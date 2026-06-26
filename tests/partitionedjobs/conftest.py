@@ -60,6 +60,7 @@ class DummyBackend:
         self.jobs: Dict[Tuple[str, str], DummyBatchJobData] = {}
         self.users: Dict[str, str] = {}
         self.fail_create_job = False
+        self.fail_start_job = False
 
     def register_user(self, bearer_token: str, user_id: str):
         self.users[bearer_token] = user_id
@@ -137,6 +138,8 @@ class DummyBackend:
 
     def _handle_post_jobs_jobid_result(self, request: requests.Request, context):
         """`POST /jobs/<job_id>/result` handler (start job)"""
+        if self.fail_start_job:
+            raise RuntimeError("nope!")
         user_id = self.get_user_id(request)
         job_id = re.search("/jobs/(?P<job_id>[a-z0-9-]+)/results", request.path).group("job_id")
         self.set_job_status(user_id, job_id, "running")
