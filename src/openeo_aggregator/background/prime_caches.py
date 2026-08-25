@@ -84,7 +84,6 @@ def prime_caches(
 ):
     log_version_info(logger=_log)
     with TimingLogger(title=f"Prime caches", logger=_log):
-
         backends = MultiBackendConnection.from_config()
         backend_implementation = AggregatorBackendImplementation(backends=backends)
 
@@ -111,7 +110,7 @@ def prime_caches(
             with TimingLogger(title="Get per collection metadata", logger=_log):
                 collection_ids = [m["id"] for m in collections_metadata]
                 for c, collection_id in enumerate(collection_ids):
-                    _log.debug(f"Get collection {c+1}/{len(collection_ids)} {collection_id}")
+                    _log.debug(f"Get collection {c + 1}/{len(collection_ids)} {collection_id}")
                     with fail_handler():
                         backend_implementation.catalog.get_collection_metadata(collection_id=collection_id)
 

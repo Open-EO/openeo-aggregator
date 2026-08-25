@@ -789,7 +789,7 @@ class TestCrossBackendSplitting:
             "main": {
                 "backend_id": "b1",
                 "process_graph": {"lc1": {"arguments": {"id": "S2"}, "process_id": "load_collection", "result": True}},
-                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='main'",
             }
         }
         sjob_id = "main"
@@ -1019,7 +1019,7 @@ class TestCrossBackendSplitting:
                 "process_graph": {
                     "add35": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
                 },
-                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='main'",
             }
         }
         sjob_id = "main"
@@ -1268,7 +1268,7 @@ class TestCrossBackendSplitting:
                         "result": True,
                     },
                 },
-                "title": "Partitioned job pjob_id='pj-20220119-123456' " "sjob_id='main'",
+                "title": "Partitioned job pjob_id='pj-20220119-123456' sjob_id='main'",
             },
         }
         sjob_id = "main"

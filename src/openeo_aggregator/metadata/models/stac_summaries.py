@@ -1,6 +1,5 @@
 import functools
-import logging
-from typing import Any, Callable, Dict, List, Set, Tuple, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Set, Type, TypeVar, Union, cast
 
 import attr
 
@@ -52,7 +51,6 @@ class StacSummaries:
 
         field_dict: Dict[str, Any] = {}
         for prop_name, prop in self.additional_properties.items():
-
             if isinstance(prop, list):
                 field_dict[prop_name] = prop
 

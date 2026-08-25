@@ -1,4 +1,3 @@
-import collections
 import itertools
 import logging
 from typing import Callable
@@ -649,16 +648,19 @@ class TestZkMemoizer(_TestMemoizer):
 
     @clock_mock(0)
     def test_from_config(self, zk_client):
-        with config_overrides(
-            memoizer={
-                "type": "zookeeper",
-                "config": {
-                    "zk_hosts": "zk1.test:2181,zk2.test:2181",
-                    "default_ttl": 123,
-                    "zk_timeout": 7.25,
-                },
-            }
-        ), mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient:
+        with (
+            config_overrides(
+                memoizer={
+                    "type": "zookeeper",
+                    "config": {
+                        "zk_hosts": "zk1.test:2181,zk2.test:2181",
+                        "default_ttl": 123,
+                        "zk_timeout": 7.25,
+                    },
+                }
+            ),
+            mock.patch.object(openeo_aggregator.caching, "KazooClient", return_value=zk_client) as KazooClient,
+        ):
             zk_cache = memoizer_from_config(namespace="tezt")
 
         KazooClient.assert_called_with(hosts="zk1.test:2181,zk2.test:2181")

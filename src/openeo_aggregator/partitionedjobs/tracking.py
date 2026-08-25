@@ -137,8 +137,9 @@ class PartitionedJobTracker:
 
                     # TODO: how to error handle this? job creation? Fail whole partitioned job or try to finish what is possible?
                     con = self._backends.get_connection(subjob.backend_id)
-                    with con.authenticated_from_request(request=flask.request), con.override(
-                        default_timeout=CONNECTION_TIMEOUT_JOB_START
+                    with (
+                        con.authenticated_from_request(request=flask.request),
+                        con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START),
                     ):
                         with TimingLogger(
                             title=f"Create batch job {pjob_id=}:{sjob_id} on {con.id=}", logger=_log.info
@@ -220,8 +221,9 @@ class PartitionedJobTracker:
         try:
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             # TODO: different way to authenticate request? #29
-            with con.authenticated_from_request(request=flask_request), con.override(
-                default_timeout=CONNECTION_TIMEOUT_JOB_START
+            with (
+                con.authenticated_from_request(request=flask_request),
+                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START),
             ):
                 with TimingLogger(title=f"Create {pjob_id}:{sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.create_job(
@@ -284,8 +286,9 @@ class PartitionedJobTracker:
             job_id = self._db.get_backend_job_id(user_id=user_id, pjob_id=pjob_id, sjob_id=sjob_id)
             con = self._backends.get_connection(sjob_metadata["backend_id"])
             # TODO: different way to authenticate request? #29
-            with con.authenticated_from_request(request=flask_request), con.override(
-                default_timeout=CONNECTION_TIMEOUT_JOB_START
+            with (
+                con.authenticated_from_request(request=flask_request),
+                con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START),
             ):
                 with TimingLogger(title=f"Start subjob {sjob_id} on backend {con.id}", logger=_log.info) as timer:
                     job = con.job(job_id)

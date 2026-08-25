@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Union
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Union
 
 from openeo_driver.errors import OpenEOApiException
 

@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from typing import Callable, Dict, List, Optional, Protocol, Union
+from typing import Dict, List, Optional, Protocol, Union
 
 import attrs
 from openeo_driver.config import OpenEoBackendConfig, openeo_backend_config_class
@@ -48,7 +48,6 @@ class ProcessAllowed(Protocol):
 
 @openeo_backend_config_class
 class AggregatorBackendConfig(OpenEoBackendConfig):
-
     capabilities_backend_version: str = openeo_aggregator.about.__version__
     capabilities_deploy_metadata: dict = build_backend_deploy_metadata(
         packages=["openeo", "openeo_driver", "openeo_aggregator"],

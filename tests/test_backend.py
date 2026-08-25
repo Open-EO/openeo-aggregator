@@ -282,7 +282,6 @@ class TestAggregatorBackendImplementation:
 
 
 class TestAggregatorSecondaryServices:
-
     # TODO: most tests here (the ones that do flask app stuff and auth)
     #       belong under test_views.py
 

@@ -39,7 +39,7 @@ from openeo.rest import (
     OpenEoClientException,
     OpenEoRestError,
 )
-from openeo.util import TimingLogger, deep_get, dict_no_none
+from openeo.util import TimingLogger, deep_get
 from openeo.utils.version import ComparableVersion
 from openeo_driver.backend import (
     AbstractCollectionCatalog,
@@ -64,7 +64,6 @@ from openeo_driver.datacube import DriverDataCube
 from openeo_driver.errors import (
     CollectionNotFoundException,
     FeatureUnsupportedException,
-    JobNotFinishedException,
     JobNotFoundException,
     OpenEOApiException,
     PermissionsInsufficientException,
@@ -129,7 +128,6 @@ from openeo_aggregator.utils import (
     FlatPG,
     PGWithMetadata,
     dict_merge,
-    is_whitelisted,
     normalize_issuer_url,
     string_or_regex_match,
     subdict,
@@ -1039,8 +1037,9 @@ class AggregatorBatchJobs(BatchJobs):
             job_options = get_backend_config().job_options_update(job_options=job_options, backend_id=backend_id)
 
         con = self.backends.get_connection(backend_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)), con.override(
-            default_timeout=CONNECTION_TIMEOUT_JOB_START
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id=user_id)),
+            con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START),
         ):
             try:
                 job = con.create_job(
@@ -1200,8 +1199,9 @@ class AggregatorBatchJobs(BatchJobs):
     def get_job_info(self, job_id: str, user_id: str) -> BatchJobMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         user = User(user_id=user_id)
-        with con.authenticated_from_request(request=flask.request, user=user), self._translate_job_errors(
-            job_id=job_id
+        with (
+            con.authenticated_from_request(request=flask.request, user=user),
+            self._translate_job_errors(job_id=job_id),
         ):
             metadata = con.job(backend_job_id).describe_job()
         metadata["id"] = job_id
@@ -1209,29 +1209,34 @@ class AggregatorBatchJobs(BatchJobs):
 
     def start_job(self, job_id: str, user: User):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=user), con.override(
-            default_timeout=CONNECTION_TIMEOUT_JOB_START
-        ), self._translate_job_errors(job_id=job_id):
+        with (
+            con.authenticated_from_request(request=flask.request, user=user),
+            con.override(default_timeout=CONNECTION_TIMEOUT_JOB_START),
+            self._translate_job_errors(job_id=job_id),
+        ):
             con.job(backend_job_id).start_job()
 
     def cancel_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
-            job_id=job_id
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
         ):
             con.job(backend_job_id).stop_job()
 
     def delete_job(self, job_id: str, user_id: str):
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
-            job_id=job_id
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
         ):
             con.job(backend_job_id).delete_job()
 
     def get_result_assets(self, job_id: str, user_id: str) -> Dict[str, dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
-            job_id=job_id
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
         ):
             results = con.job(backend_job_id).get_results()
             assets = results.get_assets()
@@ -1239,8 +1244,9 @@ class AggregatorBatchJobs(BatchJobs):
 
     def get_result_metadata(self, job_id: str, user_id: str) -> BatchJobResultMetadata:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
-            job_id=job_id
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
         ):
             results = con.job(backend_job_id).get_results()
             metadata = results.get_metadata()
@@ -1263,10 +1269,11 @@ class AggregatorBatchJobs(BatchJobs):
     ) -> Iterable[dict]:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         # Use parenthesized context managers, see #127
-        with con.authenticated_from_request(request=flask.request, user=User(user_id)), self._translate_job_errors(
-            job_id=job_id
-        ), con.override(default_timeout=CONNECTION_TIMEOUT_JOB_LOGS), TimingLogger(
-            title=f"Get log entries for {job_id}", logger=_log.debug
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
+            con.override(default_timeout=CONNECTION_TIMEOUT_JOB_LOGS),
+            TimingLogger(title=f"Get log entries for {job_id}", logger=_log.debug),
         ):
             return con.job(backend_job_id).logs(offset=offset, level=level)
 
@@ -1339,7 +1346,7 @@ class AggregatorSecondaryServices(SecondaryServices):
                 **data["service_type"],
                 FED_EXT_BACKENDS: [data["backend_id"]],
             }
-            for name, data, in service_types.items()
+            for name, data in service_types.items()
         }
 
     def _get_service_types_cached(self):
@@ -1567,7 +1574,6 @@ class AggregatorSecondaryServices(SecondaryServices):
 
 
 class AggregatorUserDefinedProcessesListing(UserDefinedProcessesListing):
-
     def __init__(
         self,
         udps: List[UserDefinedProcessMetadata],
@@ -1674,7 +1680,6 @@ class AggregatorUdfRuntimes(UdfRuntimes):
 
 
 class AggregatorBackendImplementation(OpenEoBackendImplementation):
-
     # Simplify mocking time for unit tests.
     _clock = time.time  # TODO: centralized helper for this test pattern
 

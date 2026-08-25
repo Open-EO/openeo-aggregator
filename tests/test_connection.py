@@ -247,7 +247,6 @@ class TestBackendConnection:
 
 
 class TestMultiBackendConnection:
-
     # TODO test version discovery in constructor
 
     def test_from_config(self, backend1, backend2):

@@ -1,6 +1,5 @@
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Type, TypeVar, Union
 
 import attr
 
@@ -63,13 +62,13 @@ class CubeDimension:
         Non spatial extents can only contain strings.
         """
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, extent for {} is invalid. " "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, extent for {} is invalid. actual: {}".format(identifier, d)
         )
         # Include identifier
         extent = d.get("extent", UNSET)
         if is_required and (extent is UNSET or extent is None):
             raise ValueError(
-                "Could not parse CubeDimension object, extent for {} is required. " "actual: {}".format(identifier, d)
+                "Could not parse CubeDimension object, extent for {} is required. actual: {}".format(identifier, d)
             )
         if extent is not UNSET:
             if not isinstance(extent, list):
@@ -88,7 +87,7 @@ class CubeDimension:
 
     def _set_values_from_dict(self, d, types, identifier):
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, values for {} is invalid. " "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, values for {} is invalid. actual: {}".format(identifier, d)
         )
         values = d.get("values", UNSET)
         if values is not UNSET:
@@ -101,7 +100,7 @@ class CubeDimension:
 
     def _set_step_from_dict(self, d, types, identifier):
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, step for {} is invalid. " "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, step for {} is invalid. actual: {}".format(identifier, d)
         )
         step = d.get("step", UNSET)
         if step is not UNSET:
@@ -111,8 +110,7 @@ class CubeDimension:
 
     def _set_reference_system_from_dict(self, d, types, identifier):
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, reference_system for {} is invalid. "
-            "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, reference_system for {} is invalid. actual: {}".format(identifier, d)
         )
         reference_system = d.get("reference_system", UNSET)
         if reference_system is not UNSET:
@@ -122,7 +120,7 @@ class CubeDimension:
 
     def _set_description_from_dict(self, d, identifier):
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, description for {} is invalid. " "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, description for {} is invalid. actual: {}".format(identifier, d)
         )
         _description = d.get("description", UNSET)
         if _description is not UNSET:
@@ -132,12 +130,12 @@ class CubeDimension:
 
     def _set_type_from_dict(self, d, expected_type, identifier):
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, type for {} is invalid. " "actual: {}".format(identifier, d)
+            "Could not parse CubeDimension object, type for {} is invalid. actual: {}".format(identifier, d)
         )
         _type = d.get("type", UNSET)
         if _type is UNSET:
             raise ValueError(
-                "Could not parse CubeDimension object, type for {} is required. " "actual: {}".format(identifier, d)
+                "Could not parse CubeDimension object, type for {} is required. actual: {}".format(identifier, d)
             )
         if not isinstance(_type, str):
             raise invalid_error
@@ -149,15 +147,16 @@ class CubeDimension:
             return
         if _type != expected_type:
             raise ValueError(
-                "Could not parse CubeDimension object, expected type for {} is {}, "
-                "actual: {}".format(identifier, expected_type, d)
+                "Could not parse CubeDimension object, expected type for {} is {}, actual: {}".format(
+                    identifier, expected_type, d
+                )
             )
         self.type = DimensionType(_type)
 
     def _set_horizontal_spatial_dimension_from_dict(self, src_dict: Dict[str, Any]):
         d = src_dict.copy()
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, horizontal dimension is invalid. " "actual: {}".format(d)
+            "Could not parse CubeDimension object, horizontal dimension is invalid. actual: {}".format(d)
         )
         for required_field in ["type", "extent", "axis"]:
             if required_field not in d:
@@ -195,7 +194,7 @@ class CubeDimension:
     def _set_vertical_spatial_dimension_from_dict(self, src_dict: Dict[str, Any]):
         d = src_dict.copy()
         invalid_error = ValueError(
-            "Could not parse CubeDimension object, vertical dimension is invalid. " "actual: {}".format(d)
+            "Could not parse CubeDimension object, vertical dimension is invalid. actual: {}".format(d)
         )
         for required_field in ["type", "axis"]:
             if required_field not in d:

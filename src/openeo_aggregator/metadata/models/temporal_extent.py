@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import attr
 from dateutil.parser import isoparse

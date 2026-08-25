@@ -1,8 +1,6 @@
-import collections
 import concurrent.futures
 import contextlib
 import dataclasses
-import datetime
 import logging
 import re
 from typing import (
@@ -439,10 +437,13 @@ class MultiBackendConnection:
         failures = {}
         max_workers = min(max_workers, len(connections))
 
-        with TimingLogger(
-            title=f"request_parallel {method} {path} on {len(connections)} backends with thread pool {max_workers=}",
-            logger=_log,
-        ), concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with (
+            TimingLogger(
+                title=f"request_parallel {method} {path} on {len(connections)} backends with thread pool {max_workers=}",
+                logger=_log,
+            ),
+            concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor,
+        ):
             # Submit all futures (one for each backend connection)
             futures: List[Tuple[BackendId, concurrent.futures.Future]] = []
             for con in connections:

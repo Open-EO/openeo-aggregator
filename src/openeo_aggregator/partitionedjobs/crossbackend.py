@@ -38,7 +38,6 @@ from openeo_aggregator.constants import JOB_OPTION_FORCE_BACKEND
 from openeo_aggregator.partitionedjobs import PartitionedJob, SubJob
 from openeo_aggregator.partitionedjobs.splitting import AbstractJobSplitter
 from openeo_aggregator.utils import (
-    _UNSET,
     FlatPG,
     PGWithMetadata,
     SkipIntermittentFailures,

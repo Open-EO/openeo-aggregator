@@ -1,5 +1,4 @@
 import pytest
-from openeo_driver.backend import CollectionCatalog
 from openeo_driver.testing import DictSubSet
 
 from openeo_aggregator.metadata.merging import (

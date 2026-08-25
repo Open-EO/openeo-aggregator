@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Tuple, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Tuple, Type, TypeVar, Union, cast
 
 import attr
 

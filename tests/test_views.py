@@ -39,7 +39,6 @@ from .conftest import assert_dict_subset, get_api100, get_flask_app
 
 
 class TestGeneral:
-
     @clock_mock("2025-03-05T12:34:56Z")
     def test_capabilities(self, api100):
         res = api100.get("/").assert_status_code(200)
@@ -3044,7 +3043,7 @@ class TestSecondaryServices:
                     "url": "https://example.openeo.org/wms/wms-nvdi",
                     "configuration": {"version": "1.3.0"},
                     "created": "2017-01-01T09:32:12Z",
-                    "description": "Deriving minimum NDVI measurements over pixel " "time series of Sentinel 2",
+                    "description": "Deriving minimum NDVI measurements over pixel time series of Sentinel 2",
                     "enabled": True,
                     "title": "NDVI based on Sentinel 2",
                 },

@@ -9,7 +9,7 @@ import functools
 import json
 import logging
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 from openeo.util import deep_get, rfc3339
 from openeo_driver.errors import OpenEOApiException
