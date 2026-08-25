@@ -77,6 +77,8 @@ from openeo_driver.processes import ProcessesListing, ProcessRegistry
 from openeo_driver.ProcessGraphDeserializer import SimpleProcessing
 from openeo_driver.users import User
 from openeo_driver.utils import EvalEnv
+from openeo_driver.views_.batch_jobs import list_job_results_self_link
+from openeo_driver.views_.utils import add_link_by_rel
 
 import openeo_aggregator.egi
 from openeo_aggregator.caching import Memoizer, json_serde, memoizer_from_config
@@ -1243,6 +1245,11 @@ class AggregatorBatchJobs(BatchJobs):
         return {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
 
     def get_result_metadata(self, job_id: str, user_id: str) -> BatchJobResultMetadata:
+        raise NotImplementedError("This code path should not be visited in the aggregator implementation")
+
+    def list_job_results(
+        self, *, job_id: str, user_id: str, partial: bool = False, api_version: ComparableVersion
+    ) -> dict:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
         with (
             con.authenticated_from_request(request=flask.request, user=User(user_id)),
@@ -1250,15 +1257,19 @@ class AggregatorBatchJobs(BatchJobs):
         ):
             results = con.job(backend_job_id).get_results()
             metadata = results.get_metadata()
-            assets = results.get_assets()
 
-        assets = {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
-        # TODO: better white/black list for links?
-        links = [k for k in metadata.get("links", []) if k.get("rel") != "self"]
-        return BatchJobResultMetadata(
-            assets=assets,
-            links=links,
+        # Aggregator-specific customization of some parts of the metadata
+        metadata["federation:upstream:id"] = metadata.get("id")
+        metadata["id"] = job_id
+
+        metadata.setdefault("links", [])
+        # Overwrite "self" link (and keep reference of the original)
+        if self_links := [k for k in metadata["links"] if k.get("rel") == "self"]:
+            metadata["links"].append(dict(self_links[0], rel="federation:upstream:self"))
+        metadata["links"] = add_link_by_rel(
+            links=metadata["links"], link=list_job_results_self_link(job_id=job_id, partial=partial), mode="overwrite"
         )
+        return metadata
 
     def get_log_entries(
         self,

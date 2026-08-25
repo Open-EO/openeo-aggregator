@@ -6,7 +6,12 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 <!-- start-of-changelog -->
 
-## Work in progress: 0.50
+## Work in progress: 0.51
+
+- Preserve original job result metadata document as much as possible (instead of opinionated parsing and re-rendering) to improve compatibility with alternative upstream implementations, such as new "STAC 1.1" mode in openeo-geopyspark-driver ([#204](https://github.com/Open-EO/openeo-aggregator/issues/204), [Open-EO/openeo-python-driver#530](https://github.com/Open-EO/openeo-python-driver/pull/530))
+
+
+## 0.50
 
 - Harden cross-backend splitting for cases without `load_collection` nodes [#202](https://github.com/Open-EO/openeo-aggregator/issues/202)
 - Partitioned job tracking: avoid getting stuck in "running" state when upstream job fails to start ([#203](https://github.com/Open-EO/openeo-aggregator/issues/203))
