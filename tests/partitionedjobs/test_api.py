@@ -75,10 +75,10 @@ class TestFlimsyBatchJobSplitting:
             yield
 
     @now.mock
-    def test_create_job_basic(self, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_create_job_basic(self, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "3+5",
@@ -91,10 +91,10 @@ class TestFlimsyBatchJobSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "title": "3+5",
@@ -134,12 +134,12 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_create_job_preprocessing(self, api100, zk_db, dummy1):
+    def test_create_job_preprocessing(self, api, zk_db, dummy1):
         """Issue #19: strip backend prefix from job_id in load_result"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {"load": {"process_id": "load_result", "arguments": {"id": "b1-b6tch-j08"}, "result": True}}
-        res = api100.post("/jobs", json={"process": {"process_graph": pg}, "job_options": {"split_strategy": "flimsy"}})
+        res = api.post("/jobs", json={"process": {"process_graph": pg}, "job_options": {"split_strategy": "flimsy"}})
         res.assert_status_code(201)
 
         expected_job_id = "agg-pj-20220119-123456"
@@ -151,18 +151,18 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_create_and_list_job(self, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_create_and_list_job(self, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs").assert_status_code(200)
+        res = api.get(f"/jobs").assert_status_code(200)
         assert res.json == {
             "jobs": [
                 dirty_equals.IsPartialDict({"id": "b1-1-jb-0", "created": self.now.rfc3339, "status": "created"}),
@@ -173,10 +173,10 @@ class TestFlimsyBatchJobSplitting:
             "links": [],
         }
 
-    def test_describe_wrong_user(self, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_describe_wrong_user(self, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "3+5",
@@ -188,19 +188,19 @@ class TestFlimsyBatchJobSplitting:
         ).assert_status_code(201)
         job_id = res.headers["OpenEO-Identifier"]
 
-        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "created"})
 
         # Wrong user
-        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
-        api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
+        api.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_create_job_failed_backend(self, api100, zk_db, requests_mock, dummy1):
+    def test_create_job_failed_backend(self, api, zk_db, requests_mock, dummy1):
         requests_mock.post(dummy1.backend_url + "/jobs", status_code=500, json={"code": "Internal", "message": "nope"})
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "3+5",
@@ -215,7 +215,7 @@ class TestFlimsyBatchJobSplitting:
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "title": "3+5",
@@ -238,7 +238,7 @@ class TestFlimsyBatchJobSplitting:
             }
         )
 
-        res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {
             "level": "debug",
             "logs": [{"id": "0000-0", "level": "error", "message": approx_str_contains("NoJobIdForSubJob")}],
@@ -246,25 +246,25 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_start_job(self, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_start_job(self, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "created", "progress": 0})
 
         # Start job
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
@@ -284,51 +284,51 @@ class TestFlimsyBatchJobSplitting:
             {"status": "running"}
         )
 
-    def test_start_job_wrong_user(self, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_start_job_wrong_user(self, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
         job_id = res.headers["OpenEO-Identifier"]
 
-        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "created"})
 
         # Start job as wrong user
-        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
-        api100.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
+        api.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api.post(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_sync_job(self, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_sync_job(self, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
 
         # Start job
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: still running
         dummy1.set_job_status(TEST_USER, "1-jb-0", "running")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: finished
         dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         assert zk_db.get_pjob_metadata(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
@@ -349,31 +349,31 @@ class TestFlimsyBatchJobSplitting:
         )
 
     @now.mock
-    def test_sync_job_after_start_fail(self, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_sync_job_after_start_fail(self, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "created"})
 
         # Setup up failure on start
         dummy1.fail_start_job = True
 
         # Check status (and trigger job start)
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "error", "progress": 0})
 
         # Check again that error state persist (even if upstream status is "created")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "error", "progress": 0})
 
         assert zk_db.get_pjob_status(user_id=TEST_USER, pjob_id=pjob_id) == DictSubSet(
@@ -387,54 +387,54 @@ class TestFlimsyBatchJobSplitting:
             {"status": "error"}
         )
 
-    def test_sync_job_wrong_user(self, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_sync_job_wrong_user(self, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
         job_id = res.headers["OpenEO-Identifier"]
 
         # Start job
-        api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
-        api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        api.post(f"/jobs/{job_id}/results").assert_status_code(202)
+        api.get(f"/jobs/{job_id}").assert_status_code(200)
 
         # Status check: still running
         dummy1.set_job_status(TEST_USER, "1-jb-0", "running")
-        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "running"})
 
         # Status check as wrong user
-        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
-        api100.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
+        api.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api.get(f"/jobs/{job_id}").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_job_results(self, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_job_results(self, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
 
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
         # Start job
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: finished
         dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # Get results
         dummy1.setup_assets(job_id="1-jb-0", assets=["preview.png", "res001.tif", "res002.tif"])
 
-        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
         assert res.json == DictSubSet(
             {
                 "id": expected_job_id,
@@ -446,36 +446,36 @@ class TestFlimsyBatchJobSplitting:
             }
         )
 
-    def test_job_results_wrong_user(self, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_job_results_wrong_user(self, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Submit job
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
         job_id = res.headers["OpenEO-Identifier"]
 
         # Start job
-        api100.post(f"/jobs/{job_id}/results").assert_status_code(202)
+        api.post(f"/jobs/{job_id}/results").assert_status_code(202)
 
         # Status check: finished
         dummy1.set_job_status(TEST_USER, "1-jb-0", "finished")
-        res = api100.get(f"/jobs/{job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": job_id, "status": "finished"})
 
         # Get results as wrong user
-        api100.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
-        api100.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
+        api.set_auth_bearer_token(OTHER_TEST_USER_BEARER_TOKEN)
+        api.get(f"/jobs/{job_id}/results").assert_error(404, "JobNotFound")
 
     @now.mock
-    def test_get_logs(self, api100, requests_mock, dummy1):
+    def test_get_logs(self, api, requests_mock, dummy1):
         requests_mock.get(
             dummy1.backend_url + "/jobs/1-jb-0/logs",
             json={"logs": [{"id": "123", "level": "info", "message": "Created job. You're welcome."}]},
         )
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "3+5",
@@ -488,7 +488,7 @@ class TestFlimsyBatchJobSplitting:
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}/logs").assert_status_code(200)
         assert res.json == {
             "level": "debug",
             "logs": [{"id": "0000-123", "level": "info", "message": "Created job. You're welcome."}],
@@ -496,16 +496,16 @@ class TestFlimsyBatchJobSplitting:
         }
 
     @now.mock
-    def test_get_logs_wrong_user(self, api100, requests_mock, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        res = api100.post(
-            "/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}
-        ).assert_status_code(201)
+    def test_get_logs_wrong_user(self, api, requests_mock, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api.post("/jobs", json={"process": P35, "job_options": {"split_strategy": "flimsy"}}).assert_status_code(
+            201
+        )
         expected_job_id = "agg-pj-20220119-123456"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        api100.set_auth_bearer_token(token=OTHER_TEST_USER_BEARER_TOKEN)
-        api100.get(f"/jobs/{expected_job_id}/logs").assert_error(404, "JobNotFound")
+        api.set_auth_bearer_token(token=OTHER_TEST_USER_BEARER_TOKEN)
+        api.get(f"/jobs/{expected_job_id}/logs").assert_error(404, "JobNotFound")
 
 
 class TestTileGridBatchJobSplitting:
@@ -533,10 +533,10 @@ class TestTileGridBatchJobSplitting:
             yield
 
     @now.mock
-    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_create_job_basic(self, flask_app, api, zk_db, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "Mol",
@@ -548,10 +548,10 @@ class TestTileGridBatchJobSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "title": "Mol",
@@ -602,9 +602,9 @@ class TestTileGridBatchJobSplitting:
         check_tiling_coordinate_histograms(tiles)
 
     @now.mock
-    def test_create_job_preprocessing(self, flask_app, api100, zk_db, dummy1):
+    def test_create_job_preprocessing(self, flask_app, api, zk_db, dummy1):
         """Issue #19: strip backend prefix from job_id in load_result"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         # Process graph with load_result
         pg = {
@@ -622,7 +622,7 @@ class TestTileGridBatchJobSplitting:
                 "result": True,
             },
         }
-        res = api100.post(
+        res = api.post(
             "/jobs", json={"process": {"process_graph": pg}, "job_options": {"tile_grid": "utm-10km"}}
         ).assert_status_code(201)
 
@@ -635,10 +635,10 @@ class TestTileGridBatchJobSplitting:
         assert pg["lr"]["arguments"]["id"] == "b6tch-j08"
 
     @now.mock
-    def test_job_results_basic(self, flask_app, api100, dummy1):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_job_results_basic(self, flask_app, api, dummy1):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "title": "Mol",
@@ -652,7 +652,7 @@ class TestTileGridBatchJobSplitting:
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "title": "Mol",
@@ -663,25 +663,25 @@ class TestTileGridBatchJobSplitting:
         }
 
         # Start job
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # Status check: Partially finished
         for i in range(5):
             dummy1.set_job_status(TEST_USER, f"1-jb-{i}", "finished")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 55})
 
         # Status check: Fully finished
         for i in range(9):
             dummy1.set_job_status(TEST_USER, f"1-jb-{i}", "finished")
             dummy1.setup_assets(job_id=f"1-jb-{i}", assets=["result.tif"])
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # Get results
-        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
         assert res.json == DictSubSet(
             {
                 "id": expected_job_id,
@@ -697,21 +697,15 @@ class TestTileGridBatchJobSplitting:
                     "0008-result.tif": DictSubSet({"href": dummy1.backend_url + "/jobs/1-jb-8/results/result.tif"}),
                     "tile_grid.geojson": DictSubSet(
                         {
-                            "href": "http://oeoa.test/openeo/1.0.0/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson",
+                            "href": f"http://oeoa.test/openeo/{api.api_version}/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson",
                             "type": "application/geo+json",
                         }
                     ),
                 },
-                "geometry": DictSubSet(
-                    {
-                        "type": "GeometryCollection",
-                        "geometries": [DictSubSet({"type": "Polygon"}), DictSubSet({"type": "MultiPolygon"})],
-                    }
-                ),
             }
         )
 
-        res = api100.get("/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson").assert_status_code(200)
+        res = api.get("/jobs/agg-pj-20220119-123456/results/assets/tile_grid.geojson").assert_status_code(200)
         assert res.json == DictSubSet({"type": "FeatureCollection"})
 
     # TODO: more/full TileGridSplitter batch job tests
@@ -735,16 +729,16 @@ class TestCrossBackendSplitting:
             {"crossbackend": {"method": "deep"}},
         ],
     )
-    def test_create_job_simple(self, flask_app, api100, zk_db, dummy1, split_strategy):
+    def test_create_job_simple(self, flask_app, api, zk_db, dummy1, split_strategy):
         """Handling of single "load_collection" process graph"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
             # lc1 (that's it, that's the graph)
             "lc1": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}
         }
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -754,10 +748,10 @@ class TestCrossBackendSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "process": {"process_graph": pg},
@@ -814,8 +808,8 @@ class TestCrossBackendSplitting:
             {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
         ],
     )
-    def test_create_job_basic(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock, split_strategy):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_create_job_basic(self, flask_app, api, zk_db, dummy1, dummy2, requests_mock, split_strategy):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
             #  lc1   lc2
@@ -835,7 +829,7 @@ class TestCrossBackendSplitting:
             json={"links": [{"rel": "canonical", "href": "https://data.b2.test/123abc"}]},
         )
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -845,10 +839,10 @@ class TestCrossBackendSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "process": {"process_graph": pg},
@@ -961,16 +955,16 @@ class TestCrossBackendSplitting:
         ],
     )
     def test_create_job_no_load_collection(
-        self, flask_app, api100, zk_db, dummy1, dummy2, split_strategy, expected_backend: str
+        self, flask_app, api, zk_db, dummy1, dummy2, split_strategy, expected_backend: str
     ):
         """Behavior on graph without load_collection or comparable processes"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
             "add35": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True},
         }
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -980,10 +974,10 @@ class TestCrossBackendSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == dirty_equals.IsPartialDict(
             {
                 "id": expected_job_id,
@@ -1047,9 +1041,9 @@ class TestCrossBackendSplitting:
             {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
         ],
     )
-    def test_start_and_job_results(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock, split_strategy):
+    def test_start_and_job_results(self, flask_app, api, zk_db, dummy1, dummy2, requests_mock, split_strategy):
         """Run the jobs and get results"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
             #  lc1   lc2
@@ -1069,7 +1063,7 @@ class TestCrossBackendSplitting:
             json={"links": [{"rel": "canonical", "href": "https://data.b2.test/123abc"}]},
         )
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -1081,7 +1075,7 @@ class TestCrossBackendSplitting:
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "process": {"process_graph": pg},
@@ -1091,27 +1085,27 @@ class TestCrossBackendSplitting:
         }
 
         # start job
-        api100.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
+        api.post(f"/jobs/{expected_job_id}/results").assert_status_code(202)
         dummy2.set_job_status(TEST_USER, "2-jb-0", status="running")
         dummy1.set_job_status(TEST_USER, "1-jb-0", status="queued")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 0})
 
         # First job is ready
         dummy2.set_job_status(TEST_USER, "2-jb-0", status="finished")
         dummy2.setup_assets(job_id=f"2-jb-0", assets=["2-jb-0-result.tif"])
         dummy1.set_job_status(TEST_USER, "1-jb-0", status="running")
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "running", "progress": 50})
 
         # Main job is ready too
         dummy1.set_job_status(TEST_USER, "1-jb-0", status="finished")
         dummy1.setup_assets(job_id=f"1-jb-0", assets=["1-jb-0-result.tif"])
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == DictSubSet({"id": expected_job_id, "status": "finished", "progress": 100})
 
         # Get results
-        res = api100.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}/results").assert_status_code(200)
         assert res.json == DictSubSet(
             {
                 "id": expected_job_id,
@@ -1135,9 +1129,9 @@ class TestCrossBackendSplitting:
             {"crossbackend": {"method": "deep", "primary_backend": "b1"}},
         ],
     )
-    def test_failing_create(self, flask_app, api100, zk_db, dummy1, dummy2, split_strategy):
+    def test_failing_create(self, flask_app, api, zk_db, dummy1, dummy2, split_strategy):
         """Run what happens when creation of sub batch job fails on upstream backend"""
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         dummy2.fail_create_job = True
 
         pg = {
@@ -1153,7 +1147,7 @@ class TestCrossBackendSplitting:
             },
         }
 
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -1165,7 +1159,7 @@ class TestCrossBackendSplitting:
         expected_job_id = f"agg-{pjob_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "process": {"process_graph": pg},
@@ -1175,8 +1169,8 @@ class TestCrossBackendSplitting:
         }
 
     @now.mock
-    def test_create_job_deep_basic(self, flask_app, api100, zk_db, dummy1, dummy2, requests_mock):
-        api100.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+    def test_create_job_deep_basic(self, flask_app, api, zk_db, dummy1, dummy2, requests_mock):
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
 
         pg = {
             #    lc1     lc2
@@ -1201,7 +1195,7 @@ class TestCrossBackendSplitting:
         )
 
         split_strategy = {"crossbackend": {"method": "deep", "primary_backend": "b1"}}
-        res = api100.post(
+        res = api.post(
             "/jobs",
             json={
                 "process": {"process_graph": pg},
@@ -1211,10 +1205,10 @@ class TestCrossBackendSplitting:
 
         pjob_id = "pj-20220119-123456"
         expected_job_id = f"agg-{pjob_id}"
-        assert res.headers["Location"] == f"http://oeoa.test/openeo/1.0.0/jobs/{expected_job_id}"
+        assert res.headers["Location"] == f"http://oeoa.test/openeo/{api.api_version}/jobs/{expected_job_id}"
         assert res.headers["OpenEO-Identifier"] == expected_job_id
 
-        res = api100.get(f"/jobs/{expected_job_id}").assert_status_code(200)
+        res = api.get(f"/jobs/{expected_job_id}").assert_status_code(200)
         assert res.json == {
             "id": expected_job_id,
             "process": {"process_graph": pg},
