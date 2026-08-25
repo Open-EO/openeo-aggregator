@@ -10,12 +10,12 @@ repos:
       - id: check-json
       - id: check-yaml
       - id: check-toml
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: "26.5.1"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.16.4
     hooks:
-      - id: black
-  - repo: https://github.com/pycqa/isort
-    rev: 9.0.0b5
-    hooks:
-      - id: isort
-        name: isort (python)
+      # Run the linter.
+      - id: ruff-check
+        args: ["--fix", "--select", "F401,I001"]
+      # Run the formatter.
+      - id: ruff-format
