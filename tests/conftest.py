@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
+from typing import Callable
 
 import flask
 import pytest
 from openeo_driver.testing import ApiTester
+from openeo_driver.views import OPENEO_API_VERSION_DEFAULT
 
 from openeo_aggregator.app import create_app
 from openeo_aggregator.backend import (
@@ -114,26 +116,43 @@ def backend_implementation(flask_app) -> AggregatorBackendImplementation:
     return flask_app.config["OPENEO_BACKEND_IMPLEMENTATION"]
 
 
-def get_api100(flask_app: flask.Flask) -> ApiTester:
-    return ApiTester(api_version="1.0.0", client=flask_app.test_client())
+@pytest.fixture(
+    params=[
+        # Note: this just lists the default openEO API version,
+        # but allows ad-hoc running against another/future version(s)
+        OPENEO_API_VERSION_DEFAULT,
+    ]
+)
+def api_version(request) -> str:
+    return request.param
 
 
 @pytest.fixture
-def api100(flask_app: flask.Flask) -> ApiTester:
-    return get_api100(flask_app)
+def api(flask_app: flask.Flask, api_version) -> ApiTester:
+    """openEO API fixture with default openEO version"""
+    return ApiTester(api_version=api_version, client=flask_app.test_client())
 
 
 @pytest.fixture
-def api100_with_entitlement_check() -> ApiTester:
+def get_api(api_version) -> Callable[[], ApiTester]:
+    """
+    Just-in-time construction of API flask app tester (to allow config customization at test call phase)
+    """
+
+    def get() -> ApiTester:
+        flask_app = get_flask_app()
+        return ApiTester(api_version=api_version, client=flask_app.test_client())
+
+    return get
+
+
+@pytest.fixture
+def api_with_entitlement_check(get_api) -> ApiTester:
+    # TODO: still necessary to cover this (now) unused "entitlement" feature?
     with config_overrides(
         auth_entitlement_check={"oidc_issuer_whitelist": {"https://egi.test", "https://egi.test/oidc"}}
     ):
-        yield get_api100(get_flask_app())
-
-
-def assert_dict_subset(d1: dict, d2: dict):
-    """Check whether dictionary `d1` is a subset of `d2`"""
-    assert d1 == {k: v for (k, v) in d2.items() if k in d1}
+        yield get_api()
 
 
 @pytest.fixture

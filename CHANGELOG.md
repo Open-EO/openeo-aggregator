@@ -10,6 +10,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Harden cross-backend splitting for cases without `load_collection` nodes [#202](https://github.com/Open-EO/openeo-aggregator/issues/202)
 - Partitioned job tracking: avoid getting stuck in "running" state when upstream job fails to start ([#203](https://github.com/Open-EO/openeo-aggregator/issues/203))
+- Use "openEO API 1.2" version of API fixtures in the unit tests ([#205](https://github.com/Open-EO/openeo-aggregator/issues/205))
 
 
 ## 0.49.0
