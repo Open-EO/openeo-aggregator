@@ -1245,12 +1245,35 @@ class AggregatorBatchJobs(BatchJobs):
         return {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
 
     def get_result_metadata(self, job_id: str, user_id: str) -> BatchJobResultMetadata:
-        raise NotImplementedError("This code path should not be visited in the aggregator implementation")
+        # TODO: ideally this `get_result_metadata` is not nenecessary (was meant to be removed in #206 for #204),
+        #       but is currently preserved to keep the `tile_grid.geojson` download (partitioned job feature) working
+        #       Also see #207.
+        con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+        with (
+            con.authenticated_from_request(request=flask.request, user=User(user_id)),
+            self._translate_job_errors(job_id=job_id),
+        ):
+            results = con.job(backend_job_id).get_results()
+            metadata = results.get_metadata()
+            assets = results.get_assets()
+
+        assets = {a.name: {**a.metadata, **{BatchJobs.ASSET_PUBLIC_HREF: a.href}} for a in assets}
+        # TODO: better white/black list for links?
+        links = [k for k in metadata.get("links", []) if k.get("rel") != "self"]
+        return BatchJobResultMetadata(
+            assets=assets,
+            links=links,
+        )
 
     def list_job_results(
         self, *, job_id: str, user_id: str, partial: bool = False, api_version: ComparableVersion
     ) -> dict:
         con, backend_job_id = self._get_connection_and_backend_job_id(aggregator_job_id=job_id)
+
+        if isinstance(con, PartitionedJobConnection):
+            # TODO: eliminate this stop-gap hack for #207
+            return super().list_job_results(job_id=job_id, user_id=user_id, partial=partial, api_version=api_version)
+
         with (
             con.authenticated_from_request(request=flask.request, user=User(user_id)),
             self._translate_job_errors(job_id=job_id),
