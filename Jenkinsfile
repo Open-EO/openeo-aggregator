@@ -18,5 +18,5 @@ pythonPipeline {
     "PYTEST_DEBUG_TEMPROOT=pytest-tmp",
   ]
   pre_test_script = 'pre_test.sh'
-  downstream_job = 'openEO/openeo-platform-aggregator-image'
+  downstream_job = 'openEO/openeo-aggregator-cdse'
 }
