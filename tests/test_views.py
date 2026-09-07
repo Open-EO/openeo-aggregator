@@ -2390,72 +2390,48 @@ class TestBatchJobs:
         res.assert_error(404, "JobNotFound", message="The batch job 'nope-and-nope' does not exist.")
 
     def test_get_results(self, api, requests_mock, backend1):
-        m1 = requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "title": "The job",
-                "description": "Just doing my job.",
-                "status": "finished",
-                "progress": 100,
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
         m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
             status_code=200,
             json={
-                "assets": {
-                    "r1.tiff": {
-                        "href": "https//res.b1.test/123/r1.tiff",
-                        "title": "Result 1",
-                        "type": "image/tiff; application=geotiff",
-                        "roles": ["data", "testing"],
-                    }
-                }
+                "id": "th3j0b",
+                "type": "Collection",
+                "assets": {"r1.tiff": {"href": f"{backend1}/a/r1.tiff"}},
+                "links": [
+                    {"rel": "self", "href": f"{backend1}/jobs/th3j0b/results"},
+                    {"rel": "canonical", "href": f"{backend1}/jobs/th3j0b/results/signed"},
+                    {"rel": "item", "href": f"{backend1}/j/th3j0b/i/item1.json"},
+                ],
             },
         )
         api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
-        assert m1.call_count == 1
         assert m2.call_count == 1
-        assert res["assets"] == {
-            "r1.tiff": {
-                "href": "https//res.b1.test/123/r1.tiff",
-                "title": "Result 1",
-                "roles": ["data", "testing"],
-                "type": "image/tiff; application=geotiff",
-            }
-        }
         assert res == dirty_equals.IsPartialDict(
-            {"id": "b1-th3j0b", "type": "Collection", "title": "The job", "description": "Just doing my job."}
+            {
+                "id": "b1-th3j0b",
+                "federation:upstream:id": "th3j0b",
+                "type": "Collection",
+                "assets": {"r1.tiff": {"href": f"{backend1}/a/r1.tiff"}},
+                "links": [
+                    {"rel": "canonical", "href": f"{backend1}/jobs/th3j0b/results/signed"},
+                    {"rel": "item", "href": f"{backend1}/j/th3j0b/i/item1.json"},
+                    {
+                        "rel": "federation:upstream:self",
+                        "href": f"{backend1}/jobs/th3j0b/results",
+                    },
+                    {
+                        "rel": "self",
+                        "href": f"http://oeoa.test/openeo/{api.api_version}/jobs/b1-th3j0b/results",
+                        "type": "application/json",
+                    },
+                ],
+            }
         )
 
     @pytest.mark.parametrize("job_status", ["created", "running", "canceled", "error"])
     def test_get_results_not_finished(self, api, requests_mock, backend1, job_status):
         requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "status": job_status,
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
-        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
-        res = api.get("/jobs/b1-th3j0b/results")
-        res.assert_error(JobNotFinishedException.status_code, "JobNotFinished")
-
-    def test_get_results_finished_unreliable(self, api, requests_mock, backend1):
-        """Edge case: job status is 'finished', but results still return with 'JobNotFinished'."""
-        m1 = requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "status": "finished",
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
-        m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
             status_code=JobNotFinishedException.status_code,
             json=JobNotFinishedException().to_dict(),
@@ -2463,13 +2439,11 @@ class TestBatchJobs:
         api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api.get("/jobs/b1-th3j0b/results")
         res.assert_error(JobNotFinishedException.status_code, "JobNotFinished")
-        assert m1.call_count == 1
-        assert m2.call_count == 1
 
     @pytest.mark.parametrize("job_id", ["th3j0b", "th-3j-0b", "th.3j.0b", "th~3j~0b"])
     def test_get_results_not_found_on_backend(self, api, requests_mock, backend1, job_id):
         requests_mock.get(
-            backend1 + f"/jobs/{job_id}",
+            backend1 + f"/jobs/{job_id}/results",
             status_code=JobNotFoundException.status_code,
             json=JobNotFoundException(job_id=job_id).to_dict(),
         )
@@ -2484,14 +2458,6 @@ class TestBatchJobs:
 
     def test_get_results_canonical_link(self, api, requests_mock, backend1):
         """https://github.com/Open-EO/openeo-aggregator/issues/98"""
-        m1 = requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "status": "finished",
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
         m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
             status_code=200,
@@ -2516,19 +2482,10 @@ class TestBatchJobs:
                 "type": "application/json",
             },
         ]
-        assert m1.call_count == 1
         assert m2.call_count == 1
 
     def test_get_results_links(self, api, requests_mock, backend1):
         """https://github.com/Open-EO/openeo-aggregator/issues/98"""
-        m1 = requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "status": "finished",
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
         m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
             status_code=200,
@@ -2558,52 +2515,92 @@ class TestBatchJobs:
                 "type": "application/json",
             },
         ]
-        assert m1.call_count == 1
         assert m2.call_count == 1
 
     def test_get_results_asset_bands(self, api, requests_mock, backend1):
         """https://github.com/Open-EO/openeo-aggregator/issues/183"""
-        m1 = requests_mock.get(
-            backend1 + "/jobs/th3j0b",
-            json={
-                "id": "th3j0b",
-                "title": "The job",
-                "description": "Just doing my job.",
-                "status": "finished",
-                "progress": 100,
-                "created": "2017-01-01T09:32:12Z",
-            },
-        )
         m2 = requests_mock.get(
             backend1 + "/jobs/th3j0b/results",
             status_code=200,
             json={
+                "id": "b1-th3j0b",
+                "type": "Collection",
                 "assets": {
                     "r1.tiff": {
-                        "href": "https//res.b1.test/123/r1.tiff",
-                        "title": "Result 1",
+                        "href": "https://res.b1.test/123/r1.tiff",
                         "type": "image/tiff; application=geotiff",
                         "roles": ["data", "testing"],
                         "bands": [{"name": "r1", "eo:common_name": "red"}],
                     }
-                }
+                },
             },
         )
         api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
         res = api.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
-        assert m1.call_count == 1
         assert m2.call_count == 1
-        assert res["assets"] == {
-            "r1.tiff": {
-                "href": "https//res.b1.test/123/r1.tiff",
-                "title": "Result 1",
-                "roles": ["data", "testing"],
-                "type": "image/tiff; application=geotiff",
-                "eo:bands": [{"name": "r1", "common_name": "red"}],
-            }
-        }
         assert res == dirty_equals.IsPartialDict(
-            {"id": "b1-th3j0b", "type": "Collection", "title": "The job", "description": "Just doing my job."}
+            {
+                "id": "b1-th3j0b",
+                "type": "Collection",
+                "assets": {
+                    "r1.tiff": {
+                        "href": "https://res.b1.test/123/r1.tiff",
+                        "type": "image/tiff; application=geotiff",
+                        "roles": ["data", "testing"],
+                        "bands": [{"name": "r1", "eo:common_name": "red"}],
+                    }
+                },
+            }
+        )
+
+    def test_get_results_asset_duplication(self, api, requests_mock, backend1):
+        """https://github.com/Open-EO/openeo-aggregator/issues/204"""
+        m2 = requests_mock.get(
+            backend1 + "/jobs/th3j0b/results",
+            status_code=200,
+            json={
+                "id": "th3j0b",
+                "type": "Collection",
+                "assets": {
+                    "r1.tiff": {
+                        "href": "https//res.b1.test/123/r1.tiff",
+                        "type": "image/tiff; application=geotiff",
+                        "roles": ["data", "testing"],
+                    }
+                },
+                "links": [
+                    {"rel": "self", "href": f"{backend1}/jobs/th3j0b/results"},
+                    {"rel": "canonical", "href": f"{backend1}/j/th3j0b/r/signed"},
+                    {"rel": "item", "href": f"{backend1}/j/th3j0b/r/i/item1.json"},
+                ],
+            },
+        )
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api.get("/jobs/b1-th3j0b/results").assert_status_code(200).json
+        assert m2.call_count == 1
+        assert res == dirty_equals.IsPartialDict(
+            {
+                "type": "Collection",
+                "id": "b1-th3j0b",
+                "federation:upstream:id": "th3j0b",
+                "assets": {
+                    "r1.tiff": {
+                        "href": "https//res.b1.test/123/r1.tiff",
+                        "roles": ["data", "testing"],
+                        "type": "image/tiff; application=geotiff",
+                    }
+                },
+                "links": [
+                    {"rel": "canonical", "href": f"{backend1}/j/th3j0b/r/signed"},
+                    {"rel": "item", "href": f"{backend1}/j/th3j0b/r/i/item1.json"},
+                    {"rel": "federation:upstream:self", "href": f"{backend1}/jobs/th3j0b/results"},
+                    {
+                        "rel": "self",
+                        "href": f"http://oeoa.test/openeo/{api.api_version}/jobs/b1-th3j0b/results",
+                        "type": "application/json",
+                    },
+                ],
+            }
         )
 
     def test_get_logs(self, api, requests_mock, backend1):
