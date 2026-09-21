@@ -5,7 +5,8 @@ pythonPipeline {
   build_container_image = true
   dockerfile_location = 'docker/Dockerfile'
   // Set dev registry as this job has no promotion job and we want to put the image in a public registry
-  docker_registry_dev = 'vito-docker.artifactory.vgt.vito.be'
+  docker_registry_dev = 'ghcr.io/Open-EO/openeo-aggregator'
+  docker_credentials_id = 'openeo_user'
   package_name = 'openeo-aggregator'
   test_module_name = 'openeo_aggregator'
   wipeout_workspace = true
@@ -19,4 +20,7 @@ pythonPipeline {
   ]
   pre_test_script = 'pre_test.sh'
   downstream_job = 'openEO/openeo-aggregator-cdse'
+  artifactory_server = ['sas', 'rss']
+  wheel_repo_sas = 'openeo-pypi-local'
+  wheel_repo_dev_sas = 'openeo-pypi-local'
 }
