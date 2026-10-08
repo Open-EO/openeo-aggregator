@@ -1489,6 +1489,20 @@ class TestProcessing:
         }
         assert validation_mock.call_count == 1
 
+    def test_validation_without_authentication(self, api, requests_mock, backend1):
+        def post_validation(request: requests.Request, context):
+            assert "Authorization" not in request.headers
+            context.headers["Content-Type"] = "application/json"
+            return {"errors": []}
+
+        validation_mock = requests_mock.post(backend1 + "/validation", json=post_validation)
+        post_data = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
+
+        res = api.post("/validation", json=post_data).assert_status_code(200)
+
+        assert res.json == {"errors": []}
+        assert validation_mock.call_count == 1
+
     @pytest.mark.parametrize(
         ["collection_id", "expected_errors", "expected_call_counts"],
         [

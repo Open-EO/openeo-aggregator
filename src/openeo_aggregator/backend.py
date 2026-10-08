@@ -838,7 +838,12 @@ class AggregatorProcessing(Processing):
             con = self.backends.get_connection(backend_id=backend_id)
             post_data = {"process_graph": process_graph}
             timing_logger = TimingLogger(title=f"Process graph validation on backend {backend_id}", logger=_log.info)
-            with con.authenticated_from_request(flask.request), timing_logger:
+            auth_context = (
+                con.authenticated_from_request(flask.request)
+                if "Authorization" in flask.request.headers
+                else contextlib.nullcontext(con)
+            )
+            with auth_context, timing_logger:
                 try:
                     backend_response = con.post(path="/validation", json=post_data, expected_status=200)
                     errors = backend_response.json()["errors"]
