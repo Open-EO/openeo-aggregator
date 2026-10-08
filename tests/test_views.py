@@ -1564,6 +1564,67 @@ class TestProcessing:
         assert validation_mock.call_count == 1
 
     @pytest.mark.parametrize(
+        ["token", "expected_auth_header", "expected_upstream_call_count", "expected_errors"],
+        [
+            (
+                None,
+                None,
+                1,
+                [
+                    {"code": "UpstreamValidationInfo", "message": "Backend 'b1' reported validation errors"},
+                    {"code": "NoMath", "message": "No math support"},
+                ],
+            ),
+            (
+                TEST_USER_BEARER_TOKEN,
+                f"Bearer {TEST_USER_BEARER_TOKEN}",
+                1,
+                [
+                    {"code": "UpstreamValidationInfo", "message": "Backend 'b1' reported validation errors"},
+                    {"code": "NoMath", "message": "No math support"},
+                ],
+            ),
+            (
+                "Inva/1d/t0ken",
+                "Bearer Inva/1d/t0ken",
+                0,
+                [
+                    {
+                        "code": "InternalValidationFailure",
+                        "message": dirty_equals.IsStr(regex=".*Validation failed.*AuthenticationSchemeInvalid.*"),
+                    }
+                ],
+            ),
+        ],
+    )
+    def test_validation_auth_support(
+        self,
+        api,
+        requests_mock,
+        backend1,
+        token: str | None,
+        expected_auth_header,
+        expected_upstream_call_count,
+        expected_errors,
+    ):
+        def post_validation(request: requests.Request, context):
+            assert request.headers.get("Authorization") == expected_auth_header
+            assert request.json() == {
+                "process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}
+            }
+            context.headers["Content-Type"] = "application/json"
+            return {"errors": [{"code": "NoMath", "message": "No math support"}]}
+
+        validation_mock = requests_mock.post(backend1 + "/validation", json=post_validation)
+
+        if token:
+            api.set_auth_bearer_token(token=token)
+        post_data = {"process_graph": {"add": {"process_id": "add", "arguments": {"x": 3, "y": 5}, "result": True}}}
+        res = api.post("/validation", json=post_data).assert_status_code(200)
+        assert validation_mock.call_count == expected_upstream_call_count
+        assert res.json == {"errors": expected_errors}
+
+    @pytest.mark.parametrize(
         ["orig_post_data", "job_options_update", "expected_post_data"],
         [
             # No job options in original and none added

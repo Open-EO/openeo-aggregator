@@ -162,13 +162,16 @@ class BackendConnection(Connection):
 
     @contextlib.contextmanager
     def authenticated_from_request(
-        self, request: flask.Request, user: Optional[User] = None
+        self, request: flask.Request, *, user: Optional[User] = None, require_auth: bool = True
     ) -> Iterator["BackendConnection"]:
         """
         Context manager to temporarily authenticate upstream connection based on current incoming flask request.
         """
         self._auth_locked = False
-        self.auth = BearerAuth(bearer=self.extract_bearer(request=request))
+        if require_auth or "Authorization" in request.headers:
+            self.auth = BearerAuth(bearer=self.extract_bearer(request=request))
+        else:
+            self.auth = None
         # TODO store and use `user` object?
         try:
             yield self
