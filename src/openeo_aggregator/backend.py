@@ -491,7 +491,9 @@ class JobIdMapping:
         raise JobNotFoundException(job_id=aggregator_job_id)
 
 
-def pass_through_api_error(error: openeo.rest.OpenEoApiError) -> openeo_driver.errors.OpenEOApiException:
+def pass_through_api_error(
+    error: openeo.rest.OpenEoApiError, *, context: str = ""
+) -> openeo_driver.errors.OpenEOApiException:
     """
     Pass through an openEO API error from the upstream back-end to the end user.
 
@@ -501,7 +503,7 @@ def pass_through_api_error(error: openeo.rest.OpenEoApiError) -> openeo_driver.e
     - to an `openeo_driver.errors.OpenEOApiException` to be thrown from aggregator (web app) logic,
       which will automatically be delivered by openeo_driver to end-user as openEO compliant error response.
     """
-    message = error.message
+    message = f"{context}: {error.message}" if context else error.message
     if error.id:
         # The current (aggregator) request's id will automatically be added as reference/id in error response,
         # but we don't want to lose original upstream reference, so we add it to the message.
@@ -1056,7 +1058,9 @@ class AggregatorBatchJobs(BatchJobs):
                 for exc_class in [ProcessGraphMissingException, ProcessGraphInvalidException]:
                     if e.code == exc_class.code:
                         raise exc_class
-                raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
+                if e.http_status_code is not None and 400 <= e.http_status_code < 500:
+                    raise pass_through_api_error(e, context=f"Failed to create job on backend {backend_id!r}") from e
+                raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}") from e
             except (OpenEoRestError, OpenEoClientException) as e:
                 raise OpenEOApiException(f"Failed to create job on backend {backend_id!r}: {e!r}")
         return BatchJobMetadata(

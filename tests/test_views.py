@@ -2221,6 +2221,23 @@ class TestBatchJobs:
         res = api.post("/jobs", json={"process": {"process_graph": pg}})
         res.assert_error(500, "Internal", message="Failed to create job on backend 'b1'")
 
+    @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 429])
+    def test_create_job_backend_4xx_pass_through(self, api, requests_mock, backend1, status_code):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.post(backend1 + "/jobs", status_code=status_code, json={"code": "TestingCode", "message": "Nope"})
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api.post("/jobs", json={"process": {"process_graph": pg}})
+        res.assert_error(status_code, "TestingCode", message="Failed to create job on backend 'b1': Nope")
+
+    def test_create_job_backend_5xx_error_body(self, api, requests_mock, backend1):
+        requests_mock.get(backend1 + "/collections", json={"collections": [{"id": "S2"}]})
+        requests_mock.post(backend1 + "/jobs", status_code=503, json={"code": "Busy", "message": "Nope"})
+        pg = {"lc": {"process_id": "load_collection", "arguments": {"id": "S2"}, "result": True}}
+        api.set_auth_bearer_token(token=TEST_USER_BEARER_TOKEN)
+        res = api.post("/jobs", json={"process": {"process_graph": pg}})
+        res.assert_error(500, "Internal", message="Failed to create job on backend 'b1'")
+
     @pytest.mark.parametrize(
         ["force_backend", "expected"],
         [("b1", "b1"), ("b2", "b2"), (None, "b1")],

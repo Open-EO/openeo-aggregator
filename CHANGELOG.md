@@ -10,6 +10,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Preserve original job result metadata document as much as possible (instead of opinionated parsing and re-rendering) to improve compatibility with alternative upstream implementations, such as new "STAC 1.1" mode in openeo-geopyspark-driver ([#204](https://github.com/Open-EO/openeo-aggregator/issues/204), [Open-EO/openeo-python-driver#530](https://github.com/Open-EO/openeo-python-driver/pull/530))
 - Support `POST /validation` without bearer token ([#208](https://github.com/Open-EO/openeo-aggregator/issues/208))
+- Pass through upstream 4xx errors (e.g. 403) instead of turning them into a 500 error
 
 
 ## 0.50
