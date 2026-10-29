@@ -5,15 +5,13 @@ pythonPipeline {
   build_container_image = true
   dockerfile_location = 'docker/Dockerfile'
   // Set dev registry as this job has no promotion job and we want to put the image in a public registry
-  docker_registry_dev = 'vito-docker.artifactory.vgt.vito.be'
-  docker_registry_dev_sas = 'openeo-docker-local-dev.repo.vito.be'
-  docker_registry_prod_sas = 'openeo-docker-local-prod.repo.vito.be'
+  docker_registry_dev = 'openeo-docker-local-dev.repo.vito.be'
+  docker_registry_prod = 'openeo-docker-local-prod.repo.vito.be'
   package_name = 'openeo-aggregator'
   test_module_name = 'openeo_aggregator'
   wipeout_workspace = true
   python_version = ["3.11"]
   extras_require = 'dev'
-  wheel_repo = 'python-openeo'
   upload_dev_wheels = false
   extra_env_variables = [
     /* Set pytest `basetemp` inside Jenkins workspace. (Note: this is intentionally Jenkins specific, instead of a global pytest.ini thing.) */
@@ -21,8 +19,8 @@ pythonPipeline {
   ]
   pre_test_script = 'pre_test.sh'
   downstream_job = 'openEO/openeo-aggregator-cdse'
-  artifactory_server = ['sas', 'rss']
-  wheel_repo_sas = 'openeo-pypi-local'
-  wheel_repo_dev_sas = 'openeo-pypi-local'
+  artifactory_server = 'sas'
+  wheel_repo = 'openeo-pypi-local'
+  wheel_repo_dev = 'openeo-pypi-local'
   extra_index_repo = 'openeo-pypi-local'
 }
