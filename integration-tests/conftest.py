@@ -8,14 +8,12 @@ import requests
 @pytest.fixture
 def api_base_url():
     try:
-        endpoint = os.environ["OPENEO_BACKEND_URL"]
+        url = os.environ["OPENEO_BACKEND_URL"].rstrip("/")
     except Exception:
         raise RuntimeError(
-            "Environment variable 'OPENEO_BACKEND_URL' should be set"
-            " with URL pointing to OpenEO backend to test against"
-            " (e.g. 'http://localhost:8080/openeo/1.1.0' or 'http://openeo-dev.vgt.vito.be/openeo/1.1.0')"
+            "Environment variable 'OPENEO_BACKEND_URL' should point to OpenEO backend URL to test against"
         )
-    return endpoint.rstrip("/")
+    return url
 
 
 @pytest.fixture
