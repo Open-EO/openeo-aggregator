@@ -1,0 +1,9 @@
+*
+!docker/requirements.txt
+!pyproject.toml
+!README.md
+!LICENSE.txt
+!CHANGELOG.md
+!src/
+**/__pycache__
+**/*.pyc
