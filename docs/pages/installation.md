@@ -1,21 +1,10 @@
 # Installation
 
-The openEO Aggregator is a Python package and can be installed via standard tooling like `pip`:
+The openEO Aggregator is a Python package and can be installed from PyPI via standard tooling like `pip`:
 
 ```shell
 python -m pip install openeo-aggregator
 ```
-
-To install a bleeding-edge builds from our internal package repository,
-add the dedicated package repository as extra index URL:
-
-```shell
-python -m pip install openeo-aggregator \
-  --extra-index-url https://artifactory.vgt.vito.be/api/pypi/python-openeo/simple
-```
-
-At the time of this writing it is recommended to work with Python 3.11
-(as done in the Docker image used in various production deployments).
 
 
 ## Installation from source
