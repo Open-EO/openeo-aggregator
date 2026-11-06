@@ -1,5 +1,16 @@
-FROM python:3.11-slim-bookworm
+# Builder stage: build the openeo-aggregator wheel from the source tree of the build context
+FROM python:3.11-slim-bookworm AS builder
 
+WORKDIR /build
+
+RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade build
+COPY . /build
+RUN python -m build --wheel --outdir /build/wheels
+
+
+# Runtime stage
+FROM python:3.11-slim-bookworm
 
 # Install OS updates (https://pythonspeed.com/articles/docker-cache-insecure-images/)
 RUN apt-get update && \
@@ -30,7 +41,7 @@ USER openeo
 ENV VIRTUAL_ENV="/home/openeo/venv"
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN pip install --upgrade pip
+RUN python -m pip install --upgrade pip
 
 
 # Use ARG trick with to allow triggering a docker cache miss at this point.
@@ -39,8 +50,16 @@ ARG CACHE_DATE=0 PACKAGE_NAME=0
 RUN echo $CACHE_DATE $PACKAGE_NAME
 
 
-# Install openeo-aggregator
+# First install locked third-party dependencies (better layer caching),
 COPY --chown=openeo docker/requirements.txt .
-RUN pip install -r requirements.txt
+RUN python -m pip install -r requirements.txt
+
+# Then install the openeo-aggregator wheel built in the builder stage
+# (mounted, so it doesn't end up in a layer).
+RUN --mount=from=builder,source=/build/wheels,target=/wheels \
+    python -m pip install /wheels/openeo_aggregator-*.whl
+
+# Fail the build if the lockfile is out of sync with the package dependencies
+RUN python -m pip check
 
 CMD ["gunicorn", "openeo_aggregator.app:create_app()"]
