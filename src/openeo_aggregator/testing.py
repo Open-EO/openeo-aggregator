@@ -11,6 +11,7 @@ import kazoo.exceptions
 import openeo_driver.testing
 import pytest
 from openeo.util import rfc3339
+from openeo_driver.views import OPENEO_API_VERSION_DEFAULT
 
 import openeo_aggregator.about
 import openeo_aggregator.config
@@ -190,7 +191,7 @@ class MetadataBuilder:
     def capabilities(
         self,
         *,
-        api_version: str = "1.1.0",
+        api_version: str = OPENEO_API_VERSION_DEFAULT,
         stac_version: str = "0.9.0",
         batch_jobs: bool = True,
         secondary_services: bool = False,
