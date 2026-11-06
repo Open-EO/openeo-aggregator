@@ -48,7 +48,7 @@ def upstream_request_mocks(requests_mock, backend1, backend2, mbldr) -> list:
     ]
 
 
-def test_prime_caches_basic(upstream_request_mocks, zk_client):
+def test_prime_caches_basic(upstream_request_mocks, zk_client, api_version):
     """Just check that bare basics of `prime_caches` work."""
 
     prime_caches()
@@ -62,7 +62,7 @@ def test_prime_caches_basic(upstream_request_mocks, zk_client):
                 DictSubSet({"_jsonserde": DictSubSet()}),
             ],
             "/o-a/cache/CollectionCatalog/collection/S2": DictSubSet({"id": "S2"}),
-            "/o-a/cache/Processing/all/1.1.0": {
+            f"/o-a/cache/Processing/all/{api_version}": {
                 "combined_processes": DictSubSet({"load_collection": DictSubSet({"id": "load_collection"})}),
                 "federation:missing": [],
             },
@@ -86,7 +86,7 @@ def test_prime_caches_basic(upstream_request_mocks, zk_client):
                 "federation:backends": ["b1", "b2"],
                 "federation:missing": [],
             },
-            "/o-a/cache/mbcon/api_versions": ["1.1.0"],
+            "/o-a/cache/mbcon/api_versions": [api_version],
             "/o-a/cache/SecondaryServices/service_types": {
                 "service_types": {},
                 "supporting_backend_ids": [],

@@ -42,12 +42,13 @@ _DEFAULT_PROCESSES = [
 
 
 @pytest.fixture
-def backend1(requests_mock, mbldr) -> str:
+def backend1(requests_mock, mbldr, api_version) -> str:
     domain = "https://b1.test/v1"
     # TODO: how to work with different API versions?
     requests_mock.get(
         domain + "/",
         json=mbldr.capabilities(
+            api_version=api_version,
             title="Dummy Federation One",
             description="Welcome to Federation One.",
         ),
@@ -58,11 +59,12 @@ def backend1(requests_mock, mbldr) -> str:
 
 
 @pytest.fixture
-def backend2(requests_mock, mbldr) -> str:
+def backend2(requests_mock, mbldr, api_version) -> str:
     domain = "https://b2.test/v1"
     requests_mock.get(
         domain + "/",
         json=mbldr.capabilities(
+            api_version=api_version,
             title="Dummy The Second",
         ),
     )

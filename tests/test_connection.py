@@ -658,11 +658,11 @@ class TestMultiBackendConnection:
             with multi_backend_connection.get_connection("b1").authenticated_from_request(request=request) as con:
                 assert con.get("/me").json() == {"user_id": "Bearer oidc/y1/yadayadayada"}
 
-    def test_connection_invalidate(self, backend1):
+    def test_connection_invalidate(self, backend1, api_version):
         multi_backend_connection = MultiBackendConnection(backends={"b1": backend1}, configured_oidc_providers=[])
 
         con1 = multi_backend_connection.get_connection("b1")
-        assert con1.get("/").json() == DictSubSet({"api_version": "1.1.0"})
+        assert con1.get("/").json() == DictSubSet({"api_version": api_version})
 
         # Wait for connections cache to expire
         with clock_mock(offset=1000):
@@ -670,7 +670,7 @@ class TestMultiBackendConnection:
 
             with pytest.raises(InvalidatedConnection):
                 con1.get("/")
-            assert con2.get("/").json() == DictSubSet({"api_version": "1.1.0"})
+            assert con2.get("/").json() == DictSubSet({"api_version": api_version})
 
     def test_get_connections(self, requests_mock, backend1, backend2):
         multi_backend_connection = MultiBackendConnection(
