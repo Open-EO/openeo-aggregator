@@ -1,3 +1,58 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openeo-aggregator"
+dynamic = ["version"]
+description = "openEO Aggregator Backend Implementation."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
+authors = [
+    {name = "Stefaan Lippens", email = "stefaan.lippens@vito.be"},
+]
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "attrs",
+    "openeo>=0.51.0",
+    "openeo_driver>=0.141.0.a1.dev",
+    "flask~=2.0",
+    "python-json-logger>=2.0.0",
+    "kazoo~=2.8.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Open-EO/openeo-aggregator"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.0",
+    "requests-mock>=1.9.0",
+    "dirty-equals>=0.7.0",
+]
+
+[project.scripts]
+openeo-aggregator-prime-caches = "openeo_aggregator.background.prime_caches:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "openeo_aggregator.about.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["openeo_aggregator", "openeo_aggregator.*"]
+
+[tool.setuptools.package-data]
+openeo_aggregator = ["config/examples/*.py"]
+
+[tool.setuptools.data-files]
+openeo-aggregator-data = ["CHANGELOG.md"]
 
 [tool.black]
 line-length = 120
