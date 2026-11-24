@@ -9,6 +9,7 @@ The format is roughly based on [Keep a Changelog](https://keepachangelog.com/en/
 ## Work in progress: 0.52
 
 - Migrate from `setup.py` to `pyproject.toml` ([#116](https://github.com/Open-EO/openeo-aggregator/issues/116))
+- Official support for Python 3.15 (now included in unit test matrix on GitHub Actions) ([#220](https://github.com/Open-EO/openeo-aggregator/issues/220))
 
 
 ## 0.51
